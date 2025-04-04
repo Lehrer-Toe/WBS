@@ -1049,7 +1049,12 @@
           <button id="exportDataBtn">Ergebnisse herunterladen</button>
           <div style="margin-top: 10px;">
             <label>
-              <input type="checkbox" id="exportDOCX" checked> Als DOCX exportieren (sonst JSON)
+              <input type="radio" name="exportFormat" id="exportTXT" checked> Als TXT exportieren
+            </label>
+          </div>
+          <div>
+            <label>
+              <input type="radio" name="exportFormat" id="exportJSON"> Als JSON exportieren
             </label>
           </div>
         </div>
@@ -1149,8 +1154,11 @@
     let studentToDelete = null;
     let selectedGradeStudent = null;
     let infoTextSaveTimer = null;
-    // Immer das aktuelle Datum verwenden
-    const defaultDate = new Date().toISOString().split('T')[0];
+    // Immer das aktuelle Datum verwenden (lokale Zeit in Deutschland)
+    const today = new Date();
+    const defaultDate = today.getFullYear() + '-' + 
+                        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(today.getDate()).padStart(2, '0');
     
     // Konstanten
     const SUPABASE_URL = "https://mljhyhqlvllhgrzemsoh.supabase.co";
@@ -1299,9 +1307,9 @@
       const years = new Set();
       const currentYear = new Date().getFullYear();
       
-      // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft
-      for (let i = currentYear; i <= currentYear + 10; i++) {
-        years.add(i.toString());
+      // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft, beginnend mit aktuellem Jahr
+      for (let i = 0; i <= 10; i++) {
+        years.add((currentYear + i).toString());
       }
       
       // Auch Jahre aus vorhandenen Schülerdaten hinzufügen
@@ -1309,7 +1317,8 @@
         years.add(getYearFromDate(student.examDate));
       });
       
-      return Array.from(years).sort((a, b) => b - a); // Absteigend sortieren (neueste zuerst)
+      // Absteigend sortieren mit aktuellem Jahr zuerst
+      return Array.from(years).sort((a, b) => a - b).reverse();
     }
     
     /**
@@ -2436,10 +2445,75 @@
     }
     
     /**
+     * Exportiert die Bewertungsdaten als TXT
+     */
+    function exportToTXT(filteredStudents, selectedYear, selectedDate) {
+      try {
+        let textContent = "WBS BEWERTUNGSSYSTEM - EXPORT\n";
+        textContent += "==============================\n\n";
+        textContent += `Lehrer: ${currentUser.name} (${currentUser.code})\n`;
+        textContent += `Exportdatum: ${new Date().toLocaleDateString('de-DE')}\n`;
+        textContent += `Filter: Jahr ${selectedYear || "Alle"}, Datum ${selectedDate ? formatDate(selectedDate) : "Alle"}\n\n`;
+        textContent += "PRÜFLINGE\n";
+        textContent += "=========\n\n";
+        
+        filteredStudents.forEach(student => {
+          const a = teacherData.assessments[student.id] || {};
+          const avgGrade = calculateAverageGrade(a);
+          const finalGrade = a.finalGrade || avgGrade || '-';
+          
+          textContent += `Name: ${student.name}\n`;
+          textContent += `Datum: ${formatDate(student.examDate)}\n`;
+          textContent += `Endnote: ${finalGrade}\n`;
+          textContent += `Durchschnitt: ${avgGrade || '-'}\n\n`;
+          
+          // Bewertungskategorien
+          textContent += "Bewertungen:\n";
+          ASSESSMENT_CATEGORIES.forEach(category => {
+            textContent += `- ${category.name}: ${a[category.id] || '-'}\n`;
+          });
+          
+          // Infotext, falls vorhanden
+          if (a.infoText && a.infoText.trim()) {
+            textContent += "\nInformationen:\n";
+            textContent += a.infoText + "\n";
+          }
+          
+          textContent += "\n---------------------------\n\n";
+        });
+        
+        const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.href = url;
+        
+        // Dateiname mit Datum
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        let filename = `wbs_export_${dateStr}`;
+        
+        if (selectedYear) filename += `_${selectedYear}`;
+        if (selectedDate) filename += `_${formatDate(selectedDate).replace(/\./g, "-")}`;
+        
+        link.download = `${filename}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        showNotification("Bewertungen wurden als TXT-Datei exportiert.");
+        return true;
+      } catch (error) {
+        console.error("Fehler beim TXT-Export:", error);
+        showNotification("Fehler beim Erstellen der TXT-Datei: " + error.message, "error");
+        return false;
+      }
+    }
+
+    /**
      * Exportiert die Bewertungsdaten
      */
     async function exportData() {
-      const exportAsDOCX = document.getElementById('exportDOCX').checked;
+      const exportAsTXT = document.getElementById('exportTXT').checked;
       
       // Filter anwenden
       const selectedYear = settingsYearSelect.value;
@@ -2465,13 +2539,10 @@
         return;
       }
       
-      // Bei aktivierter DOCX-Option, versuche DOCX zu exportieren
-      if (exportAsDOCX) {
-        // Als JSON exportieren
-        exportToJSON(filteredStudents, selectedYear, selectedDate);
-        showNotification("DOCX-Export ist zurzeit deaktiviert. Daten wurden als JSON exportiert.", "warning");
+      // Je nach ausgewähltem Format exportieren
+      if (exportAsTXT) {
+        exportToTXT(filteredStudents, selectedYear, selectedDate);
       } else {
-        // Als JSON exportieren
         exportToJSON(filteredStudents, selectedYear, selectedDate);
       }
     }
