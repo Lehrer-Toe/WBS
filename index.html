@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>WBS Bewertungssystem</title>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.js"></script>
+  <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
   <style>
     :root {
       --primary-color: #4CAF50;
@@ -2260,40 +2260,63 @@
         hideLoader();
       }
       
-      // Neue Funktion für DOCX-Export statt JSON
+      // Aktualisierte Funktion für DOCX-Export statt JSON mit verbesserten Fehlerbehandlung
       async function exportData() {
-        // Prüfen, ob die docx Bibliothek bereits geladen ist
-        if (typeof docx === 'undefined') {
-          showNotification("Docx-Bibliothek wird geladen...", "warning");
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        
-        const selectedYear = settingsYearSelect.value;
-        const selectedDate = settingsDateSelect.value;
-        let filteredStudents = [...teacherData.students];
-        
-        if (selectedYear) {
-          filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
-        }
-        if (selectedDate) {
-          filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
-        }
-        
-        // Sortiere Schüler nach Datum und Namen
-        filteredStudents.sort((a, b) => {
-          const dateComp = new Date(b.examDate) - new Date(a.examDate);
-          if (dateComp !== 0) return dateComp;
-          return a.name.localeCompare(b.name);
-        });
-        
-        if (filteredStudents.length === 0) {
-          showNotification("Keine Daten zum Exportieren gefunden.", "warning");
-          return;
-        }
-        
         try {
-          // Erstelle DOCX-Dokument
-          const { Document, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, HeadingLevel, AlignmentType } = docx;
+          // Überprüfen, ob docx verfügbar ist
+          if (typeof docx === 'undefined' && typeof window.docx !== 'undefined') {
+            // Wenn docx global verfügbar ist, aber nicht als Variable
+            window.docx = docx;
+          }
+          
+          if (typeof docx === 'undefined') {
+            // Wenn docx immer noch nicht verfügbar ist, laden wir es dynamisch
+            showNotification("DOCX-Bibliothek wird geladen...", "warning");
+            const script = document.createElement('script');
+            script.src = "https://unpkg.com/docx@7.8.2/build/index.js";
+            document.head.appendChild(script);
+            
+            // Warten, bis das Skript geladen ist
+            await new Promise((resolve) => {
+              script.onload = () => {
+                window.docx = docx;
+                resolve();
+              };
+              setTimeout(resolve, 5000); // Längerer Timeout
+            });
+          }
+          
+          const selectedYear = settingsYearSelect.value;
+          const selectedDate = settingsDateSelect.value;
+          let filteredStudents = [...teacherData.students];
+          
+          if (selectedYear) {
+            filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
+          }
+          if (selectedDate) {
+            filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
+          }
+          
+          // Sortiere Schüler nach Datum und Namen
+          filteredStudents.sort((a, b) => {
+            const dateComp = new Date(b.examDate) - new Date(a.examDate);
+            if (dateComp !== 0) return dateComp;
+            return a.name.localeCompare(b.name);
+          });
+          
+          if (filteredStudents.length === 0) {
+            showNotification("Keine Daten zum Exportieren gefunden.", "warning");
+            return;
+          }
+          
+          // Sicherstellen, dass wir die docx-Bibliothek richtig referenzieren
+          const docxLib = typeof docx !== 'undefined' ? docx : window.docx;
+          if (!docxLib) {
+            showNotification("DOCX-Bibliothek konnte nicht geladen werden.", "error");
+            return;
+          }
+          
+          const { Document, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, HeadingLevel, AlignmentType } = docxLib;
           
           const doc = new Document({
             title: "WBS Bewertungen",
@@ -2485,7 +2508,7 @@
           });
           
           // DOCX-Datei erstellen und herunterladen
-          docx.Packer.toBlob(doc).then(blob => {
+          docxLib.Packer.toBlob(doc).then(blob => {
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
@@ -2506,7 +2529,64 @@
           });
         } catch (error) {
           console.error("Fehler beim DOCX-Export:", error);
-          showNotification("Fehler beim Erstellen der DOCX-Datei. Versuchen Sie es erneut.", "error");
+          showNotification("Fehler beim Erstellen der DOCX-Datei: " + error.message, "error");
+          
+          // Fallback: Als JSON exportieren falls DOCX fehlschlägt
+          try {
+            const selectedYear = settingsYearSelect.value;
+            const selectedDate = settingsDateSelect.value;
+            let filteredStudents = [...teacherData.students];
+            
+            if (selectedYear) {
+              filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
+            }
+            if (selectedDate) {
+              filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
+            }
+            
+            const exportObject = {
+              filters: { year: selectedYear, date: selectedDate },
+              students: filteredStudents.map(s => {
+                const a = teacherData.assessments[s.id] || {};
+                return {
+                  id: s.id,
+                  name: s.name,
+                  examDate: s.examDate,
+                  createdAt: s.createdAt,
+                  infoText: a.infoText || '',
+                  finalGrade: a.finalGrade,
+                  categories: ASSESSMENT_CATEGORIES.reduce((obj, cat) => {
+                    obj[cat.name] = a[cat.id] || '-';
+                    return obj;
+                  }, {})
+                };
+              })
+            };
+            
+            const jsonString = JSON.stringify(exportObject, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            
+            // Dateiname mit Datum
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            let filename = `wbs_export_${dateStr}`;
+            
+            if (selectedYear) filename += `_${selectedYear}`;
+            if (selectedDate) filename += `_${formatDate(selectedDate).replace(/\./g, "-")}`;
+            
+            link.download = `${filename}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification("DOCX-Export fehlgeschlagen. Daten wurden als JSON exportiert.", "warning");
+          } catch (fallbackError) {
+            console.error("Auch Fallback-Export fehlgeschlagen:", fallbackError);
+            showNotification("Export fehlgeschlagen. Bitte versuchen Sie es später erneut.", "error");
+          }
         }
       }
     });
