@@ -1149,6 +1149,7 @@
     let studentToDelete = null;
     let selectedGradeStudent = null;
     let infoTextSaveTimer = null;
+    // Immer das aktuelle Datum verwenden
     const defaultDate = new Date().toISOString().split('T')[0];
     
     // Konstanten
@@ -1296,13 +1297,19 @@
      */
     function getAvailableYears() {
       const years = new Set();
-      for (let i = 2025; i >= 2020; i--) {
+      const currentYear = new Date().getFullYear();
+      
+      // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft
+      for (let i = currentYear; i <= currentYear + 10; i++) {
         years.add(i.toString());
       }
+      
+      // Auch Jahre aus vorhandenen Schülerdaten hinzufügen
       teacherData.students.forEach(student => {
         years.add(getYearFromDate(student.examDate));
       });
-      return Array.from(years).sort();
+      
+      return Array.from(years).sort((a, b) => b - a); // Absteigend sortieren (neueste zuerst)
     }
     
     /**
