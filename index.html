@@ -1111,46 +1111,76 @@
         mainLoader.style.display = "flex";
       }
       
-      // Initialisieren des Supabase-Clients
-      // Aktualisierte Supabase-Verbindungsdaten
-      const SUPABASE_URL = "https://mljhyqlvllhgrzemsoh.supabase.co";
-      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bXpscnNmdWVwYmtxd3picmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE5NTkxMzAsImV4cCI6MjA1NzUzNTEzMH0.zLZDSfylloUxlxYPEpfO4VMAdf0cNpUzKH2T9qv8ezI";
+// Initialisieren des Supabase-Clients - KORREKTE URL UND KEY VERWENDEN
+const SUPABASE_URL = "https://mljhyhqlvllhgrzemsoh.supabase.co"; // Prüfe dies genau!
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bXpscnNmdWVwYmtxd3picmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE5NTkxMzAsImV4cCI6MjA1NzUzNTEzMH0.zLZDSfylloUxlxYPEpfO4VMAdf0cNpUzKH2T9qv8ezI";  // Ersetze dies mit deinem echten Key
+
+let supabaseClient = null;
+
+try {
+  // Prüfen, ob das Supabase-Objekt verfügbar ist
+  if (typeof supabase === 'undefined') {
+    console.error("Supabase ist nicht definiert. Stellen Sie sicher, dass die Supabase-Bibliothek korrekt geladen wird.");
+    showNotification("Fehler bei der Initialisierung des Supabase-Clients. Bitte laden Sie die Seite neu.", "error");
+    hideLoader();
+    return;
+  }
+  
+  // Erstellen des Supabase-Clients
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log("Supabase-Client erfolgreich initialisiert");
+  
+  // Alternative Implementierung der initDatabase-Funktion, die RPC vermeidet
+  async function initDatabase() {
+    try {
+      // Direkter Tabellenzugriff statt RPC
+      const { data, error } = await supabaseClient
+        .from('wbs_data')
+        .select('count(*)')
+        .limit(1);
       
-      // WICHTIG: Änderung hier - supabaseClient statt supabase
-      let supabaseClient = null;
-      
-      try {
-        // Prüfen, ob das Supabase-Objekt global verfügbar ist
-        if (typeof supabase === 'undefined') {
-          console.error("Supabase ist nicht definiert. Stellen Sie sicher, dass die Supabase-Bibliothek korrekt geladen wird.");
-          showNotification("Fehler bei der Initialisierung des Supabase-Clients. Bitte laden Sie die Seite neu.", "error");
-          hideLoader();
-          return;
-        }
-        
-        // Erstellen des Supabase-Clients
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          db: { schema: 'public' },
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-            detectSessionInUrl: false
-          },
-          global: {
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-          }
-        });
-        
-        console.log("Supabase-Client erfolgreich initialisiert");
-        
-        // Datenbank initialisieren, falls erforderlich
-        initDatabase();
-      } catch (error) {
-        console.error("Fehler bei der Initialisierung des Supabase-Clients:", error);
-        showNotification("Fehler bei der Verbindung zur Datenbank.", "error");
-        hideLoader();
-        return;
+      if (error) {
+        console.error("Fehler beim Prüfen der Tabelle:", error);
+        // Tabelle manuell erstellen wenn sie nicht existiert
+        await createTableManually();
       }
+    } catch (error) {
+      console.error("Fehler bei der Datenbankinitialisierung:", error);
+      await createTableManually();
+    }
+  }
+  
+  // Manuelle Tabellenerstellung durch direkte Einfügung
+  async function createTableManually() {
+    try {
+      // Versuchen wir eine direkte Einfügung als Fallback
+      const { error: insertError } = await supabaseClient
+        .from('wbs_data')
+        .upsert([
+          {
+            teacher_code: 'DUMMY_CODE',
+            teacher_name: 'Dummy Teacher',
+            data: { students: [], assessments: {} }
+          }
+        ]);
+      
+      if (insertError) {
+        console.error("Fehler bei direkter Einfügung:", insertError);
+        showNotification("Datenbank konnte nicht initialisiert werden. Bitte die Tabelle manuell erstellen.", "error");
+      }
+    } catch (insertError) {
+      console.error("Fallback-Einfügeversuch fehlgeschlagen:", insertError);
+      showNotification("Datenbank konnte nicht initialisiert werden. Bitte kontaktieren Sie den Administrator.", "error");
+    }
+  }
+
+  // Initialisiere die Datenbank
+  initDatabase();
+  
+} catch (error) {
+  console.error("Fehler bei der Initialisierung des Supabase-Clients:", error);
+  showNotification("Fehler bei der Verbindung zur Datenbank.", "error");
+}
       
       // Datenbanktabellen initialisieren, falls sie nicht existieren
       async function initDatabase() {
