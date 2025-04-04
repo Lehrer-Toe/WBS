@@ -1101,19 +1101,35 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <script>
-    // Wait for document to be ready
+    // Warten, bis das Dokument bereit ist
     document.addEventListener("DOMContentLoaded", function() {
       console.log("WBS Bewertungssystem wird initialisiert...");
-
-      // Initialize Supabase client
+      
+      // Hauptlader anzeigen
+      const mainLoader = document.getElementById("mainLoader");
+      if (mainLoader) {
+        mainLoader.style.display = "flex";
+      }
+      
+      // Initialisieren des Supabase-Clients
       // Aktualisierte Supabase-Verbindungsdaten
       const SUPABASE_URL = "https://mljhyqlvllhgrzemsoh.supabase.co";
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bXpscnNmdWVwYmtxd3picmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE5NTkxMzAsImV4cCI6MjA1NzUzNTEzMH0.zLZDSfylloUxlxYPEpfO4VMAdf0cNpUzKH2T9qv8ezI";
       
-      let supabase = null;
+      // WICHTIG: Änderung hier - supabaseClient statt supabase
+      let supabaseClient = null;
       
       try {
-        supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        // Prüfen, ob das Supabase-Objekt global verfügbar ist
+        if (typeof supabase === 'undefined') {
+          console.error("Supabase ist nicht definiert. Stellen Sie sicher, dass die Supabase-Bibliothek korrekt geladen wird.");
+          showNotification("Fehler bei der Initialisierung des Supabase-Clients. Bitte laden Sie die Seite neu.", "error");
+          hideLoader();
+          return;
+        }
+        
+        // Erstellen des Supabase-Clients
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
           db: { schema: 'public' },
           auth: {
             autoRefreshToken: false,
@@ -1124,6 +1140,7 @@
             headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
           }
         });
+        
         console.log("Supabase-Client erfolgreich initialisiert");
         
         // Datenbank initialisieren, falls erforderlich
@@ -1139,7 +1156,7 @@
       async function initDatabase() {
         try {
           // Prüfen, ob Tabelle existiert
-          const { error } = await supabase.rpc('create_wbs_table_if_not_exists');
+          const { error } = await supabaseClient.rpc('create_wbs_table_if_not_exists');
           
           if (error) {
             console.error("Fehler beim Erstellen der Tabelle:", error);
@@ -1156,14 +1173,14 @@
       async function createTableManually() {
         try {
           // Zuerst prüfen, ob die Tabelle existiert
-          const { data, error } = await supabase
+          const { data, error } = await supabaseClient
             .from('wbs_data')
             .select('count(*)')
             .limit(1);
           
           if (error && error.code === '42P01') {
             // Tabelle existiert nicht, mit SQL erstellen
-            const { error: sqlError } = await supabase.rpc('execute_sql', {
+            const { error: sqlError } = await supabaseClient.rpc('execute_sql', {
               sql_query: `
                 CREATE TABLE IF NOT EXISTS public.wbs_data (
                   id SERIAL PRIMARY KEY,
@@ -1187,7 +1204,7 @@
           // Letzter Fallback - direktes Einfügen versuchen
           try {
             // Direktes Einfügen versuchen, um den Datensatz zu erstellen
-            const { error: insertError } = await supabase
+            const { error: insertError } = await supabaseClient
               .from('wbs_data')
               .upsert([
                 {
@@ -1230,7 +1247,7 @@
         assessments: {}
       };
       
-      // DOM-Elemente
+      // DOM-Elemente abrufen
       const loginSection = document.getElementById("loginSection");
       const appSection = document.getElementById("appSection");
       const teacherGrid = document.getElementById("teacherGrid");
@@ -1243,7 +1260,6 @@
       const cancelLogin = document.getElementById("cancelLogin");
       const closePasswordModal = document.getElementById("closePasswordModal");
       const logoutBtn = document.getElementById("logoutBtn");
-      const mainLoader = document.getElementById("mainLoader");
       
       // Students tab elements
       const newStudentName = document.getElementById("newStudentName");
@@ -1322,11 +1338,15 @@
       }
       
       function showLoader() {
-        mainLoader.style.display = "flex";
+        if (mainLoader) {
+          mainLoader.style.display = "flex";
+        }
       }
       
       function hideLoader() {
-        mainLoader.style.display = "none";
+        if (mainLoader) {
+          mainLoader.style.display = "none";
+        }
       }
       
       function calculateAverageGrade(assessment) {
@@ -1353,7 +1373,7 @@
       
       function getAvailableYears() {
         const years = new Set();
-        for (let i = 2025; i <= 2035; i++) {
+        for (let i = 2025; i >= 2020; i--) {
           years.add(i.toString());
         }
         
@@ -1389,7 +1409,9 @@
       // Initialize the application
       function init() {
         // Set today's date as default for new students
-        examDate.value = defaultDate;
+        if (examDate) {
+          examDate.value = defaultDate;
+        }
         
         initTeacherGrid();
         setupEventListeners();
@@ -1398,6 +1420,11 @@
       
       // Initialize teacher grid with teacher cards
       function initTeacherGrid() {
+        if (!teacherGrid) {
+          console.error("teacherGrid-Element nicht gefunden");
+          return;
+        }
+        
         teacherGrid.innerHTML = "";
         
         DEFAULT_TEACHERS.forEach(teacher => {
@@ -1422,22 +1449,32 @@
       // Setup event listeners
       function setupEventListeners() {
         // Login events
-        closePasswordModal.addEventListener("click", () => {
-          passwordModal.style.display = "none";
-        });
+        if (closePasswordModal) {
+          closePasswordModal.addEventListener("click", () => {
+            passwordModal.style.display = "none";
+          });
+        }
         
-        cancelLogin.addEventListener("click", () => {
-          passwordModal.style.display = "none";
-        });
+        if (cancelLogin) {
+          cancelLogin.addEventListener("click", () => {
+            passwordModal.style.display = "none";
+          });
+        }
         
-        confirmLogin.addEventListener("click", login);
+        if (confirmLogin) {
+          confirmLogin.addEventListener("click", login);
+        }
         
-        passwordInput.addEventListener("keypress", (e) => {
-          if (e.key === "Enter") login();
-        });
+        if (passwordInput) {
+          passwordInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") login();
+          });
+        }
         
         // Logout event
-        logoutBtn.addEventListener("click", logout);
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", logout);
+        }
         
         // Tab switching
         tabs.forEach(tab => {
@@ -1469,55 +1506,86 @@
         });
         
         // Add student button
-        addStudentBtn.addEventListener("click", addNewStudent);
+        if (addStudentBtn) {
+          addStudentBtn.addEventListener("click", addNewStudent);
+        }
         
         // Assessment date select
-        assessmentDateSelect.addEventListener("change", updateAssessmentStudentList);
+        if (assessmentDateSelect) {
+          assessmentDateSelect.addEventListener("change", updateAssessmentStudentList);
+        }
         
         // Year and date selects for overview
-        overviewYearSelect.addEventListener("change", () => {
-          populateOverviewDateSelect();
-          updateOverviewContent();
-        });
+        if (overviewYearSelect) {
+          overviewYearSelect.addEventListener("change", () => {
+            populateOverviewDateSelect();
+            updateOverviewContent();
+          });
+        }
         
-        overviewDateSelect.addEventListener("change", updateOverviewContent);
+        if (overviewDateSelect) {
+          overviewDateSelect.addEventListener("change", updateOverviewContent);
+        }
         
         // Year and date selects for settings
-        settingsYearSelect.addEventListener("change", () => {
-          populateSettingsDateSelect();
-        });
+        if (settingsYearSelect) {
+          settingsYearSelect.addEventListener("change", () => {
+            populateSettingsDateSelect();
+          });
+        }
         
         // Export data button
-        exportDataBtn.addEventListener("click", exportData);
+        if (exportDataBtn) {
+          exportDataBtn.addEventListener("click", exportData);
+        }
         
         // Delete data button
-        deleteDataBtn.addEventListener("click", confirmDeleteAllData);
+        if (deleteDataBtn) {
+          deleteDataBtn.addEventListener("click", confirmDeleteAllData);
+        }
         
         // Edit student modal events
-        closeEditStudentModal.addEventListener("click", () => {
-          editStudentModal.style.display = "none";
-        });
+        if (closeEditStudentModal) {
+          closeEditStudentModal.addEventListener("click", () => {
+            editStudentModal.style.display = "none";
+          });
+        }
         
-        saveStudentBtn.addEventListener("click", saveEditedStudent);
-        deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
+        if (saveStudentBtn) {
+          saveStudentBtn.addEventListener("click", saveEditedStudent);
+        }
+        
+        if (deleteStudentBtn) {
+          deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
+        }
         
         // Edit grade modal events
-        closeEditGradeModal.addEventListener("click", () => {
-          editGradeModal.style.display = "none";
-        });
+        if (closeEditGradeModal) {
+          closeEditGradeModal.addEventListener("click", () => {
+            editGradeModal.style.display = "none";
+          });
+        }
         
-        saveGradeBtn.addEventListener("click", saveEditedGrade);
+        if (saveGradeBtn) {
+          saveGradeBtn.addEventListener("click", saveEditedGrade);
+        }
         
         // Confirm delete modal events
-        closeConfirmDeleteModal.addEventListener("click", () => {
-          confirmDeleteModal.style.display = "none";
-        });
+        if (closeConfirmDeleteModal) {
+          closeConfirmDeleteModal.addEventListener("click", () => {
+            confirmDeleteModal.style.display = "none";
+          });
+        }
         
-        cancelDeleteBtn.addEventListener("click", () => {
-          confirmDeleteModal.style.display = "none";
-        });
+        if (cancelDeleteBtn) {
+          cancelDeleteBtn.addEventListener("click", () => {
+            confirmDeleteModal.style.display = "none";
+          });
+        }
         
-        confirmDeleteBtn.addEventListener("click", deleteStudent);
+        if (confirmDeleteBtn) {
+          confirmDeleteBtn.addEventListener("click", deleteStudent);
+        }
       }
       
       // Show password modal for teacher login
@@ -1577,7 +1645,7 @@
       // Load teacher data from Supabase
       async function loadTeacherData() {
         try {
-          const { data, error } = await supabase
+          const { data, error } = await supabaseClient
             .from('wbs_data')
             .select('*')
             .eq('teacher_code', currentUser.code)
@@ -1612,7 +1680,7 @@
             
             // Then try to create a record for this teacher
             try {
-              const { error: insertError } = await supabase
+              const { error: insertError } = await supabaseClient
                 .from('wbs_data')
                 .upsert([
                   {
@@ -1641,7 +1709,7 @@
       // Save teacher data to Supabase
       async function saveTeacherData() {
         try {
-          const { error } = await supabase
+          const { error } = await supabaseClient
             .from('wbs_data')
             .upsert({
               teacher_code: currentUser.code,
@@ -1666,7 +1734,7 @@
             
             // Try again after creating the table
             try {
-              const { error: retryError } = await supabase
+              const { error: retryError } = await supabaseClient
                 .from('wbs_data')
                 .upsert({
                   teacher_code: currentUser.code,
@@ -1696,6 +1764,8 @@
       
       // Update Students Tab
       function updateStudentsTab() {
+        if (!studentsTable) return;
+        
         const tbody = studentsTable.querySelector('tbody');
         tbody.innerHTML = '';
         
@@ -1905,6 +1975,8 @@
       
       // Populate assessment date select
       function populateAssessmentDateSelect() {
+        if (!assessmentDateSelect) return;
+        
         const dates = getAvailableDates();
         
         assessmentDateSelect.innerHTML = '<option value="">Bitte wählen...</option>';
@@ -1919,6 +1991,8 @@
       
       // Update assessment student list based on selected date
       function updateAssessmentStudentList() {
+        if (!assessmentStudentList || !assessmentContent) return;
+        
         const selectedDate = assessmentDateSelect.value;
         
         assessmentStudentList.innerHTML = '';
@@ -2171,6 +2245,8 @@
       
       // Populate overview year select
       function populateOverviewYearSelect() {
+        if (!overviewYearSelect) return;
+        
         const years = getAvailableYears();
         
         overviewYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
@@ -2185,6 +2261,8 @@
       
       // Populate overview date select based on selected year
       function populateOverviewDateSelect() {
+        if (!overviewDateSelect) return;
+        
         const selectedYear = overviewYearSelect.value;
         const dates = getAvailableDates(selectedYear);
         
@@ -2200,6 +2278,8 @@
       
       // Update overview content based on selected year and date
       function updateOverviewContent() {
+        if (!overviewTable) return;
+        
         const selectedYear = overviewYearSelect.value;
         const selectedDate = overviewDateSelect.value;
         
@@ -2272,6 +2352,8 @@
       
       // Populate settings year select
       function populateSettingsYearSelect() {
+        if (!settingsYearSelect) return;
+        
         const years = getAvailableYears();
         
         settingsYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
@@ -2286,6 +2368,8 @@
       
       // Populate settings date select based on selected year
       function populateSettingsDateSelect() {
+        if (!settingsDateSelect) return;
+        
         const selectedYear = settingsYearSelect.value;
         const dates = getAvailableDates(selectedYear);
         
