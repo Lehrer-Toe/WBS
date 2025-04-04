@@ -1111,9 +1111,9 @@
         mainLoader.style.display = "flex";
       }
       
-// Initialisieren des Supabase-Clients - KORREKTE URL UND KEY VERWENDEN
-const SUPABASE_URL = "https://mljhyhqlvllhgrzemsoh.supabase.co"; // Prüfe dies genau!
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6bXpscnNmdWVwYmtxd3picmlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE5NTkxMzAsImV4cCI6MjA1NzUzNTEzMH0.zLZDSfylloUxlxYPEpfO4VMAdf0cNpUzKH2T9qv8ezI";  // Ersetze dies mit deinem echten Key
+// Aktualisierte Supabase-Verbindungsdaten
+const SUPABASE_URL = "https://mljhyhqlvllhgrzemsoh.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1samh5aHFsdmxsaGdyemVtc29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3NjYwNjEsImV4cCI6MjA1OTM0MjA2MX0.L5H5e6Bx6yWM2ScHWIGJAL3JUDrFN4aJHUpjVxUDygA";
 
 let supabaseClient = null;
 
@@ -1126,26 +1126,20 @@ try {
     return;
   }
   
-  // Erstellen des Supabase-Clients
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log("Supabase-Client erfolgreich initialisiert");
+  // Erstellen des Supabase-Clients mit den korrekten Anmeldedaten
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    db: { schema: 'public' },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false
+    },
+    global: {
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    }
+  });
   
-  // Alternative Implementierung der initDatabase-Funktion, die RPC vermeidet
-  async function initDatabase() {
-    try {
-      // Direkter Tabellenzugriff statt RPC
-      const { data, error } = await supabaseClient
-        .from('wbs_data')
-        .select('count(*)')
-        .limit(1);
-      
-      if (error) {
-        console.error("Fehler beim Prüfen der Tabelle:", error);
-        // Tabelle manuell erstellen wenn sie nicht existiert
-        await createTableManually();
-      }
-    } catch (error) {
-      console.error("Fehler bei der Datenbankinitialisierung:", error);
+  console.log("Supabase-Client erfolgreich initialisiert");
       await createTableManually();
     }
   }
