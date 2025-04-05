@@ -30,21 +30,33 @@ function generateId() {
  * Gibt die verfügbaren Jahre zurück
  */
 function getAvailableYears() {
-  const years = new Set();
   const currentYear = new Date().getFullYear();
+  let years = [];
   
-  // Jahre vom aktuellen Jahr bis 10 Jahre in die Zukunft, beginnend mit aktuellem Jahr
-  for (let i = 0; i <= 10; i++) {
-    years.add((currentYear + i).toString());
+  // Aktuelles Jahr zuerst
+  years.push(currentYear.toString());
+  
+  // Dann Folgejahre in aufsteigender Reihenfolge
+  for (let i = 1; i <= 10; i++) {
+    years.push((currentYear + i).toString());
   }
   
-  // Auch Jahre aus vorhandenen Schülerdaten hinzufügen
+  // Zusätzliche Jahre aus Schülerdaten hinzufügen, wenn nicht bereits vorhanden
+  const additionalYears = [];
   teacherData.students.forEach(student => {
-    years.add(getYearFromDate(student.examDate));
+    const yearFromStudent = getYearFromDate(student.examDate);
+    if (!years.includes(yearFromStudent)) {
+      additionalYears.push(yearFromStudent);
+    }
   });
   
-  // Absteigend sortieren mit aktuellem Jahr zuerst
-  return Array.from(years).sort((a, b) => a - b).reverse();
+  // Zusätzliche Jahre sortieren und anhängen
+  if (additionalYears.length > 0) {
+    additionalYears.sort((a, b) => parseInt(a) - parseInt(b));
+    years = years.concat(additionalYears);
+  }
+  
+  return years;
 }
 
 /**
