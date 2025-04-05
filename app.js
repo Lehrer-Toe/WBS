@@ -106,7 +106,9 @@ async function init() {
   }
   
   // Datenbank initialisieren
-  await initDatabase();
+  const dbInitialized = await initDatabase();
+  console.log("Datenbank initialisiert:", dbInitialized);
+  
   initTeacherGrid();
   setupEventListeners();
   
@@ -180,13 +182,9 @@ function getAvailableYears() {
   }
   
   // Auch Jahre aus vorhandenen Schülerdaten hinzufügen
-  if (teacherData && teacherData.students) {
-    teacherData.students.forEach(student => {
-      if (student.examDate) {
-        years.add(getYearFromDate(student.examDate));
-      }
-    });
-  }
+  teacherData.students.forEach(student => {
+    years.add(getYearFromDate(student.examDate));
+  });
   
   // Absteigend sortieren mit aktuellem Jahr zuerst
   return Array.from(years).sort((a, b) => b - a);
@@ -197,13 +195,11 @@ function getAvailableYears() {
  */
 function getAvailableDates(year = null) {
   const dates = new Set();
-  if (teacherData && teacherData.students) {
-    teacherData.students.forEach(student => {
-      if (student.examDate && (!year || getYearFromDate(student.examDate) === year)) {
-        dates.add(student.examDate);
-      }
-    });
-  }
+  teacherData.students.forEach(student => {
+    if (!year || getYearFromDate(student.examDate) === year) {
+      dates.add(student.examDate);
+    }
+  });
   return Array.from(dates).sort().reverse();
 }
 
@@ -218,7 +214,6 @@ function generateId() {
  * Prüft, ob bereits ein Student an einem Prüfungstag existiert
  */
 function isStudentOnExamDay(studentId, examDate) {
-  if (!teacherData || !teacherData.students) return false;
   return teacherData.students.some(s => s.id !== studentId && s.examDate === examDate);
 }
 
@@ -336,11 +331,8 @@ function migrateAssessmentCategories() {
   };
 
   // Für jeden Schüler die Bewertungen aktualisieren
-  if (!teacherData || !teacherData.assessments) return;
-  
   for (const studentId in teacherData.assessments) {
     const assessment = teacherData.assessments[studentId];
-    if (!assessment) continue;
     
     // Für jede alte Kategorie
     for (const oldCategory in categoryMapping) {
@@ -390,7 +382,7 @@ async function loadTeacherData() {
     }
     
     if (data) {
-      teacherData = data.data || { students: [], assessments: {} };
+      teacherData = data.data;
       // Migration der Kategorien durchführen
       migrateAssessmentCategories();
       return true;
@@ -415,12 +407,14 @@ async function saveTeacherData() {
   if (!currentUser) return false;
   
   try {
+    console.log("Speichere Lehrerdaten:", JSON.stringify(teacherData));
+    
     const { error } = await supabaseClient
       .from('wbs_data')
       .upsert({
         teacher_code: currentUser.code,
         teacher_name: currentUser.name,
-        data: teacherData || { students: [], assessments: {} },
+        data: teacherData,
         updated_at: new Date().toISOString()
       }, { onConflict: 'teacher_code' });
     
@@ -429,6 +423,8 @@ async function saveTeacherData() {
       showNotification("Fehler beim Speichern der Daten.", "error");
       return false;
     }
+    
+    console.log("Daten erfolgreich gespeichert");
     return true;
   } catch (error) {
     console.error("Error in saveTeacherData:", error);
@@ -495,7 +491,7 @@ function setupEventListeners() {
       tab.classList.add("active");
       document.getElementById(`${tabId}-tab`).classList.add("active");
       
-      // Tab-spezifische Updates
+      // WICHTIG: Tab-spezifische Updates
       switch(tabId) {
         case 'students':
           updateStudentsTab();
@@ -515,7 +511,12 @@ function setupEventListeners() {
   
   // Schüler-Tab
   if (addStudentBtn) {
+    // FEHLERBEHEBUNG 1: Event-Listener entfernen und neu hinzufügen
+    addStudentBtn.removeEventListener("click", addNewStudent);
     addStudentBtn.addEventListener("click", addNewStudent);
+    console.log("Hinzufügen-Button Event-Listener neu angehängt");
+  } else {
+    console.error("addStudentBtn nicht gefunden!");
   }
   
   // Bewertungs-Tab
@@ -580,7 +581,10 @@ function setupEventListeners() {
     });
   }
   if (confirmDeleteBtn) {
+    // FEHLERBEHEBUNG 3: Event-Listener entfernen und neu hinzufügen
+    confirmDeleteBtn.removeEventListener("click", deleteStudent);
     confirmDeleteBtn.addEventListener("click", deleteStudent);
+    console.log("Löschen-Button Event-Listener neu angehängt");
   }
 }
 
@@ -663,18 +667,15 @@ function updateStudentsTab() {
   if (!studentsTable) return;
   const tbody = studentsTable.querySelector('tbody');
   tbody.innerHTML = '';
-  
-  if (!teacherData || !teacherData.students || teacherData.students.length === 0) {
+  if (teacherData.students.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = '<td colspan="3">Keine Prüflinge vorhanden</td>';
     tbody.appendChild(tr);
     return;
   }
-  
   const sortedStudents = [...teacherData.students].sort((a, b) => {
     return new Date(b.examDate) - new Date(a.examDate);
   });
-  
   sortedStudents.forEach(student => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -693,79 +694,86 @@ function updateStudentsTab() {
 
 /**
  * Fügt einen neuen Schüler hinzu
+ * FEHLERBEHEBUNG 1: Funktion überarbeitet
  */
 async function addNewStudent() {
-  const name = newStudentName.value.trim();
-  const date = examDate.value;
-  
-  if (!name) {
-    showNotification("Bitte einen Namen eingeben.", "warning");
-    return;
-  }
-  
-  // Sicherstellen dass teacherData richtig initialisiert ist
-  if (!teacherData) {
-    teacherData = { students: [], assessments: {} };
-  }
-  if (!teacherData.students) {
-    teacherData.students = [];
-  }
-  if (!teacherData.assessments) {
-    teacherData.assessments = {};
-  }
-  
-  const existingStudent = teacherData.students.find(s => 
-    s.name.toLowerCase() === name.toLowerCase() && s.examDate === date
-  );
-  
-  if (existingStudent) {
-    showNotification(`Ein Prüfling namens "${name}" existiert bereits für dieses Datum.`, "warning");
-    return;
-  }
-  
-  if (isStudentOnExamDay(null, date)) {
-    if (!confirm(`Es existiert bereits ein Prüfling am ${formatDate(date)}. Trotzdem fortfahren?`)) {
-      return;
-    }
-  }
-  
-  const newStudent = {
-    id: generateId(),
-    name: name,
-    examDate: date,
-    createdAt: new Date().toISOString()
-  };
-  
-  showLoader();
-  teacherData.students.push(newStudent);
-  teacherData.assessments[newStudent.id] = {};
-  
-  // Standardwerte für alle Bewertungskategorien setzen
-  ASSESSMENT_CATEGORIES.forEach(category => {
-    teacherData.assessments[newStudent.id][category.id] = 2;
-  });
-  
-  // Leeres Textfeld für Informationen hinzufügen
-  teacherData.assessments[newStudent.id].infoText = '';
-  
-  // Standardwert für Endnote
-  teacherData.assessments[newStudent.id].finalGrade = 2.0;
+  console.log("addNewStudent wurde aufgerufen");
   
   try {
+    const name = newStudentName.value.trim();
+    const date = examDate.value;
+    
+    if (!name) {
+      showNotification("Bitte einen Namen eingeben.", "warning");
+      return;
+    }
+    
+    // Überprüfen, ob bereits ein Schüler mit diesem Namen und Datum existiert
+    const existingStudent = teacherData.students.find(s => 
+      s.name.toLowerCase() === name.toLowerCase() && s.examDate === date
+    );
+    
+    if (existingStudent) {
+      showNotification(`Ein Prüfling namens "${name}" existiert bereits für dieses Datum.`, "warning");
+      return;
+    }
+    
+    // Überprüfen, ob bereits ein Schüler an diesem Datum existiert
+    if (isStudentOnExamDay(null, date)) {
+      if (!confirm(`Es existiert bereits ein Prüfling am ${formatDate(date)}. Trotzdem fortfahren?`)) {
+        return;
+      }
+    }
+    
+    // Neuen Schüler erstellen
+    const newStudent = {
+      id: generateId(),
+      name: name,
+      examDate: date,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log("Neuer Prüfling wird erstellt:", newStudent);
+    showLoader();
+    
+    // Schüler zur Datenstruktur hinzufügen
+    teacherData.students.push(newStudent);
+    teacherData.assessments[newStudent.id] = {};
+    
+    // Standardwerte für alle Bewertungskategorien setzen
+    ASSESSMENT_CATEGORIES.forEach(category => {
+      teacherData.assessments[newStudent.id][category.id] = 2;
+    });
+    
+    // Leeres Textfeld für Informationen hinzufügen
+    teacherData.assessments[newStudent.id].infoText = '';
+    
+    // Standardwert für Endnote
+    teacherData.assessments[newStudent.id].finalGrade = 2.0;
+    
+    // Speichern
     const saved = await saveTeacherData();
+    
     if (saved) {
+      // Formular zurücksetzen
       newStudentName.value = "";
       examDate.value = defaultDate;
-      updateStudentsTab();
       
-      // Aktualisiere die Bewertungs-Tab Daten
+      // UI aktualisieren
+      updateStudentsTab();
       populateAssessmentDateSelect();
       
       showNotification(`Prüfling "${name}" wurde hinzugefügt.`);
+      console.log("Prüfling erfolgreich hinzugefügt");
+    } else {
+      // Fehlerfall - entferne den Schüler wieder
+      teacherData.students = teacherData.students.filter(s => s.id !== newStudent.id);
+      delete teacherData.assessments[newStudent.id];
+      showNotification("Fehler beim Speichern des Prüflings.", "error");
     }
   } catch (error) {
-    console.error("Fehler beim Speichern des neuen Schülers:", error);
-    showNotification("Fehler beim Hinzufügen des Prüflings.", "error");
+    console.error("Fehler beim Hinzufügen eines neuen Prüflings:", error);
+    showNotification("Ein Fehler ist aufgetreten.", "error");
   } finally {
     hideLoader();
   }
@@ -775,8 +783,6 @@ async function addNewStudent() {
  * Zeigt das Modal zum Bearbeiten eines Schülers an
  */
 function showEditStudentModal(student) {
-  if (!student) return;
-  
   editStudentName.value = student.name;
   editExamDate.value = student.examDate;
   selectedStudent = student;
@@ -787,53 +793,38 @@ function showEditStudentModal(student) {
  * Speichert die Änderungen an einem Schüler
  */
 async function saveEditedStudent() {
-  if (!selectedStudent) return;
-  
   const name = editStudentName.value.trim();
   const date = editExamDate.value;
-  
   if (!name) {
     showNotification("Bitte einen Namen eingeben.", "warning");
     return;
   }
-  
   const existingStudent = teacherData.students.find(s => 
     s.id !== selectedStudent.id && 
     s.name.toLowerCase() === name.toLowerCase() && 
     s.examDate === date
   );
-  
   if (existingStudent) {
     showNotification(`Ein Prüfling namens "${name}" existiert bereits für dieses Datum.`, "warning");
     return;
   }
-  
   if (date !== selectedStudent.examDate && isStudentOnExamDay(selectedStudent.id, date)) {
     if (!confirm(`Es existiert bereits ein Prüfling am ${formatDate(date)}. Trotzdem fortfahren?`)) {
       return;
     }
   }
-  
   showLoader();
   const index = teacherData.students.findIndex(s => s.id === selectedStudent.id);
-  
   if (index !== -1) {
     teacherData.students[index].name = name;
     teacherData.students[index].examDate = date;
-    
-    try {
-      const saved = await saveTeacherData();
-      if (saved) {
-        updateStudentsTab();
-        populateAssessmentDateSelect();
-        showNotification(`Prüfling "${name}" wurde aktualisiert.`);
-      }
-    } catch (error) {
-      console.error("Fehler beim Speichern des bearbeiteten Schülers:", error);
-      showNotification("Fehler beim Aktualisieren des Prüflings.", "error");
+    const saved = await saveTeacherData();
+    if (saved) {
+      updateStudentsTab();
+      populateAssessmentDateSelect();
+      showNotification(`Prüfling "${name}" wurde aktualisiert.`);
     }
   }
-  
   hideLoader();
   editStudentModal.style.display = "none";
 }
@@ -842,8 +833,6 @@ async function saveEditedStudent() {
  * Zeigt die Bestätigung zum Löschen eines Schülers an
  */
 function showDeleteConfirmation() {
-  if (!selectedStudent) return;
-  
   studentToDelete = selectedStudent;
   deleteStudentName.textContent = selectedStudent.name;
   editStudentModal.style.display = "none";
@@ -852,26 +841,33 @@ function showDeleteConfirmation() {
 
 /**
  * Löscht einen Schüler
+ * FEHLERBEHEBUNG 3: Funktion überarbeitet
  */
 async function deleteStudent() {
-  if (!studentToDelete) {
-    confirmDeleteModal.style.display = "none";
-    return;
-  }
-  
-  showLoader();
+  console.log("deleteStudent wurde aufgerufen");
   
   try {
-    // Student aus dem Array entfernen
-    teacherData.students = teacherData.students.filter(s => s.id !== studentToDelete.id);
-    
-    // Bewertungen löschen
-    if (teacherData.assessments[studentToDelete.id]) {
-      delete teacherData.assessments[studentToDelete.id];
+    if (!studentToDelete) {
+      console.log("Kein Prüfling zum Löschen ausgewählt");
+      confirmDeleteModal.style.display = "none";
+      return;
     }
     
-    // Änderungen speichern
+    const studentName = studentToDelete.name;
+    const studentId = studentToDelete.id;
+    
+    console.log(`Lösche Prüfling: ${studentName} (ID: ${studentId})`);
+    showLoader();
+    
+    // Prüfling aus Array entfernen
+    teacherData.students = teacherData.students.filter(s => s.id !== studentId);
+    
+    // Bewertungen löschen
+    delete teacherData.assessments[studentId];
+    
+    // Speichern
     const saved = await saveTeacherData();
+    
     if (saved) {
       // UI aktualisieren
       updateStudentsTab();
@@ -879,15 +875,19 @@ async function deleteStudent() {
       updateAssessmentStudentList();
       updateOverviewTab();
       
-      showNotification(`Prüfling "${studentToDelete.name}" wurde gelöscht.`);
+      showNotification(`Prüfling "${studentName}" wurde gelöscht.`);
+      console.log("Prüfling erfolgreich gelöscht");
+    } else {
+      showNotification("Fehler beim Löschen des Prüflings.", "error");
     }
   } catch (error) {
-    console.error("Fehler beim Löschen des Schülers:", error);
-    showNotification("Fehler beim Löschen des Prüflings.", "error");
+    console.error("Fehler beim Löschen des Prüflings:", error);
+    showNotification("Ein Fehler ist aufgetreten.", "error");
   } finally {
-    hideLoader();
+    // WICHTIG: Modal schließen und Referenz zurücksetzen
     confirmDeleteModal.style.display = "none";
     studentToDelete = null;
+    hideLoader();
   }
 }
 
@@ -904,26 +904,38 @@ function updateAssessmentTab() {
  */
 function populateAssessmentDateSelect() {
   if (!assessmentDateSelect) return;
-  
   const dates = getAvailableDates();
   assessmentDateSelect.innerHTML = '<option value="">Bitte wählen...</option>';
-  
   dates.forEach(date => {
     const option = document.createElement('option');
     option.value = date;
     option.textContent = formatDate(date);
     assessmentDateSelect.appendChild(option);
   });
+  
+  // FEHLERBEHEBUNG 2: Direkt das erste Datum auswählen, falls vorhanden
+  if (dates.length > 0) {
+    assessmentDateSelect.value = dates[0];
+    updateAssessmentStudentList(); // Liste aktualisieren
+  }
 }
 
 /**
  * Aktualisiert die Schülerliste im Bewertungs-Tab
+ * FEHLERBEHEBUNG 2: Funktion überarbeitet
  */
 function updateAssessmentStudentList() {
-  if (!assessmentStudentList || !assessmentContent) return;
+  console.log("updateAssessmentStudentList wurde aufgerufen");
+  
+  if (!assessmentStudentList || !assessmentContent) {
+    console.error("assessmentStudentList oder assessmentContent nicht gefunden");
+    return;
+  }
   
   const selectedDate = assessmentDateSelect.value;
   assessmentStudentList.innerHTML = '';
+  
+  console.log("Ausgewähltes Datum:", selectedDate);
   
   if (!selectedDate) {
     assessmentStudentList.innerHTML = '<li>Bitte wählen Sie ein Datum</li>';
@@ -936,32 +948,23 @@ function updateAssessmentStudentList() {
     return;
   }
   
-  // Prüfen, ob teacherData.students existiert
-  if (!teacherData || !teacherData.students || teacherData.students.length === 0) {
-    assessmentStudentList.innerHTML = '<li>Keine Prüflinge gefunden</li>';
-    return;
-  }
-  
+  // Überprüfen, ob Schüler für dieses Datum vorhanden sind
   const studentsForDate = teacherData.students.filter(s => s.examDate === selectedDate);
+  console.log(`Gefundene Prüflinge für ${selectedDate}:`, studentsForDate.length);
   
   if (studentsForDate.length === 0) {
     assessmentStudentList.innerHTML = '<li>Keine Prüflinge für dieses Datum</li>';
     return;
   }
   
+  // Schüler anzeigen
   studentsForDate.forEach(student => {
-    if (!student) return; // Überspringe ungültige Schüler
+    const assessment = teacherData.assessments[student.id] || {};
+    const finalGrade = assessment.finalGrade || '-';
     
     const li = document.createElement('li');
     li.className = 'student-item';
     li.dataset.id = student.id;
-    
-    // Prüfen, ob Bewertungen für diesen Schüler existieren
-    const assessment = teacherData.assessments && teacherData.assessments[student.id] ? 
-                        teacherData.assessments[student.id] : {};
-    
-    const finalGrade = assessment.finalGrade || '-';
-    
     li.innerHTML = `
       <div class="student-name">${student.name}</div>
       <div class="average-grade grade-${Math.round(finalGrade)}">${finalGrade}</div>
@@ -977,6 +980,14 @@ function updateAssessmentStudentList() {
     
     assessmentStudentList.appendChild(li);
   });
+  
+  // Automatisch den ersten Schüler auswählen
+  if (studentsForDate.length > 0) {
+    const firstItem = assessmentStudentList.querySelector('.student-item');
+    if (firstItem) {
+      firstItem.click();
+    }
+  }
 }
 
 /**
@@ -997,19 +1008,15 @@ function setupInfoTextAutoSave(studentId) {
       // Speichere den Text in der Datenstruktur
       if (teacherData.assessments[studentId]) {
         teacherData.assessments[studentId].infoText = infoText;
-        try {
-          await saveTeacherData();
-          infoTextArea.dataset.changed = "false";
-          
-          // Kleine Benachrichtigung, dass gespeichert wurde
-          showNotification("Informationstext wurde automatisch gespeichert.", "success");
-          infoTextArea.classList.add('save-flash');
-          setTimeout(() => {
-            infoTextArea.classList.remove('save-flash');
-          }, 1000);
-        } catch (error) {
-          console.error("Fehler beim Autosave:", error);
-        }
+        await saveTeacherData();
+        infoTextArea.dataset.changed = "false";
+        
+        // Kleine Benachrichtigung, dass gespeichert wurde
+        showNotification("Informationstext wurde automatisch gespeichert.", "success");
+        infoTextArea.classList.add('save-flash');
+        setTimeout(() => {
+          infoTextArea.classList.remove('save-flash');
+        }, 1000);
       }
     }
   }, 60000); // Alle 60 Sekunden speichern
@@ -1019,15 +1026,7 @@ function setupInfoTextAutoSave(studentId) {
  * Zeigt das Bewertungsformular für einen Schüler an
  */
 function showAssessmentForm(student) {
-  if (!student) return;
-  
   selectedStudent = student;
-  
-  // Prüfen, ob Bewertungen existieren
-  if (!teacherData.assessments) {
-    teacherData.assessments = {};
-  }
-  
   const assessment = teacherData.assessments[student.id] || {};
   const avgGrade = calculateAverageGrade(assessment);
   const finalGrade = assessment.finalGrade || avgGrade || '-';
@@ -1089,33 +1088,19 @@ function showAssessmentForm(student) {
       buttons.forEach(b => b.classList.remove("selected"));
       btn.classList.add("selected");
       btn.parentElement.previousElementSibling.textContent = grade || '-';
-      
-      // Sicherstellen, dass die Assessment-Struktur existiert
       if (!teacherData.assessments[student.id]) {
         teacherData.assessments[student.id] = {};
       }
-      
       teacherData.assessments[student.id][category] = grade;
       const newAvg = calculateAverageGrade(teacherData.assessments[student.id]);
-      
-      const finalGradeDisplay = document.querySelector(".final-grade-display");
-      if (finalGradeDisplay) {
-        finalGradeDisplay.textContent = `Ø ${newAvg || '0.0'}`;
-      }
-      
+      document.querySelector(".final-grade-display").textContent = `Ø ${newAvg || '0.0'}`;
       if (!teacherData.assessments[student.id].finalGrade) {
         teacherData.assessments[student.id].finalGrade = parseFloat(newAvg);
         const fgInput = document.getElementById("finalGrade");
         if (fgInput) fgInput.value = newAvg;
       }
-      
-      try {
-        await saveTeacherData();
-        updateAssessmentStudentList();
-      } catch (error) {
-        console.error("Fehler beim Speichern der Bewertung:", error);
-        showNotification("Fehler beim Speichern der Bewertung.", "error");
-      }
+      await saveTeacherData();
+      updateAssessmentStudentList();
     });
   });
   
@@ -1124,29 +1109,15 @@ function showAssessmentForm(student) {
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
       const finalGradeInput = document.getElementById("finalGrade");
-      if (!finalGradeInput) return;
-      
       const finalGradeValue = parseFloat(finalGradeInput.value);
       if (isNaN(finalGradeValue) || finalGradeValue < 1 || finalGradeValue > 6) {
         showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
         return;
       }
-      
-      // Sicherstellen, dass die Assessment-Struktur existiert
-      if (!teacherData.assessments[student.id]) {
-        teacherData.assessments[student.id] = {};
-      }
-      
       teacherData.assessments[student.id].finalGrade = finalGradeValue;
-      
-      try {
-        await saveTeacherData();
-        updateAssessmentStudentList();
-        showNotification("Endnote wurde gespeichert.");
-      } catch (error) {
-        console.error("Fehler beim Speichern der Endnote:", error);
-        showNotification("Fehler beim Speichern der Endnote.", "error");
-      }
+      await saveTeacherData();
+      updateAssessmentStudentList();
+      showNotification("Endnote wurde gespeichert.");
     });
   }
   
@@ -1159,27 +1130,11 @@ function showAssessmentForm(student) {
         showNotification("Es gibt noch keinen Durchschnitt.", "warning");
         return;
       }
-      
-      const finalGradeInput = document.getElementById("finalGrade");
-      if (finalGradeInput) {
-        finalGradeInput.value = avgGrade;
-      }
-      
-      // Sicherstellen, dass die Assessment-Struktur existiert
-      if (!teacherData.assessments[student.id]) {
-        teacherData.assessments[student.id] = {};
-      }
-      
+      document.getElementById("finalGrade").value = avgGrade;
       teacherData.assessments[student.id].finalGrade = parseFloat(avgGrade);
-      
-      try {
-        await saveTeacherData();
-        updateAssessmentStudentList();
-        showNotification("Durchschnitt als Endnote übernommen.");
-      } catch (error) {
-        console.error("Fehler beim Übernehmen des Durchschnitts:", error);
-        showNotification("Fehler beim Übernehmen des Durchschnitts.", "error");
-      }
+      await saveTeacherData();
+      updateAssessmentStudentList();
+      showNotification("Durchschnitt als Endnote übernommen.");
     });
   }
   
@@ -1194,21 +1149,10 @@ function showAssessmentForm(student) {
     
     infoTextArea.addEventListener("blur", async () => {
       if (infoTextArea.dataset.changed === "true") {
-        // Sicherstellen, dass die Assessment-Struktur existiert
-        if (!teacherData.assessments[student.id]) {
-          teacherData.assessments[student.id] = {};
-        }
-        
         teacherData.assessments[student.id].infoText = infoTextArea.value;
-        
-        try {
-          await saveTeacherData();
-          infoTextArea.dataset.changed = "false";
-          showNotification("Informationstext gespeichert.");
-        } catch (error) {
-          console.error("Fehler beim Speichern des Informationstexts:", error);
-          showNotification("Fehler beim Speichern des Informationstexts.", "error");
-        }
+        await saveTeacherData();
+        infoTextArea.dataset.changed = "false";
+        showNotification("Informationstext gespeichert.");
       }
     });
     
@@ -1221,18 +1165,9 @@ function showAssessmentForm(student) {
  * Zeigt das Modal zum Bearbeiten einer Note an
  */
 function showEditGradeModal(student) {
-  if (!student) return;
-  
   selectedGradeStudent = student;
-  
-  // Prüfen, ob Bewertungen existieren
-  if (!teacherData.assessments) {
-    teacherData.assessments = {};
-  }
-  
   const assessment = teacherData.assessments[student.id] || {};
   const finalGrade = assessment.finalGrade || calculateAverageGrade(assessment) || '';
-  
   editFinalGrade.value = finalGrade;
   editGradeModal.style.display = "flex";
 }
@@ -1241,45 +1176,28 @@ function showEditGradeModal(student) {
  * Speichert eine bearbeitete Note
  */
 async function saveEditedGrade() {
-  if (!selectedGradeStudent) return;
-  
   const finalGradeValue = parseFloat(editFinalGrade.value);
   if (isNaN(finalGradeValue) || finalGradeValue < 1 || finalGradeValue > 6) {
     showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
     return;
   }
-  
   showLoader();
-  
-  try {
-    // Sicherstellen, dass die Assessment-Struktur existiert
-    if (!teacherData.assessments) {
-      teacherData.assessments = {};
-    }
-    
-    if (!teacherData.assessments[selectedGradeStudent.id]) {
-      teacherData.assessments[selectedGradeStudent.id] = {};
-      ASSESSMENT_CATEGORIES.forEach(category => {
-        teacherData.assessments[selectedGradeStudent.id][category.id] = 2;
-      });
-    }
-    
-    teacherData.assessments[selectedGradeStudent.id].finalGrade = finalGradeValue;
-    
-    const saved = await saveTeacherData();
-    if (saved) {
-      updateOverviewContent();
-      updateAssessmentStudentList();
-      showNotification(`Endnote für "${selectedGradeStudent.name}" wurde aktualisiert.`);
-    }
-  } catch (error) {
-    console.error("Fehler beim Speichern der bearbeiteten Note:", error);
-    showNotification("Fehler beim Aktualisieren der Endnote.", "error");
-  } finally {
-    hideLoader();
-    editGradeModal.style.display = "none";
-    selectedGradeStudent = null;
+  if (!teacherData.assessments[selectedGradeStudent.id]) {
+    teacherData.assessments[selectedGradeStudent.id] = {};
+    ASSESSMENT_CATEGORIES.forEach(category => {
+      teacherData.assessments[selectedGradeStudent.id][category.id] = 2;
+    });
   }
+  teacherData.assessments[selectedGradeStudent.id].finalGrade = finalGradeValue;
+  const saved = await saveTeacherData();
+  if (saved) {
+    updateOverviewContent();
+    updateAssessmentStudentList();
+    showNotification(`Endnote für "${selectedGradeStudent.name}" wurde aktualisiert.`);
+  }
+  hideLoader();
+  editGradeModal.style.display = "none";
+  selectedGradeStudent = null;
 }
 
 /**
@@ -1296,10 +1214,8 @@ function updateOverviewTab() {
  */
 function populateOverviewYearSelect() {
   if (!overviewYearSelect) return;
-  
   const years = getAvailableYears();
   overviewYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
-  
   years.forEach(year => {
     const option = document.createElement('option');
     option.value = year;
@@ -1313,12 +1229,9 @@ function populateOverviewYearSelect() {
  */
 function populateOverviewDateSelect() {
   if (!overviewDateSelect) return;
-  
   const selectedYear = overviewYearSelect.value;
   const dates = getAvailableDates(selectedYear);
-  
   overviewDateSelect.innerHTML = '<option value="">Alle Tage</option>';
-  
   dates.forEach(date => {
     const option = document.createElement('option');
     option.value = date;
@@ -1332,48 +1245,25 @@ function populateOverviewDateSelect() {
  */
 function updateOverviewContent() {
   if (!overviewTable) return;
-  
   const selectedYear = overviewYearSelect.value;
   const selectedDate = overviewDateSelect.value;
   const tbody = overviewTable.querySelector('tbody');
-  
   tbody.innerHTML = '';
-  
-  // Prüfen, ob Daten vorhanden sind
-  if (!teacherData || !teacherData.students || teacherData.students.length === 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="12">Keine Prüflinge gefunden</td>';
-    tbody.appendChild(tr);
-    return;
-  }
-  
   let filteredStudents = [...teacherData.students];
-  
   if (selectedYear) {
     filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
   }
-  
   if (selectedDate) {
     filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
   }
-  
   filteredStudents.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
-  
   if (filteredStudents.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = '<td colspan="12">Keine Prüflinge gefunden</td>';
     tbody.appendChild(tr);
     return;
   }
-  
   filteredStudents.forEach(student => {
-    if (!student) return; // Überspringe ungültige Schüler
-    
-    // Sicherstellen, dass assessments existiert
-    if (!teacherData.assessments) {
-      teacherData.assessments = {};
-    }
-    
     const assessment = teacherData.assessments[student.id] || {};
     const avgGrade = calculateAverageGrade(assessment);
     const finalGrade = assessment.finalGrade || avgGrade || '-';
@@ -1395,11 +1285,9 @@ function updateOverviewContent() {
         <button class="edit-btn" data-id="${student.id}">✏️</button>
       </td>
     `;
-    
     tr.querySelector('.edit-btn').addEventListener('click', () => {
       showEditGradeModal(student);
     });
-    
     tbody.appendChild(tr);
   });
 }
@@ -1409,7 +1297,6 @@ function updateOverviewContent() {
  */
 function updateSettingsTab() {
   populateSettingsYearSelect();
-  populateSettingsDateSelect();
 }
 
 /**
@@ -1417,10 +1304,8 @@ function updateSettingsTab() {
  */
 function populateSettingsYearSelect() {
   if (!settingsYearSelect) return;
-  
   const years = getAvailableYears();
   settingsYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
-  
   years.forEach(year => {
     const option = document.createElement('option');
     option.value = year;
@@ -1434,12 +1319,9 @@ function populateSettingsYearSelect() {
  */
 function populateSettingsDateSelect() {
   if (!settingsDateSelect) return;
-  
   const selectedYear = settingsYearSelect.value;
   const dates = getAvailableDates(selectedYear);
-  
   settingsDateSelect.innerHTML = '<option value="">Alle Tage</option>';
-  
   dates.forEach(date => {
     const option = document.createElement('option');
     option.value = date;
@@ -1457,11 +1339,9 @@ function confirmDeleteAllData() {
     showNotification("Falsches oder kein Lehrerkürzel.", "warning");
     return;
   }
-  
   if (!confirm("Wirklich ALLE Daten löschen?")) {
     return;
   }
-  
   deleteAllData();
 }
 
@@ -1470,26 +1350,18 @@ function confirmDeleteAllData() {
  */
 async function deleteAllData() {
   showLoader();
-  
-  try {
-    teacherData = {
-      students: [],
-      assessments: {}
-    };
-    
-    const saved = await saveTeacherData();
-    if (saved) {
-      updateStudentsTab();
-      updateAssessmentTab();
-      updateOverviewTab();
-      showNotification("Alle Daten wurden gelöscht.");
-    }
-  } catch (error) {
-    console.error("Fehler beim Löschen aller Daten:", error);
-    showNotification("Fehler beim Löschen der Daten.", "error");
-  } finally {
-    hideLoader();
+  teacherData = {
+    students: [],
+    assessments: {}
+  };
+  const saved = await saveTeacherData();
+  if (saved) {
+    updateStudentsTab();
+    updateAssessmentTab();
+    updateOverviewTab();
+    showNotification("Alle Daten wurden gelöscht.");
   }
+  hideLoader();
 }
 
 /**
@@ -1497,12 +1369,6 @@ async function deleteAllData() {
  */
 function exportToJSON(filteredStudents, selectedYear, selectedDate) {
   try {
-    // Überprüfen, ob Daten vorhanden sind
-    if (!filteredStudents || filteredStudents.length === 0) {
-      showNotification("Keine Daten zum Exportieren gefunden.", "warning");
-      return false;
-    }
-    
     const exportObject = {
       teacher: {
         name: currentUser.name,
@@ -1514,11 +1380,6 @@ function exportToJSON(filteredStudents, selectedYear, selectedDate) {
       },
       exportDate: new Date().toLocaleDateString('de-DE'),
       students: filteredStudents.map(s => {
-        // Sicherstellen, dass assessments existiert
-        if (!teacherData.assessments) {
-          teacherData.assessments = {};
-        }
-        
         const a = teacherData.assessments[s.id] || {};
         return {
           id: s.id,
@@ -1569,12 +1430,6 @@ function exportToJSON(filteredStudents, selectedYear, selectedDate) {
  */
 function exportToTXT(filteredStudents, selectedYear, selectedDate) {
   try {
-    // Überprüfen, ob Daten vorhanden sind
-    if (!filteredStudents || filteredStudents.length === 0) {
-      showNotification("Keine Daten zum Exportieren gefunden.", "warning");
-      return false;
-    }
-    
     let textContent = "WBS BEWERTUNGSSYSTEM - EXPORT\n";
     textContent += "==============================\n\n";
     textContent += `Lehrer: ${currentUser.name} (${currentUser.code})\n`;
@@ -1584,11 +1439,6 @@ function exportToTXT(filteredStudents, selectedYear, selectedDate) {
     textContent += "=========\n\n";
     
     filteredStudents.forEach(student => {
-      // Sicherstellen, dass assessments existiert
-      if (!teacherData.assessments) {
-        teacherData.assessments = {};
-      }
-      
       const a = teacherData.assessments[student.id] || {};
       const avgGrade = calculateAverageGrade(a);
       const finalGrade = a.finalGrade || avgGrade || '-';
@@ -1649,19 +1499,11 @@ async function exportData() {
   // Filter anwenden
   const selectedYear = settingsYearSelect.value;
   const selectedDate = settingsDateSelect.value;
-  
-  // Sicherstellen, dass students existiert
-  if (!teacherData || !teacherData.students) {
-    showNotification("Keine Daten zum Exportieren gefunden.", "warning");
-    return;
-  }
-  
   let filteredStudents = [...teacherData.students];
   
   if (selectedYear) {
     filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
   }
-  
   if (selectedDate) {
     filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
   }
