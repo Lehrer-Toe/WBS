@@ -107,7 +107,8 @@ document.addEventListener("DOMContentLoaded", function() {
  */
 async function init() {
   if (examDate) {
-    examDate.value = defaultDate;
+    // Wenn ein zuvor gespeichertes Datum existiert, nutze es
+    examDate.value = lastSelectedDate || defaultDate;
   }
   
   // Datenbank initialisieren
@@ -704,6 +705,9 @@ async function addNewStudent() {
     const date = examDate.value;
     const topic = newStudentTopic ? newStudentTopic.value.trim() : '';
     
+    // Speichere das ausgewählte Datum für den nächsten Prüfling
+    lastSelectedDate = date;
+    
     if (!name) {
       showNotification("Bitte einen Namen eingeben.", "warning");
       return;
@@ -743,7 +747,8 @@ async function addNewStudent() {
     if (saved) {
       newStudentName.value = "";
       if (newStudentTopic) newStudentTopic.value = "";
-      examDate.value = defaultDate;
+      // Das aktuelle Datum beibehalten (zuletzt ausgewähltes)
+      examDate.value = lastSelectedDate;
       updateStudentsTab();
       populateAssessmentDateSelect();
       populateOverviewTopicSelect();
@@ -778,6 +783,11 @@ async function saveEditedStudent() {
     const name = editStudentName.value.trim();
     const date = editExamDate.value;
     const topic = editStudentTopic ? editStudentTopic.value.trim() : '';
+    
+    // Wenn sich das Datum ändert, für zukünftige Schüler merken
+    if (date !== selectedStudent.examDate) {
+      lastSelectedDate = date;
+    }
     
     if (!name) {
       showNotification("Bitte einen Namen eingeben.", "warning");
