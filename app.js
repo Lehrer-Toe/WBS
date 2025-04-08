@@ -1153,25 +1153,21 @@ function showAssessmentForm(student) {
         <div class="grade-buttons" data-category="${category.id}">
     `;
     
-    // Button für "keine Bewertung"
-    const isZeroSelected = grade === 0;
-    html += `<button class="grade-button grade-0" data-grade="0" ${isZeroSelected ? 'class="selected"' : ''}>-</button>`;
-    
     // Noten-Buttons: 1.0, 1.5, 2.0, ... 6.0
     for (let i = 1; i <= 6; i++) {
       for (let decimal = 0; decimal <= 0.5; decimal += 0.5) {
-        // Bei 6,5 abbrechen (höchste Note ist 6,0)
-        if (i === 6 && decimal === 0.5) continue;
-        
         const currentGrade = i + decimal;
         const isSelected = grade === currentGrade;
         html += `
-          <button class="grade-button grade-${Math.floor(currentGrade)}" data-grade="${currentGrade}">${currentGrade.toFixed(1)}</button>
+          <button class="grade-button grade-${Math.floor(currentGrade)}" data-grade="${currentGrade}" ${isSelected ? 'class="selected"' : ''}>${currentGrade.toFixed(1)}</button>
         `;
       }
     }
     
+    // Zusätzlich die 0 für "keine Bewertung"
+    const isZeroSelected = grade === 0;
     html += `
+        <button class="grade-button grade-0" data-grade="0" ${isZeroSelected ? 'class="selected"' : ''}>-</button>
       </div>
     </div>
     `;
@@ -1757,3 +1753,4 @@ async function exportData() {
     console.error("Fehler beim Exportieren der Daten:", error);
     showNotification("Fehler beim Exportieren der Daten.", "error");
   }
+}
