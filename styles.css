@@ -38,12 +38,6 @@ header {
   box-shadow: 0 2px 15px rgba(0,0,0,0.1);
 }
 
-h1, h2, h3 {
-  margin-bottom: 15px;
-  color: var(--primary-dark);
-  font-weight: 500;
-}
-
 header h1 {
   color: white;
   margin: 0;
@@ -122,8 +116,6 @@ select {
 }
 
 input[type="date"] {
-  -webkit-appearance: none;
-  appearance: none;
   min-height: 50px;
 }
 
@@ -169,7 +161,6 @@ button:active {
 .btn-danger {
   background-color: var(--error-color);
 }
-
 .btn-danger:hover {
   background-color: #c0392b;
 }
@@ -204,6 +195,11 @@ button:active {
   margin-bottom: 1rem;
   object-fit: cover;
   background-color: #f0f0f0;
+}
+
+.teacher-card h3 {
+  margin: 0.5rem 0;
+  color: #333;
 }
 
 .notification {
@@ -316,6 +312,10 @@ button:active {
   color: white;
 }
 
+.student-name {
+  font-weight: 500;
+}
+
 .assessment-container {
   padding: 20px;
   border-radius: 12px;
@@ -350,11 +350,6 @@ button:active {
   flex-wrap: wrap;
 }
 
-.final-grade-input label {
-  font-weight: 500;
-  font-size: 1.1rem;
-}
-
 .assessment-category {
   background: #f9f9f9;
   padding: 15px;
@@ -383,13 +378,12 @@ button:active {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px; /* Kleinerer Abstand */
+  gap: 6px;
 }
 
-/* Boxen verkleinert */
 .grade-button {
-  min-width: 32px;
-  height: 32px;
+  min-width: 35px;
+  height: 35px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -514,6 +508,13 @@ table {
 .selector-group {
   flex: 1;
   min-width: 200px;
+}
+
+.selector-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--primary-dark);
 }
 
 .modal {
@@ -655,11 +656,16 @@ table {
   margin-bottom: 15px;
 }
 
-.selector-group label {
+.form-group label {
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
   color: var(--primary-dark);
+}
+
+.date-display {
+  font-size: 0.9rem;
+  color: #666;
 }
 
 .average-grade {
@@ -669,13 +675,6 @@ table {
   border-radius: 5px;
   display: inline-block;
 }
-
-.grade-1 { color: #27ae60; }
-.grade-2 { color: #2ecc71; }
-.grade-3 { color: #f39c12; }
-.grade-4 { color: #e67e22; }
-.grade-5 { color: #d35400; }
-.grade-6 { color: #c0392b; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
