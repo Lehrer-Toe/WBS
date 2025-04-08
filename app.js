@@ -21,6 +21,8 @@ let selectedStudent = null;
 let studentToDelete = null;
 let selectedGradeStudent = null;
 let infoTextSaveTimer = null;
+let lastSelectedDate = null; // Speichert das zuletzt ausgewählte Datum
+
 // Immer das aktuelle Datum verwenden (lokale Zeit in Deutschland)
 const today = new Date();
 const defaultDate = today.getFullYear() + '-' + 
@@ -52,6 +54,7 @@ const closePasswordModal = document.getElementById("closePasswordModal");
 const logoutBtn = document.getElementById("logoutBtn");
 
 const newStudentName = document.getElementById("newStudentName");
+const newStudentTopic = document.getElementById("newStudentTopic");
 const examDate = document.getElementById("examDate");
 const addStudentBtn = document.getElementById("addStudentBtn");
 const studentsTable = document.getElementById("studentsTable");
@@ -62,6 +65,7 @@ const assessmentContent = document.getElementById("assessmentContent");
 
 const overviewYearSelect = document.getElementById("overviewYearSelect");
 const overviewDateSelect = document.getElementById("overviewDateSelect");
+const overviewTopicSelect = document.getElementById("overviewTopicSelect");
 const overviewTable = document.getElementById("overviewTable");
 
 const settingsYearSelect = document.getElementById("settingsYearSelect");
@@ -73,6 +77,7 @@ const deleteDataBtn = document.getElementById("deleteDataBtn");
 const editStudentModal = document.getElementById("editStudentModal");
 const closeEditStudentModal = document.getElementById("closeEditStudentModal");
 const editStudentName = document.getElementById("editStudentName");
+const editStudentTopic = document.getElementById("editStudentTopic");
 const editExamDate = document.getElementById("editExamDate");
 const saveStudentBtn = document.getElementById("saveStudentBtn");
 const deleteStudentBtn = document.getElementById("deleteStudentBtn");
@@ -202,17 +207,23 @@ function getAvailableDates(year = null) {
 }
 
 /**
+ * Gibt die verfügbaren Themen zurück
+ */
+function getAvailableTopics() {
+  const topics = new Set();
+  teacherData.students.forEach(student => {
+    if (student.topic && student.topic.trim() !== '') {
+      topics.add(student.topic);
+    }
+  });
+  return Array.from(topics).sort();
+}
+
+/**
  * Generiert eine eindeutige ID
  */
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
-}
-
-/**
- * Prüft, ob bereits ein Student an einem Prüfungstag existiert
- */
-function isStudentOnExamDay(studentId, examDate) {
-  return teacherData.students.some(s => s.id !== studentId && s.examDate === examDate);
 }
 
 /**
@@ -508,18 +519,25 @@ function setupEventListeners() {
   
   // Bewertungs-Tab
   if (assessmentDateSelect) {
-    assessmentDateSelect.addEventListener("change", updateAssessmentStudentList);
+    assessmentDateSelect.addEventListener("change", () => {
+      lastSelectedDate = assessmentDateSelect.value;
+      updateAssessmentStudentList();
+    });
   }
   
   // Übersichts-Tab
   if (overviewYearSelect) {
     overviewYearSelect.addEventListener("change", () => {
       populateOverviewDateSelect();
+      populateOverviewTopicSelect();
       updateOverviewContent();
     });
   }
   if (overviewDateSelect) {
     overviewDateSelect.addEventListener("change", updateOverviewContent);
+  }
+  if (overviewTopicSelect) {
+    overviewTopicSelect.addEventListener("change", updateOverviewContent);
   }
   
   // Einstellungs-Tab
@@ -653,7 +671,7 @@ function updateStudentsTab() {
   tbody.innerHTML = '';
   if (teacherData.students.length === 0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="3">Keine Prüflinge vorhanden</td>';
+    tr.innerHTML = '<td colspan="4">Keine Prüflinge vorhanden</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -665,6 +683,7 @@ function updateStudentsTab() {
     tr.innerHTML = `
       <td>${student.name}</td>
       <td>${formatDate(student.examDate)}</td>
+      <td>${student.topic || '-'}</td>
       <td>
         <button class="edit-btn" data-id="${student.id}">✏️</button>
       </td>
@@ -682,6 +701,8 @@ function updateStudentsTab() {
 async function addNewStudent() {
   const name = newStudentName.value.trim();
   const date = examDate.value;
+  const topic = newStudentTopic.value.trim();
+  
   if (!name) {
     showNotification("Bitte einen Namen eingeben.", "warning");
     return;
@@ -693,15 +714,12 @@ async function addNewStudent() {
     showNotification(`Ein Prüfling namens "${name}" existiert bereits für dieses Datum.`, "warning");
     return;
   }
-  if (isStudentOnExamDay(null, date)) {
-    if (!confirm(`Es existiert bereits ein Prüfling am ${formatDate(date)}. Trotzdem fortfahren?`)) {
-      return;
-    }
-  }
+  
   const newStudent = {
     id: generateId(),
     name: name,
     examDate: date,
+    topic: topic,
     createdAt: new Date().toISOString()
   };
   showLoader();
@@ -722,6 +740,7 @@ async function addNewStudent() {
   const saved = await saveTeacherData();
   if (saved) {
     newStudentName.value = "";
+    newStudentTopic.value = "";
     examDate.value = defaultDate;
     updateStudentsTab();
     populateAssessmentDateSelect();
@@ -736,6 +755,7 @@ async function addNewStudent() {
 function showEditStudentModal(student) {
   editStudentName.value = student.name;
   editExamDate.value = student.examDate;
+  editStudentTopic.value = student.topic || '';
   selectedStudent = student;
   editStudentModal.style.display = "flex";
 }
@@ -746,6 +766,8 @@ function showEditStudentModal(student) {
 async function saveEditedStudent() {
   const name = editStudentName.value.trim();
   const date = editExamDate.value;
+  const topic = editStudentTopic.value.trim();
+  
   if (!name) {
     showNotification("Bitte einen Namen eingeben.", "warning");
     return;
@@ -759,20 +781,18 @@ async function saveEditedStudent() {
     showNotification(`Ein Prüfling namens "${name}" existiert bereits für dieses Datum.`, "warning");
     return;
   }
-  if (date !== selectedStudent.examDate && isStudentOnExamDay(selectedStudent.id, date)) {
-    if (!confirm(`Es existiert bereits ein Prüfling am ${formatDate(date)}. Trotzdem fortfahren?`)) {
-      return;
-    }
-  }
+  
   showLoader();
   const index = teacherData.students.findIndex(s => s.id === selectedStudent.id);
   if (index !== -1) {
     teacherData.students[index].name = name;
     teacherData.students[index].examDate = date;
+    teacherData.students[index].topic = topic;
     const saved = await saveTeacherData();
     if (saved) {
       updateStudentsTab();
       populateAssessmentDateSelect();
+      populateOverviewTopicSelect();
       showNotification(`Prüfling "${name}" wurde aktualisiert.`);
     }
   }
@@ -825,12 +845,34 @@ function populateAssessmentDateSelect() {
   if (!assessmentDateSelect) return;
   const dates = getAvailableDates();
   assessmentDateSelect.innerHTML = '<option value="">Bitte wählen...</option>';
+  
+  // Bestimmen des Standarddatums
+  const today = defaultDate;
+  let defaultDate = lastSelectedDate || today;
+  
+  // Prüfen, ob das Standarddatum in den verfügbaren Daten ist
+  let defaultOptionAdded = false;
+  
   dates.forEach(date => {
     const option = document.createElement('option');
     option.value = date;
     option.textContent = formatDate(date);
+    
+    // Standarddatum als ausgewählt markieren
+    if (date === defaultDate) {
+      option.selected = true;
+      defaultOptionAdded = true;
+    }
+    
     assessmentDateSelect.appendChild(option);
   });
+  
+  // Wenn das Standarddatum nicht in den verfügbaren Daten ist und Daten vorhanden sind,
+  // die erste Option auswählen
+  if (!defaultOptionAdded && dates.length > 0) {
+    assessmentDateSelect.options[1].selected = true; // Index 1, da Index 0 "Bitte wählen..." ist
+    lastSelectedDate = dates[0]; // Aktualisieren des letzten ausgewählten Datums
+  }
 }
 
 /**
@@ -923,6 +965,7 @@ function showAssessmentForm(student) {
       <div class="student-header">
         <h2>${student.name}</h2>
         <p>Prüfungsdatum: ${formatDate(student.examDate)}</p>
+        ${student.topic ? `<p>Thema: ${student.topic}</p>` : ''}
       </div>
       
       <div class="info-text-container">
@@ -934,7 +977,7 @@ function showAssessmentForm(student) {
       
       <div class="final-grade-input">
         <label for="finalGrade">Endnote:</label>
-        <input type="number" id="finalGrade" min="1" max="6" step="0.1" value="${finalGrade !== '-' ? finalGrade : ''}">
+        <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== '-' ? finalGrade : ''}">
         <button id="saveFinalGradeBtn">Speichern</button>
         <button id="useAverageBtn">Durchschnitt übernehmen</button>
       </div>
@@ -950,30 +993,39 @@ function showAssessmentForm(student) {
         <div class="category-grade">${grade || '-'}</div>
         <div class="grade-buttons" data-category="${category.id}">
     `;
-    for (let i = 0; i <= 6; i++) {
-      const isSelected = grade === i;
-      html += `
-        <button class="grade-button grade-${i} ${isSelected ? 'selected' : ''}" data-grade="${i}">${i}</button>
-      `;
+    
+    // Noten-Buttons: 1.0, 1.5, 2.0, ... 6.0
+    for (let i = 1; i <= 6; i++) {
+      for (let decimal = 0; decimal <= 0.5; decimal += 0.5) {
+        const currentGrade = i + decimal;
+        const isSelected = grade === currentGrade;
+        html += `
+          <button class="grade-button grade-${Math.floor(currentGrade)}" data-grade="${currentGrade}" ${isSelected ? 'selected' : ''}>${currentGrade.toFixed(1)}</button>
+        `;
+      }
     }
+    
+    // Zusätzlich die 0 für "keine Bewertung"
+    const isZeroSelected = grade === 0;
     html += `
-        </div>
+        <button class="grade-button grade-0" data-grade="0" ${isZeroSelected ? 'selected' : ''}>-</button>
       </div>
+    </div>
     `;
   });
   
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
-  // Eventlistener für Notenwahl-Buttons
+  // Event-Listener für Notenwahl-Buttons
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
     btn.addEventListener("click", async () => {
       const category = btn.parentElement.dataset.category;
-      const grade = parseInt(btn.dataset.grade);
+      const grade = parseFloat(btn.dataset.grade);
       const buttons = btn.parentElement.querySelectorAll("button");
       buttons.forEach(b => b.classList.remove("selected"));
       btn.classList.add("selected");
-      btn.parentElement.previousElementSibling.textContent = grade || '-';
+      btn.parentElement.previousElementSibling.textContent = grade === 0 ? '-' : grade.toFixed(1);
       if (!teacherData.assessments[student.id]) {
         teacherData.assessments[student.id] = {};
       }
@@ -1092,6 +1144,7 @@ async function saveEditedGrade() {
 function updateOverviewTab() {
   populateOverviewYearSelect();
   populateOverviewDateSelect();
+  populateOverviewTopicSelect();
   updateOverviewContent();
 }
 
@@ -1127,28 +1180,52 @@ function populateOverviewDateSelect() {
 }
 
 /**
+ * Füllt das Thema-Dropdown in der Übersicht
+ */
+function populateOverviewTopicSelect() {
+  if (!overviewTopicSelect) return;
+  const topics = getAvailableTopics();
+  overviewTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
+  topics.forEach(topic => {
+    const option = document.createElement('option');
+    option.value = topic;
+    option.textContent = topic;
+    overviewTopicSelect.appendChild(option);
+  });
+}
+
+/**
  * Aktualisiert den Inhalt der Übersicht
  */
 function updateOverviewContent() {
   if (!overviewTable) return;
   const selectedYear = overviewYearSelect.value;
   const selectedDate = overviewDateSelect.value;
+  const selectedTopic = overviewTopicSelect ? overviewTopicSelect.value : "";
   const tbody = overviewTable.querySelector('tbody');
   tbody.innerHTML = '';
+  
   let filteredStudents = [...teacherData.students];
+  
   if (selectedYear) {
     filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === selectedYear);
   }
   if (selectedDate) {
     filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
   }
+  if (selectedTopic) {
+    filteredStudents = filteredStudents.filter(s => s.topic === selectedTopic);
+  }
+  
   filteredStudents.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
+  
   if (filteredStudents.length === 0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="12">Keine Prüflinge gefunden</td>';
+    tr.innerHTML = '<td colspan="13">Keine Prüflinge gefunden</td>';
     tbody.appendChild(tr);
     return;
   }
+  
   filteredStudents.forEach(student => {
     const assessment = teacherData.assessments[student.id] || {};
     const avgGrade = calculateAverageGrade(assessment);
@@ -1158,6 +1235,7 @@ function updateOverviewContent() {
     tr.innerHTML = `
       <td>${student.name}</td>
       <td>${formatDate(student.examDate)}</td>
+      <td>${student.topic || '-'}</td>
       <td>${assessment.presentation || '-'}</td>
       <td>${assessment.content || '-'}</td>
       <td>${assessment.language || '-'}</td>
@@ -1271,6 +1349,7 @@ function exportToJSON(filteredStudents, selectedYear, selectedDate) {
           id: s.id,
           name: s.name,
           examDate: formatDate(s.examDate),
+          topic: s.topic || '',
           createdAt: s.createdAt,
           infoText: a.infoText || '',
           finalGrade: a.finalGrade,
@@ -1331,6 +1410,9 @@ function exportToTXT(filteredStudents, selectedYear, selectedDate) {
       
       textContent += `Name: ${student.name}\n`;
       textContent += `Datum: ${formatDate(student.examDate)}\n`;
+      if (student.topic) {
+        textContent += `Thema: ${student.topic}\n`;
+      }
       textContent += `Endnote: ${finalGrade}\n`;
       textContent += `Durchschnitt: ${avgGrade || '-'}\n\n`;
       
@@ -1385,6 +1467,8 @@ async function exportData() {
   // Filter anwenden
   const selectedYear = settingsYearSelect.value;
   const selectedDate = settingsDateSelect.value;
+  const selectedTopic = overviewTopicSelect ? overviewTopicSelect.value : "";
+  
   let filteredStudents = [...teacherData.students];
   
   if (selectedYear) {
@@ -1392,6 +1476,9 @@ async function exportData() {
   }
   if (selectedDate) {
     filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
+  }
+  if (selectedTopic) {
+    filteredStudents = filteredStudents.filter(s => s.topic === selectedTopic);
   }
   
   // Sortiere Schüler nach Datum und Namen
