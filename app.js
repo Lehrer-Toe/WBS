@@ -1064,8 +1064,8 @@ function showAssessmentForm(student) {
       
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
-        <!-- Textbox wieder vergrößert auf rows="10" -->
-        <textarea id="studentInfoText" rows="10" placeholder="Notizen zum Prüfling eintragen...">${infoText}</textarea>
+        <!-- Textbox wieder vergrößert auf rows="5" -->
+        <textarea id="studentInfoText" rows="5" placeholder="Notizen zum Prüfling eintragen...">${infoText}</textarea>
       </div>
       
       <div class="final-grade-display">Ø ${avgGrade || '0.0'}</div>
