@@ -455,11 +455,12 @@ button:active {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
   color: white;
+  font-size: 0.85rem;
+  padding: 0 6px;
 }
 
 .grade-button:hover {
@@ -809,9 +810,9 @@ table {
   }
   
   .grade-button {
-    width: 48px;
-    height: 48px;
-    font-size: 1.1rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
   }
   
   input, button, select {
