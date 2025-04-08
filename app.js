@@ -1153,22 +1153,25 @@ function showAssessmentForm(student) {
         <div class="grade-buttons" data-category="${category.id}">
     `;
     
+    // Button für "keine Bewertung"
+    const isZeroSelected = grade === 0;
+    html += `<button class="grade-button grade-0" data-grade="0" ${isZeroSelected ? 'class="selected"' : ''}>-</button>`;
+    
     // Noten-Buttons: 1.0, 1.5, 2.0, ... 6.0
     for (let i = 1; i <= 6; i++) {
       for (let decimal = 0; decimal <= 0.5; decimal += 0.5) {
+        // Bei 6,5 abbrechen (höchste Note ist 6,0)
+        if (i === 6 && decimal === 0.5) continue;
+        
         const currentGrade = i + decimal;
         const isSelected = grade === currentGrade;
-        // Hinzufügen der Notenwerte als Text in den Buttons
         html += `
-          <button class="grade-button grade-${Math.floor(currentGrade)} ${isSelected ? 'selected' : ''}" data-grade="${currentGrade}">${currentGrade.toFixed(1)}</button>
+          <button class="grade-button grade-${Math.floor(currentGrade)}" data-grade="${currentGrade}">${currentGrade.toFixed(1)}</button>
         `;
       }
     }
     
-    // Zusätzlich die 0 für "keine Bewertung"
-    const isZeroSelected = grade === 0;
     html += `
-        <button class="grade-button grade-0 ${isZeroSelected ? 'selected' : ''}" data-grade="0">-</button>
       </div>
     </div>
     `;
@@ -1177,8 +1180,17 @@ function showAssessmentForm(student) {
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
-  // Event-Listener für Notenwahl-Buttons
+  // Klassen für ausgewählte Buttons korrigieren
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
+    const category = btn.parentElement.dataset.category;
+    const grade = parseFloat(btn.dataset.grade);
+    const currentGrade = assessment[category] || 0;
+    
+    if (grade === currentGrade) {
+      btn.classList.add("selected");
+    }
+    
+    // Event-Listener für Notenwahl-Buttons
     btn.addEventListener("click", async () => {
       const categoryId = btn.parentElement.dataset.category;
       const gradeValue = parseFloat(btn.dataset.grade);
@@ -1745,4 +1757,3 @@ async function exportData() {
     console.error("Fehler beim Exportieren der Daten:", error);
     showNotification("Fehler beim Exportieren der Daten.", "error");
   }
-}
