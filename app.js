@@ -22,6 +22,7 @@ let studentToDelete = null;
 let selectedGradeStudent = null;
 let infoTextSaveTimer = null;
 let lastSelectedDate = null; // Speichert das zuletzt ausgewählte Datum
+let lastSelectedTopic = null; // Speichert das zuletzt ausgewählte Thema
 
 // Immer das aktuelle Datum verwenden (lokale Zeit in Deutschland)
 const today = new Date();
@@ -60,6 +61,7 @@ const addStudentBtn = document.getElementById("addStudentBtn");
 const studentsTable = document.getElementById("studentsTable");
 
 const assessmentDateSelect = document.getElementById("assessmentDateSelect");
+const assessmentTopicSelect = document.getElementById("assessmentTopicSelect");
 const assessmentStudentList = document.getElementById("assessmentStudentList");
 const assessmentContent = document.getElementById("assessmentContent");
 
@@ -210,13 +212,21 @@ function getAvailableDates(year = null) {
 /**
  * Gibt die verfügbaren Themen zurück
  */
-function getAvailableTopics() {
+function getAvailableTopics(selectedDate = null) {
   const topics = new Set();
-  teacherData.students.forEach(student => {
+  
+  // Filter nach Datum, falls ausgewählt
+  let filteredStudents = teacherData.students;
+  if (selectedDate) {
+    filteredStudents = filteredStudents.filter(s => s.examDate === selectedDate);
+  }
+  
+  filteredStudents.forEach(student => {
     if (student.topic && student.topic.trim() !== '') {
       topics.add(student.topic);
     }
   });
+  
   return Array.from(topics).sort();
 }
 
@@ -522,6 +532,14 @@ function setupEventListeners() {
   if (assessmentDateSelect) {
     assessmentDateSelect.addEventListener("change", () => {
       lastSelectedDate = assessmentDateSelect.value;
+      // Bei Datumswechsel Themenfilter aktualisieren
+      populateAssessmentTopicSelect();
+      updateAssessmentStudentList();
+    });
+  }
+  if (assessmentTopicSelect) {
+    assessmentTopicSelect.addEventListener("change", () => {
+      lastSelectedTopic = assessmentTopicSelect.value;
       updateAssessmentStudentList();
     });
   }
@@ -705,8 +723,11 @@ async function addNewStudent() {
     const date = examDate.value;
     const topic = newStudentTopic ? newStudentTopic.value.trim() : '';
     
-    // Speichere das ausgewählte Datum für den nächsten Prüfling
+    // Speichere das ausgewählte Datum und Thema für den nächsten Prüfling
     lastSelectedDate = date;
+    if (topic) {
+      lastSelectedTopic = topic;
+    }
     
     if (!name) {
       showNotification("Bitte einen Namen eingeben.", "warning");
@@ -751,6 +772,7 @@ async function addNewStudent() {
       examDate.value = lastSelectedDate;
       updateStudentsTab();
       populateAssessmentDateSelect();
+      populateAssessmentTopicSelect();
       populateOverviewTopicSelect();
       showNotification(`Prüfling "${name}" wurde hinzugefügt.`);
     }
@@ -789,6 +811,11 @@ async function saveEditedStudent() {
       lastSelectedDate = date;
     }
     
+    // Wenn sich das Thema ändert, für zukünftige Schüler merken
+    if (topic && topic !== selectedStudent.topic) {
+      lastSelectedTopic = topic;
+    }
+    
     if (!name) {
       showNotification("Bitte einen Namen eingeben.", "warning");
       return;
@@ -816,6 +843,7 @@ async function saveEditedStudent() {
       if (saved) {
         updateStudentsTab();
         populateAssessmentDateSelect();
+        populateAssessmentTopicSelect();
         populateOverviewTopicSelect();
         showNotification(`Prüfling "${name}" wurde aktualisiert.`);
         editStudentModal.style.display = "none";
@@ -854,6 +882,7 @@ async function deleteStudent() {
     if (saved) {
       updateStudentsTab();
       populateAssessmentDateSelect();
+      populateAssessmentTopicSelect();
       updateOverviewTab();
       showNotification(`Prüfling "${studentToDelete.name}" wurde gelöscht.`);
       confirmDeleteModal.style.display = "none";
@@ -872,6 +901,7 @@ async function deleteStudent() {
  */
 function updateAssessmentTab() {
   populateAssessmentDateSelect();
+  populateAssessmentTopicSelect();
   updateAssessmentStudentList();
 }
 
@@ -882,7 +912,7 @@ function populateAssessmentDateSelect() {
   if (!assessmentDateSelect) return;
   
   const dates = getAvailableDates();
-  assessmentDateSelect.innerHTML = '<option value="">Bitte wählen...</option>';
+  assessmentDateSelect.innerHTML = '<option value="">Alle Termine</option>';
   
   if (dates.length === 0) {
     return;
@@ -900,7 +930,7 @@ function populateAssessmentDateSelect() {
     defaultDateValue = defaultDate;
   } 
   // Sonst das neueste Datum nehmen
-  else {
+  else if (dates.length > 0) {
     defaultDateValue = dates[0];
   }
   
@@ -916,11 +946,51 @@ function populateAssessmentDateSelect() {
   });
   
   // Sicherstellen, dass lastSelectedDate aktualisiert wird
-  lastSelectedDate = assessmentDateSelect.value;
-  
-  // Wenn ein Datum ausgewählt ist, Liste aktualisieren
   if (assessmentDateSelect.value) {
-    updateAssessmentStudentList();
+    lastSelectedDate = assessmentDateSelect.value;
+  }
+}
+
+/**
+ * Füllt das Themen-Dropdown im Bewertungs-Tab
+ */
+function populateAssessmentTopicSelect() {
+  if (!assessmentTopicSelect) return;
+  
+  const selectedDate = assessmentDateSelect.value;
+  
+  // Alle verfügbaren Themen für das ausgewählte Datum holen
+  const topics = getAvailableTopics(selectedDate);
+  
+  assessmentTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
+  
+  // Wenn keine Themen verfügbar sind, früh beenden
+  if (topics.length === 0) {
+    return;
+  }
+  
+  // Standardthema bestimmen
+  let defaultTopicValue = null;
+  
+  // Zuerst versuchen, das zuletzt ausgewählte Thema zu verwenden, wenn vorhanden und gültig
+  if (lastSelectedTopic && topics.includes(lastSelectedTopic)) {
+    defaultTopicValue = lastSelectedTopic;
+  }
+  
+  // Optionen hinzufügen
+  topics.forEach(topic => {
+    const option = document.createElement('option');
+    option.value = topic;
+    option.textContent = topic;
+    if (topic === defaultTopicValue) {
+      option.selected = true;
+    }
+    assessmentTopicSelect.appendChild(option);
+  });
+  
+  // Sicherstellen, dass lastSelectedTopic aktualisiert wird
+  if (assessmentTopicSelect.value) {
+    lastSelectedTopic = assessmentTopicSelect.value;
   }
 }
 
@@ -929,28 +999,53 @@ function populateAssessmentDateSelect() {
  */
 function updateAssessmentStudentList() {
   if (!assessmentStudentList || !assessmentContent) return;
+  
   const selectedDate = assessmentDateSelect.value;
+  const selectedTopic = assessmentTopicSelect ? assessmentTopicSelect.value : "";
+  
   assessmentStudentList.innerHTML = '';
   
-  if (!selectedDate) {
-    assessmentStudentList.innerHTML = '<li>Bitte wählen Sie ein Datum</li>';
+  if (!selectedDate && !selectedTopic) {
+    assessmentStudentList.innerHTML = '<li>Bitte wählen Sie ein Datum oder Thema</li>';
     assessmentContent.innerHTML = `
       <div class="welcome-card">
         <h2>Willkommen bei der WBS Bewertungsapp</h2>
-        <p>Bitte wählen Sie einen Prüfungstag und Prüfling aus der Liste oder legen Sie einen neuen Prüfling an.</p>
+        <p>Bitte wählen Sie einen Prüfungstag oder ein Thema und dann einen Prüfling aus der Liste.</p>
       </div>
     `;
     return;
   }
   
-  const studentsForDate = teacherData.students.filter(s => s.examDate === selectedDate);
+  // Prüflinge filtern
+  let studentsFiltered = teacherData.students;
   
-  if (studentsForDate.length === 0) {
-    assessmentStudentList.innerHTML = '<li>Keine Prüflinge für dieses Datum</li>';
+  if (selectedDate) {
+    studentsFiltered = studentsFiltered.filter(s => s.examDate === selectedDate);
+  }
+  
+  if (selectedTopic) {
+    studentsFiltered = studentsFiltered.filter(s => s.topic === selectedTopic);
+  }
+  
+  if (studentsFiltered.length === 0) {
+    assessmentStudentList.innerHTML = '<li>Keine Prüflinge gefunden</li>';
+    assessmentContent.innerHTML = `
+      <div class="welcome-card">
+        <h2>Keine Prüflinge gefunden</h2>
+        <p>Für die ausgewählten Filter wurden keine Prüflinge gefunden.</p>
+      </div>
+    `;
     return;
   }
   
-  studentsForDate.forEach(student => {
+  // Nach Datum absteigend und dann nach Namen sortieren
+  studentsFiltered.sort((a, b) => {
+    const dateComp = new Date(b.examDate) - new Date(a.examDate);
+    if (dateComp !== 0) return dateComp;
+    return a.name.localeCompare(b.name);
+  });
+  
+  studentsFiltered.forEach(student => {
     const li = document.createElement('li');
     li.className = 'student-item';
     li.dataset.id = student.id;
@@ -974,7 +1069,7 @@ function updateAssessmentStudentList() {
   });
   
   // Automatisch den ersten Prüfling auswählen, wenn noch keiner ausgewählt ist
-  if (studentsForDate.length > 0 && !document.querySelector('.student-item.active')) {
+  if (studentsFiltered.length > 0 && !document.querySelector('.student-item.active')) {
     const firstStudent = document.querySelector('.student-item');
     if (firstStudent) {
       firstStudent.click();
