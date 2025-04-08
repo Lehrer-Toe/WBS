@@ -1025,7 +1025,7 @@ function showAssessmentForm(student) {
   const avgGrade = calculateAverageGrade(assessment);
   const finalGrade = assessment.finalGrade || avgGrade || '-';
   const infoText = assessment.infoText || '';
-  
+
   let html = `
     <div class="assessment-container">
       <div class="student-header">
@@ -1048,7 +1048,7 @@ function showAssessmentForm(student) {
         <button id="useAverageBtn">Durchschnitt übernehmen</button>
       </div>
   `;
-  
+
   ASSESSMENT_CATEGORIES.forEach(category => {
     const grade = assessment[category.id] || 0;
     html += `
@@ -1084,6 +1084,7 @@ function showAssessmentForm(student) {
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
+  // Event-Listener für die Note-Buttons und weitere Aktionen
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
     btn.addEventListener("click", async () => {
       const categoryId = btn.parentElement.dataset.category;
@@ -1119,7 +1120,7 @@ function showAssessmentForm(student) {
       }
     });
   });
-  
+
   const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
@@ -1140,7 +1141,7 @@ function showAssessmentForm(student) {
       }
     });
   }
-  
+
   const useAverageBtn = document.getElementById("useAverageBtn");
   if (useAverageBtn) {
     useAverageBtn.addEventListener("click", async () => {
@@ -1161,7 +1162,7 @@ function showAssessmentForm(student) {
       }
     });
   }
-  
+
   const infoTextArea = document.getElementById("studentInfoText");
   if (infoTextArea) {
     infoTextArea.addEventListener("input", () => {
