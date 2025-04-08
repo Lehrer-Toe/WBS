@@ -70,6 +70,10 @@
                 <input type="text" id="newStudentName" placeholder="Vor- und Nachname">
               </div>
               <div class="form-group">
+                <label for="newStudentTopic">Thema (optional)</label>
+                <input type="text" id="newStudentTopic" placeholder="Thema der Prüfung">
+              </div>
+              <div class="form-group">
                 <label for="examDate">Prüfungsdatum</label>
                 <input type="date" id="examDate">
               </div>
@@ -85,12 +89,13 @@
                   <tr>
                     <th>Name</th>
                     <th>Datum</th>
+                    <th>Thema</th>
                     <th>Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td colspan="3">Keine Prüflinge vorhanden</td>
+                    <td colspan="4">Keine Prüflinge vorhanden</td>
                   </tr>
                 </tbody>
               </table>
@@ -146,6 +151,13 @@
               <option value="">Alle Tage</option>
             </select>
           </div>
+          
+          <div class="selector-group">
+            <label for="overviewTopicSelect">Thema</label>
+            <select id="overviewTopicSelect">
+              <option value="">Alle Themen</option>
+            </select>
+          </div>
         </div>
         
         <div class="table-container">
@@ -154,6 +166,7 @@
               <tr>
                 <th>Name</th>
                 <th>Datum</th>
+                <th>Thema</th>
                 <th>Präsentation</th>
                 <th>Inhalt</th>
                 <th>Sprache</th>
@@ -168,7 +181,7 @@
             </thead>
             <tbody>
               <tr>
-                <td colspan="12">Keine Prüflinge gefunden</td>
+                <td colspan="13">Keine Prüflinge gefunden</td>
               </tr>
             </tbody>
           </table>
@@ -233,6 +246,10 @@
           <input type="text" id="editStudentName" placeholder="Vor- und Nachname">
         </div>
         <div class="form-group">
+          <label for="editStudentTopic">Thema (optional)</label>
+          <input type="text" id="editStudentTopic" placeholder="Thema der Prüfung">
+        </div>
+        <div class="form-group">
           <label for="editExamDate">Prüfungsdatum</label>
           <input type="date" id="editExamDate">
         </div>
@@ -252,7 +269,7 @@
         <div id="editGradeContent">
           <div class="form-group">
             <label for="editFinalGrade">Endnote</label>
-            <input type="number" id="editFinalGrade" min="1" max="6" step="0.1">
+            <input type="number" id="editFinalGrade" min="1" max="6" step="0.5">
           </div>
         </div>
         <div class="modal-footer">
