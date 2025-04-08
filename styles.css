@@ -370,86 +370,17 @@ button:active {
   gap: 5px;
 }
 
-.assessment-container {
-  padding: 20px;
-  border-radius: 12px;
-  background: white;
-}
-
-.student-header {
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.student-header h2 {
-  color: var(--primary-color);
-  margin-bottom: 5px;
-}
-
-.final-grade-display {
-  font-size: 3rem;
-  font-weight: 700;
-  text-align: center;
-  color: var(--primary-color);
-  margin: 20px 0;
-}
-
-.final-grade-input {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 20px 0;
-  flex-wrap: wrap;
-}
-
-.final-grade-input label {
-  font-weight: 500;
-  font-size: 1.1rem;
-}
-
-.final-grade-input input {
-  width: 80px;
-  text-align: center;
-  font-size: 1.1rem;
-  padding: 8px;
-}
-
-.assessment-category {
-  background: #f9f9f9;
-  padding: 15px;
-  border-radius: 12px;
-  margin-bottom: 15px;
-}
-
-.category-header {
-  margin-bottom: 10px;
-}
-
-.category-header h3 {
-  color: var(--primary-color);
-  margin: 0;
-}
-
-.category-grade {
-  font-size: 2rem;
-  font-weight: 700;
-  text-align: center;
-  color: var(--primary-dark);
-  margin: 10px 0;
-}
-
+/* Anpassung der Noten-Buttons */
 .grade-buttons {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .grade-button {
-  min-width: 45px;
-  height: 40px;
+  min-width: 35px;
+  height: 30px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -459,6 +390,7 @@ button:active {
   transition: all 0.2s ease;
   border: none;
   color: white;
+  font-size: 0.85rem;
 }
 
 .grade-button:hover {
@@ -749,138 +681,4 @@ table {
 .date-display {
   font-size: 0.9rem;
   color: #666;
-}
-
-.average-grade {
-  font-size: 1.2rem;
-  font-weight: 600;
-  padding: 5px 10px;
-  border-radius: 5px;
-  display: inline-block;
-}
-
-.grade-1 { color: #27ae60; }
-.grade-2 { color: #2ecc71; }
-.grade-3 { color: #f39c12; }
-.grade-4 { color: #e67e22; }
-.grade-5 { color: #d35400; }
-.grade-6 { color: #c0392b; }
-
-.welcome-card {
-  background-color: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: var(--card-shadow);
-  margin-bottom: 20px;
-  border-top: 4px solid var(--accent-color);
-}
-
-.welcome-card h2 {
-  color: var(--primary-color);
-  margin-top: 0;
-}
-
-.card {
-  background-color: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: var(--card-shadow);
-  margin-bottom: 20px;
-  border-left: 4px solid var(--primary-color);
-}
-
-@media (max-width: 1024px) and (min-width: 768px) {
-  .container {
-    max-width: 95%;
-    padding: 1.5rem;
-  }
-  
-  .main-layout {
-    flex-direction: column;
-  }
-  
-  .sidebar {
-    width: 100%;
-  }
-  
-  .assessment-category {
-    padding: 12px;
-  }
-  
-  .grade-button {
-    width: 48px;
-    height: 48px;
-    font-size: 1.1rem;
-  }
-  
-  input, button, select {
-    font-size: 1.1rem;
-    min-height: 48px;
-  }
-}
-
-/* Neue CSS-Regeln für das Informationstext-Feld */
-.info-text-container {
-  margin-bottom: 20px;
-  background-color: #f9f9f9;
-  padding: 15px;
-  border-radius: 12px;
-  border-left: 4px solid var(--accent-color);
-}
-
-.info-text-container h3 {
-  color: var(--primary-color);
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-
-#studentInfoText {
-  width: 100%;
-  padding: 10px;
-  min-height: 120px; /* ca. 6 Zeilen */
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-family: 'Roboto', sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
-  transition: var(--transition);
-}
-
-#studentInfoText:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
-}
-
-/* Animation für Autosave */
-@keyframes saveFlash {
-  0% { background-color: rgba(52, 73, 94, 0); }
-  50% { background-color: rgba(52, 73, 94, 0.2); }
-  100% { background-color: rgba(52, 73, 94, 0); }
-}
-
-.save-flash {
-  animation: saveFlash 1s ease;
-}
-
-/* Hervorhebungen */
-.accent-border {
-  border-left: 4px solid var(--accent-color);
-}
-
-.section h3 {
-  position: relative;
-  padding-left: 12px;
-}
-
-.section h3:before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 4px;
-  background-color: var(--accent-color);
-  border-radius: 2px;
 }
