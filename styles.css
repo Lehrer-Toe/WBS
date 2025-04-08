@@ -447,9 +447,9 @@ button:active {
 }
 
 .grade-button {
-  width: 40px;
+  min-width: 45px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -568,10 +568,12 @@ table {
   display: flex;
   gap: 15px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .selector-group {
   flex: 1;
+  min-width: 200px;
 }
 
 .selector-group label {
