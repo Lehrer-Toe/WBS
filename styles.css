@@ -141,15 +141,6 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
 }
 
-input[type="file"] {
-  padding: 10px 0;
-  margin: 5px 0;
-}
-
-input[type="checkbox"] {
-  margin-right: 5px;
-}
-
 button {
   background-color: var(--primary-color);
   border: none;
@@ -175,39 +166,12 @@ button:active {
   transform: translateY(0);
 }
 
-.btn-secondary {
-  background-color: var(--accent-color);
-}
-
-.btn-secondary:hover {
-  background-color: #d35400;
-}
-
-.btn-warning {
-  background-color: var(--warning-color);
-}
-
-.btn-warning:hover {
-  background-color: #e67e22;
-}
-
 .btn-danger {
   background-color: var(--error-color);
 }
 
 .btn-danger:hover {
   background-color: #c0392b;
-}
-
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  min-height: 36px;
-  padding: 0;
-  border-radius: 50%;
-  font-size: 1.2rem;
 }
 
 .teacher-grid {
@@ -240,11 +204,6 @@ button:active {
   margin-bottom: 1rem;
   object-fit: cover;
   background-color: #f0f0f0;
-}
-
-.teacher-card h3 {
-  margin: 0.5rem 0;
-  color: #333;
 }
 
 .notification {
@@ -357,31 +316,81 @@ button:active {
   color: white;
 }
 
-.student-name {
-  font-weight: 500;
+.assessment-container {
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
 }
 
-.student-actions {
-  display: none;
+.student-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
 }
 
-.student-item:hover .student-actions {
+.student-header h2 {
+  color: var(--primary-color);
+  margin-bottom: 5px;
+}
+
+.final-grade-display {
+  font-size: 3rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-color);
+  margin: 20px 0;
+}
+
+.final-grade-input {
   display: flex;
-  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
 }
 
-/* Anpassung der Noten-Buttons */
+.final-grade-input label {
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.assessment-category {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+}
+
+.category-header {
+  margin-bottom: 10px;
+}
+
+.category-header h3 {
+  color: var(--primary-color);
+  margin: 0;
+}
+
+.category-grade {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-dark);
+  margin: 10px 0;
+}
+
 .grade-buttons {
   display: flex;
   justify-content: center;
-  flex-wrap: nowrap;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 4px; /* Kleinerer Abstand */
 }
 
+/* Boxen verkleinert */
 .grade-button {
-  min-width: 35px;
-  height: 30px;
-  border-radius: 8px;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -390,7 +399,7 @@ button:active {
   transition: all 0.2s ease;
   border: none;
   color: white;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .grade-button:hover {
@@ -402,13 +411,13 @@ button:active {
   box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
 }
 
-.grade-button.grade-0 { background-color: #95a5a6; }
-.grade-button.grade-1 { background-color: #27ae60; }
-.grade-button.grade-2 { background-color: #2ecc71; }
-.grade-button.grade-3 { background-color: #f1c40f; color: #333; }
-.grade-button.grade-4 { background-color: #e67e22; }
-.grade-button.grade-5 { background-color: #d35400; }
-.grade-button.grade-6 { background-color: #c0392b; }
+.grade-button.grade-0  { background-color: #95a5a6; }
+.grade-button.grade-1  { background-color: #27ae60; }
+.grade-button.grade-2  { background-color: #2ecc71; }
+.grade-button.grade-3  { background-color: #f1c40f; color: #333; }
+.grade-button.grade-4  { background-color: #e67e22; }
+.grade-button.grade-5  { background-color: #d35400; }
+.grade-button.grade-6  { background-color: #c0392b; }
 
 .table-container {
   overflow-x: auto;
@@ -420,11 +429,6 @@ table {
   border-collapse: collapse;
   margin: 0;
   font-size: 0.9rem;
-}
-
-.student-table {
-  width: 100%;
-  border-collapse: collapse;
 }
 
 .student-table th {
@@ -447,11 +451,6 @@ table {
 
 .student-table tr:hover {
   background-color: #f1f1f1;
-}
-
-.overview-table {
-  width: 100%;
-  border-collapse: collapse;
 }
 
 .overview-table th {
@@ -515,21 +514,6 @@ table {
 .selector-group {
   flex: 1;
   min-width: 200px;
-}
-
-.selector-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: var(--primary-dark);
-}
-
-.selector-group select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: white;
 }
 
 .modal {
@@ -671,14 +655,29 @@ table {
   margin-bottom: 15px;
 }
 
-.form-group label {
+.selector-group label {
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
   color: var(--primary-dark);
 }
 
-.date-display {
-  font-size: 0.9rem;
-  color: #666;
+.average-grade {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 5px;
+  display: inline-block;
+}
+
+.grade-1 { color: #27ae60; }
+.grade-2 { color: #2ecc71; }
+.grade-3 { color: #f39c12; }
+.grade-4 { color: #e67e22; }
+.grade-5 { color: #d35400; }
+.grade-6 { color: #c0392b; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
