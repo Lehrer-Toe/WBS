@@ -1,17 +1,17 @@
 :root {
-  --primary-color: #4CAF50;
-  --primary-light: #81C784;
-  --primary-dark: #388E3C;
-  --accent-color: #673AB7;
+  --primary-color: #34495e;
+  --primary-light: #5c7a99;
+  --primary-dark: #2c3e50;
+  --accent-color: #e67e22;
   --secondary-color: #f7f9fc;
   --text-color: #333;
-  --success-color: #4caf50;
-  --warning-color: #ff9800;
-  --error-color: #f44336;
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
   --border-color: #e0e0e0;
   --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
   --transition: all 0.3s ease;
-  --header-bg: #4CAF50;
+  --header-bg: #34495e;
 }
 
 * {
@@ -50,7 +50,7 @@ header h1 {
 }
 
 .container {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 2rem auto;
   background: white;
   border-radius: 12px;
@@ -93,7 +93,7 @@ header h1 {
   left: 0;
   width: 100%;
   height: 3px;
-  background-color: var(--primary-color);
+  background-color: var(--accent-color);
 }
 
 .tab-content {
@@ -138,7 +138,7 @@ input[type="number"]:focus,
 select:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+  box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
 }
 
 input[type="file"] {
@@ -180,7 +180,7 @@ button:active {
 }
 
 .btn-secondary:hover {
-  background-color: #7E57C2;
+  background-color: #d35400;
 }
 
 .btn-warning {
@@ -188,7 +188,7 @@ button:active {
 }
 
 .btn-warning:hover {
-  background-color: #ffb74d;
+  background-color: #e67e22;
 }
 
 .btn-danger {
@@ -196,7 +196,7 @@ button:active {
 }
 
 .btn-danger:hover {
-  background-color: #e53935;
+  background-color: #c0392b;
 }
 
 .btn-icon {
@@ -470,13 +470,13 @@ button:active {
   box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
 }
 
-.grade-button.grade-0 { background-color: #9e9e9e; }
-.grade-button.grade-1 { background-color: #4caf50; }
-.grade-button.grade-2 { background-color: #8bc34a; }
-.grade-button.grade-3 { background-color: #ffeb3b; color: #333; }
-.grade-button.grade-4 { background-color: #ff9800; }
-.grade-button.grade-5 { background-color: #ff5722; }
-.grade-button.grade-6 { background-color: #f44336; }
+.grade-button.grade-0 { background-color: #95a5a6; }
+.grade-button.grade-1 { background-color: #27ae60; }
+.grade-button.grade-2 { background-color: #2ecc71; }
+.grade-button.grade-3 { background-color: #f1c40f; color: #333; }
+.grade-button.grade-4 { background-color: #e67e22; }
+.grade-button.grade-5 { background-color: #d35400; }
+.grade-button.grade-6 { background-color: #c0392b; }
 
 .table-container {
   overflow-x: auto;
@@ -487,6 +487,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .student-table {
@@ -525,15 +526,17 @@ table {
   background-color: var(--primary-color);
   color: white;
   text-align: left;
-  padding: 10px 15px;
+  padding: 8px 10px;
   font-weight: 500;
   white-space: nowrap;
+  font-size: 0.85rem;
 }
 
 .overview-table td {
-  padding: 10px 15px;
+  padding: 8px 10px;
   border-top: 1px solid #e0e0e0;
   text-align: center;
+  font-size: 0.85rem;
 }
 
 .overview-table td:first-child {
@@ -566,6 +569,10 @@ table {
   min-height: auto;
 }
 
+.edit-btn:hover {
+  background-color: var(--primary-light);
+}
+
 .selectors {
   display: flex;
   gap: 15px;
@@ -582,6 +589,7 @@ table {
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
+  color: var(--primary-dark);
 }
 
 .selector-group select {
@@ -628,6 +636,7 @@ table {
 
 .modal-header h3 {
   margin: 0;
+  color: var(--primary-dark);
 }
 
 .modal-close {
@@ -734,6 +743,7 @@ table {
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
+  color: var(--primary-dark);
 }
 
 .date-display {
@@ -749,12 +759,12 @@ table {
   display: inline-block;
 }
 
-.grade-1 { color: #2e7d32; }
-.grade-2 { color: #558b2f; }
-.grade-3 { color: #f9a825; }
-.grade-4 { color: #ef6c00; }
-.grade-5 { color: #d84315; }
-.grade-6 { color: #c62828; }
+.grade-1 { color: #27ae60; }
+.grade-2 { color: #2ecc71; }
+.grade-3 { color: #f39c12; }
+.grade-4 { color: #e67e22; }
+.grade-5 { color: #d35400; }
+.grade-6 { color: #c0392b; }
 
 .welcome-card {
   background-color: white;
@@ -762,6 +772,7 @@ table {
   padding: 20px;
   box-shadow: var(--card-shadow);
   margin-bottom: 20px;
+  border-top: 4px solid var(--accent-color);
 }
 
 .welcome-card h2 {
@@ -775,6 +786,7 @@ table {
   padding: 20px;
   box-shadow: var(--card-shadow);
   margin-bottom: 20px;
+  border-left: 4px solid var(--primary-color);
 }
 
 @media (max-width: 1024px) and (min-width: 768px) {
@@ -813,6 +825,7 @@ table {
   background-color: #f9f9f9;
   padding: 15px;
   border-radius: 12px;
+  border-left: 4px solid var(--accent-color);
 }
 
 .info-text-container h3 {
@@ -837,16 +850,37 @@ table {
 #studentInfoText:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+  box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
 }
 
 /* Animation für Autosave */
 @keyframes saveFlash {
-  0% { background-color: rgba(76, 175, 80, 0); }
-  50% { background-color: rgba(76, 175, 80, 0.2); }
-  100% { background-color: rgba(76, 175, 80, 0); }
+  0% { background-color: rgba(52, 73, 94, 0); }
+  50% { background-color: rgba(52, 73, 94, 0.2); }
+  100% { background-color: rgba(52, 73, 94, 0); }
 }
 
 .save-flash {
   animation: saveFlash 1s ease;
+}
+
+/* Hervorhebungen */
+.accent-border {
+  border-left: 4px solid var(--accent-color);
+}
+
+.section h3 {
+  position: relative;
+  padding-left: 12px;
+}
+
+.section h3:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background-color: var(--accent-color);
+  border-radius: 2px;
 }
