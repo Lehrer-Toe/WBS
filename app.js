@@ -1158,8 +1158,9 @@ function showAssessmentForm(student) {
       for (let decimal = 0; decimal <= 0.5; decimal += 0.5) {
         const currentGrade = i + decimal;
         const isSelected = grade === currentGrade;
+        // Hinzufügen der Notenwerte als Text in den Buttons
         html += `
-          <button class="grade-button grade-${Math.floor(currentGrade)}" data-grade="${currentGrade}" ${isSelected ? 'class="selected"' : ''}>${currentGrade.toFixed(1)}</button>
+          <button class="grade-button grade-${Math.floor(currentGrade)} ${isSelected ? 'selected' : ''}" data-grade="${currentGrade}">${currentGrade.toFixed(1)}</button>
         `;
       }
     }
@@ -1167,7 +1168,7 @@ function showAssessmentForm(student) {
     // Zusätzlich die 0 für "keine Bewertung"
     const isZeroSelected = grade === 0;
     html += `
-        <button class="grade-button grade-0" data-grade="0" ${isZeroSelected ? 'class="selected"' : ''}>-</button>
+        <button class="grade-button grade-0 ${isZeroSelected ? 'selected' : ''}" data-grade="0">-</button>
       </div>
     </div>
     `;
@@ -1176,17 +1177,8 @@ function showAssessmentForm(student) {
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
-  // Klassen für ausgewählte Buttons korrigieren
+  // Event-Listener für Notenwahl-Buttons
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
-    const category = btn.parentElement.dataset.category;
-    const grade = parseFloat(btn.dataset.grade);
-    const currentGrade = assessment[category] || 0;
-    
-    if (grade === currentGrade) {
-      btn.classList.add("selected");
-    }
-    
-    // Event-Listener für Notenwahl-Buttons
     btn.addEventListener("click", async () => {
       const categoryId = btn.parentElement.dataset.category;
       const gradeValue = parseFloat(btn.dataset.grade);
