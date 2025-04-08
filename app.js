@@ -151,7 +151,7 @@ function hideLoader() {
 }
 
 /**
- * Formatiert ein ISO-Datumstring in deutsches Format
+ * Formatiert einen ISO-Datumstring in deutsches Format
  */
 function formatDate(isoDateString) {
   if (!isoDateString) return '';
@@ -235,14 +235,12 @@ function generateId() {
 async function initDatabase() {
   try {
     showLoader();
-
     if (typeof supabase === 'undefined') {
       console.error("Supabase ist nicht definiert.");
       showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
       hideLoader();
       return false;
     }
-    
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       db: { schema: 'public' },
       auth: {
@@ -254,9 +252,7 @@ async function initDatabase() {
         headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
       }
     });
-    
     console.log("Supabase-Client erfolgreich initialisiert");
-    
     try {
       const { error } = await supabaseClient.rpc('create_wbs_table_if_not_exists');
       if (error) {
@@ -267,7 +263,6 @@ async function initDatabase() {
       console.error("Fehler bei RPC-Aufruf:", err);
       await createTableManually();
     }
-    
     hideLoader();
     return true;
   } catch (error) {
@@ -287,10 +282,8 @@ async function createTableManually() {
       .from('wbs_data')
       .select('count(*)')
       .limit(1);
-    
     if (error && error.code === '42P01') {
       console.log("Tabelle existiert nicht, erstelle sie...");
-      
       const createTableSQL = `
         CREATE TABLE IF NOT EXISTS public.wbs_data (
           id SERIAL PRIMARY KEY,
@@ -302,12 +295,10 @@ async function createTableManually() {
         );
         CREATE UNIQUE INDEX IF NOT EXISTS wbs_data_teacher_code_idx ON public.wbs_data (teacher_code);
       `;
-      
       try {
         const { error: sqlError } = await supabaseClient.rpc('execute_sql', {
           sql_query: createTableSQL
         });
-        
         if (sqlError) {
           console.error("Fehler beim SQL:", sqlError);
           return false;
@@ -336,14 +327,11 @@ function migrateAssessmentCategories() {
     'workBehavior': 'content',
     'teamwork': 'language',
     'quality': 'impression',
-    'reflection': 'reflection', 
-    'documentation': 'documentation' 
-    // Neue Kategorien: examination und expertise
+    'reflection': 'reflection',
+    'documentation': 'documentation'
   };
-
   for (const studentId in teacherData.assessments) {
     const assessment = teacherData.assessments[studentId];
-    
     for (const oldCategory in categoryMapping) {
       if (assessment.hasOwnProperty(oldCategory)) {
         const newCategory = categoryMapping[oldCategory];
@@ -353,13 +341,11 @@ function migrateAssessmentCategories() {
         }
       }
     }
-    
     ASSESSMENT_CATEGORIES.forEach(category => {
       if (!assessment.hasOwnProperty(category.id)) {
         assessment[category.id] = 2;
       }
     });
-
     if (!assessment.hasOwnProperty('infoText')) {
       assessment['infoText'] = '';
     }
@@ -371,20 +357,17 @@ function migrateAssessmentCategories() {
  */
 async function loadTeacherData() {
   if (!currentUser) return false;
-  
   try {
     const { data, error } = await supabaseClient
       .from('wbs_data')
       .select('*')
       .eq('teacher_code', currentUser.code)
       .single();
-    
     if (error && error.code !== 'PGRST116') {
       console.error("Fehler beim Laden:", error);
       showNotification("Fehler beim Laden der Daten.", "error");
       return false;
     }
-    
     if (data) {
       teacherData = data.data;
       migrateAssessmentCategories();
@@ -408,7 +391,6 @@ async function loadTeacherData() {
  */
 async function saveTeacherData() {
   if (!currentUser) return false;
-  
   try {
     const { error } = await supabaseClient
       .from('wbs_data')
@@ -418,7 +400,6 @@ async function saveTeacherData() {
         data: teacherData,
         updated_at: new Date().toISOString()
       }, { onConflict: 'teacher_code' });
-    
     if (error) {
       console.error("Fehler beim Speichern:", error);
       showNotification("Fehler beim Speichern der Daten.", "error");
@@ -438,7 +419,6 @@ async function saveTeacherData() {
 function initTeacherGrid() {
   if (!teacherGrid) return;
   teacherGrid.innerHTML = "";
-  
   DEFAULT_TEACHERS.forEach(teacher => {
     const card = document.createElement("div");
     card.className = "teacher-card";
@@ -480,7 +460,6 @@ function setupEventListeners() {
   if (logoutBtn) {
     logoutBtn.addEventListener("click", logout);
   }
-  
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
@@ -504,11 +483,9 @@ function setupEventListeners() {
       }
     });
   });
-  
   if (addStudentBtn) {
     addStudentBtn.addEventListener("click", addNewStudent);
   }
-  
   if (assessmentDateSelect) {
     assessmentDateSelect.addEventListener("change", () => {
       lastSelectedDate = assessmentDateSelect.value;
@@ -522,7 +499,6 @@ function setupEventListeners() {
       updateAssessmentStudentList();
     });
   }
-  
   if (overviewYearSelect) {
     overviewYearSelect.addEventListener("change", () => {
       populateOverviewDateSelect();
@@ -536,7 +512,6 @@ function setupEventListeners() {
   if (overviewTopicSelect) {
     overviewTopicSelect.addEventListener("change", updateOverviewContent);
   }
-  
   if (settingsYearSelect) {
     settingsYearSelect.addEventListener("change", () => {
       populateSettingsDateSelect();
@@ -548,7 +523,6 @@ function setupEventListeners() {
   if (deleteDataBtn) {
     deleteDataBtn.addEventListener("click", confirmDeleteAllData);
   }
-  
   if (closeEditStudentModal) {
     closeEditStudentModal.addEventListener("click", () => {
       editStudentModal.style.display = "none";
@@ -560,7 +534,6 @@ function setupEventListeners() {
   if (deleteStudentBtn) {
     deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
   }
-  
   if (closeEditGradeModal) {
     closeEditGradeModal.addEventListener("click", () => {
       editGradeModal.style.display = "none";
@@ -569,7 +542,6 @@ function setupEventListeners() {
   if (saveGradeBtn) {
     saveGradeBtn.addEventListener("click", saveEditedGrade);
   }
-  
   if (closeConfirmDeleteModal) {
     closeConfirmDeleteModal.addEventListener("click", () => {
       confirmDeleteModal.style.display = "none";
@@ -1064,7 +1036,6 @@ function showAssessmentForm(student) {
       
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
-        <!-- Textbox wieder vergrößert auf rows="5" -->
         <textarea id="studentInfoText" rows="5" placeholder="Notizen zum Prüfling eintragen...">${infoText}</textarea>
       </div>
       
@@ -1088,8 +1059,6 @@ function showAssessmentForm(student) {
         <div class="category-grade">${grade > 0 ? grade.toFixed(1) : '-'}</div>
         <div class="grade-buttons" data-category="${category.id}">
     `;
-    
-    // Alle Noten von 1.0 bis 6.0 in 0.5er-Schritten
     for (let i = 1; i <= 6; i++) {
       for (let decimal of [0, 0.5]) {
         const currentGrade = i + decimal;
@@ -1104,8 +1073,6 @@ function showAssessmentForm(student) {
         }
       }
     }
-    
-    // Zusätzlich eine 0 für "Keine Bewertung"
     const isZeroSelected = (grade === 0);
     html += `
         <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
@@ -1117,7 +1084,6 @@ function showAssessmentForm(student) {
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
-  // Event-Listener für die Noten-Buttons
   document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
     btn.addEventListener("click", async () => {
       const categoryId = btn.parentElement.dataset.category;
@@ -1154,7 +1120,6 @@ function showAssessmentForm(student) {
     });
   });
   
-  // Endnote
   const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
@@ -1253,7 +1218,6 @@ function populateOverviewDateSelect() {
 function populateOverviewTopicSelect() {
   if (!overviewTopicSelect) return;
   overviewTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
-  
   let filteredStudents = teacherData.students;
   const year = overviewYearSelect.value;
   if (year) {
@@ -1263,14 +1227,12 @@ function populateOverviewTopicSelect() {
   if (dateSelected) {
     filteredStudents = filteredStudents.filter(s => s.examDate === dateSelected);
   }
-  
   const topics = new Set();
   filteredStudents.forEach(s => {
     if (s.topic) {
       topics.add(s.topic);
     }
   });
-  
   Array.from(topics).sort().forEach(topic => {
     const option = document.createElement('option');
     option.value = topic;
@@ -1286,35 +1248,28 @@ function updateOverviewContent() {
   if (!overviewTable) return;
   const tbody = overviewTable.querySelector('tbody');
   tbody.innerHTML = '';
-  
   let filteredStudents = teacherData.students;
-  
   const year = overviewYearSelect.value;
   if (year) {
     filteredStudents = filteredStudents.filter(s => getYearFromDate(s.examDate) === year);
   }
-  
   const dateSelected = overviewDateSelect.value;
   if (dateSelected) {
     filteredStudents = filteredStudents.filter(s => s.examDate === dateSelected);
   }
-  
   const topicSelected = overviewTopicSelect.value;
   if (topicSelected) {
     filteredStudents = filteredStudents.filter(s => s.topic === topicSelected);
   }
-  
   if (filteredStudents.length === 0) {
     const tr = document.createElement('tr');
     tr.innerHTML = '<td colspan="13">Keine Prüflinge gefunden</td>';
     tbody.appendChild(tr);
     return;
   }
-  
   filteredStudents.sort((a, b) => {
     return new Date(b.examDate) - new Date(a.examDate);
   });
-  
   filteredStudents.forEach(student => {
     const assessment = teacherData.assessments[student.id] || {};
     const tr = document.createElement('tr');
@@ -1427,10 +1382,8 @@ function exportData() {
   if (dateSelected) {
     filteredStudents = filteredStudents.filter(s => s.examDate === dateSelected);
   }
-  
   let exportContent = "";
   const isExportJSON = document.getElementById("exportJSON").checked;
-  
   if (!isExportJSON) {
     exportContent += "Export WBS Bewertungssystem\n\n";
     filteredStudents.forEach(student => {
@@ -1446,7 +1399,6 @@ function exportData() {
       exportContent += `Info-Text: ${assessment.infoText || ''}\n`;
       exportContent += "\n--------------------------------\n\n";
     });
-    
     const blob = new Blob([exportContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1472,7 +1424,6 @@ function exportData() {
       entry.infoText = assessment.infoText || '';
       exportData.push(entry);
     });
-    
     const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     const url = URL.createObjectURL(blob);
