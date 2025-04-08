@@ -350,14 +350,9 @@ button:active {
   flex-wrap: wrap;
 }
 
-.assessment-category {
-  background: #f9f9f9;
-  padding: 15px;
-  border-radius: 12px;
-  margin-bottom: 15px;
-}
-
+/* Neu: Überschriften in den Kategorien mittig zentrieren */
 .category-header {
+  text-align: center;
   margin-bottom: 10px;
 }
 
