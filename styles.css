@@ -401,6 +401,7 @@ button:active {
   justify-content: center;
   gap: 10px;
   margin: 20px 0;
+  flex-wrap: wrap;
 }
 
 .final-grade-input label {
@@ -441,7 +442,7 @@ button:active {
 
 .grade-buttons {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -562,6 +563,7 @@ table {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  min-height: auto;
 }
 
 .selectors {
