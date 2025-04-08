@@ -350,7 +350,7 @@ button:active {
   flex-wrap: wrap;
 }
 
-/* Neu: Überschriften in den Kategorien mittig zentrieren */
+/* Überschriften in den Bewertungs-Kategorien mittig zentrieren */
 .category-header {
   text-align: center;
   margin-bottom: 10px;
@@ -669,6 +669,13 @@ table {
   padding: 5px 10px;
   border-radius: 5px;
   display: inline-block;
+}
+
+/* Neue CSS-Regel für das Textfeld: vergrößertes Rechteck */
+#studentInfoText {
+  width: 100%;
+  min-height: 300px;
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
