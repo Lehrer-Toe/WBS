@@ -31,7 +31,7 @@
             <h3>Anmeldung</h3>
             <button class="modal-close" id="closePasswordModal">&times;</button>
           </div>
-          <p id="loginPrompt">Bitte Passwort eingeben:</p>
+          <p id="loginPrompt">Bitte geben Sie Ihr Passwort ein:</p>
           <input type="password" id="passwordInput" placeholder="Passwort">
           <div class="modal-footer">
             <button class="btn-danger" id="cancelLogin">Abbrechen</button>
@@ -126,7 +126,7 @@
             <div class="section">
               <h3>Prüflinge</h3>
               <ul class="student-list" id="assessmentStudentList">
-                <li>Bitte Datum oder Thema auswählen</li>
+                <li>Bitte wählen Sie ein Datum oder Thema</li>
               </ul>
             </div>
           </div>
@@ -134,7 +134,7 @@
           <div class="content-area" id="assessmentContent">
             <div class="welcome-card">
               <h2>Willkommen bei der WBS Bewertungsapp</h2>
-              <p>Bitte einen Prüfungstag oder ein Thema und anschließend einen Prüfling aus der Liste wählen.</p>
+              <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Prüfling aus der Liste auswählen.</p>
             </div>
           </div>
         </div>
@@ -215,7 +215,7 @@
         
         <div class="card">
           <h3>Ergebnisse exportieren</h3>
-          <p>Exportiert die Bewertungen für den ausgewählten Zeitraum.</p>
+          <p>Ergebnisse für den ausgewählten Zeitraum exportieren.</p>
           <button id="exportDataBtn">Ergebnisse herunterladen</button>
           <div style="margin-top: 10px;">
             <label>
@@ -233,7 +233,7 @@
           <h3>Daten löschen</h3>
           <p>Achtung: Diese Aktion kann nicht rückgängig gemacht werden.</p>
           <div class="form-group">
-            <label for="deleteVerificationCode">Bestätigung: Lehrerkürzel</label>
+            <label for="deleteVerificationCode">Zur Bestätigung den Lehrerkürzel eingeben</label>
             <input type="text" id="deleteVerificationCode" placeholder="z.B. KRE, RIF, TOE">
           </div>
           <button id="deleteDataBtn" class="btn-danger">Alle Daten löschen</button>
@@ -241,7 +241,6 @@
       </div>
     </div>
     
-    <!-- Modal: Prüfling bearbeiten -->
     <div class="modal" id="editStudentModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -267,7 +266,6 @@
       </div>
     </div>
     
-    <!-- Modal: Endnote bearbeiten -->
     <div class="modal" id="editGradeModal">
       <div class="modal-content">
         <div class="modal-header">
@@ -286,14 +284,13 @@
       </div>
     </div>
     
-    <!-- Modal: Löschen bestätigen -->
     <div class="modal" id="confirmDeleteModal">
       <div class="modal-content">
         <div class="modal-header">
           <h3>Prüfling löschen</h3>
           <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
         </div>
-        <p>Soll dieser Prüfling und alle zugehörigen Bewertungen wirklich gelöscht werden?</p>
+        <p>Soll dieser Prüfling und alle zugehörigen Bewertungen gelöscht werden?</p>
         <p id="deleteStudentName" style="font-weight: bold;"></p>
         <div class="modal-footer">
           <button id="cancelDeleteBtn">Abbrechen</button>
