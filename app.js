@@ -1064,7 +1064,8 @@ function showAssessmentForm(student) {
       
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
-        <textarea id="studentInfoText" rows="6" placeholder="Notizen zum Prüfling eintragen...">${infoText}</textarea>
+        <!-- Textbox wieder vergrößert auf rows="10" -->
+        <textarea id="studentInfoText" rows="10" placeholder="Notizen zum Prüfling eintragen...">${infoText}</textarea>
       </div>
       
       <div class="final-grade-display">Ø ${avgGrade || '0.0'}</div>
@@ -1428,7 +1429,6 @@ function exportData() {
   }
   
   let exportContent = "";
-  
   const isExportJSON = document.getElementById("exportJSON").checked;
   
   if (!isExportJSON) {
