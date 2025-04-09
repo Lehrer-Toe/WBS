@@ -1,8 +1,6 @@
 // js/uiService.js
-import { ASSESSMENT_CATEGORIES } from "./constants.js";
-import { teacherData, saveTeacherData } from "./dataService.js";
-
-// Allgemeine Hilfsfunktionen
+import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
+import { teacherData } from "./dataService.js";
 
 export function showLoader() {
   const mainLoader = document.getElementById("mainLoader");
@@ -73,9 +71,7 @@ export function getAvailableTopics(selectedDate = null) {
   const topics = new Set();
   let filteredStudents = teacherData.students;
   if (selectedDate) {
-    filteredStudents = filteredStudents.filter(
-      (s) => s.examDate === selectedDate
-    );
+    filteredStudents = filteredStudents.filter((s) => s.examDate === selectedDate);
   }
   filteredStudents.forEach((student) => {
     if (student.topic && student.topic.trim() !== "") {
@@ -97,4 +93,24 @@ export function calculateAverageGrade(assessment) {
   });
   if (count === 0) return null;
   return (sum / count).toFixed(1);
+}
+
+// Nur für Beispielzwecke, falls man die Lehrer dynamisch anzeigen möchte
+export function initTeacherGrid(teacherGrid, showPasswordModal) {
+  if (!teacherGrid) return;
+  teacherGrid.innerHTML = "";
+  DEFAULT_TEACHERS.forEach((teacher) => {
+    const card = document.createElement("div");
+    card.className = "teacher-card";
+    card.dataset.code = teacher.code;
+    card.dataset.name = teacher.name;
+    card.innerHTML = `
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0e0e0'/%3E%3Ctext x='50' y='60' font-family='Arial' font-size='30' text-anchor='middle' fill='%23666'%3E${teacher.code.charAt(0)}%3C/text%3E%3C/svg%3E" alt="${teacher.name}">
+      <h3>${teacher.name}</h3>
+    `;
+    card.addEventListener("click", () => {
+      showPasswordModal(teacher);
+    });
+    teacherGrid.appendChild(card);
+  });
 }

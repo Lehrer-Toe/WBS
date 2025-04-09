@@ -22,7 +22,6 @@ export async function initDatabase() {
     });
     console.log("Supabase-Client erfolgreich initialisiert");
 
-    // Versucht, die Tabelle via RPC zu erstellen
     try {
       const { error } = await supabaseClient.rpc("create_wbs_table_if_not_exists");
       if (error) {
@@ -60,8 +59,7 @@ async function createTableManually() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS wbs_data_teacher_code_idx 
-          ON public.wbs_data (teacher_code);
+        CREATE UNIQUE INDEX IF NOT EXISTS wbs_data_teacher_code_idx ON public.wbs_data (teacher_code);
       `;
       try {
         const { error: sqlError } = await supabaseClient.rpc("execute_sql", {
