@@ -351,15 +351,28 @@ button:active {
   flex-wrap: wrap;
 }
 
+/* Bewertungskategorie: Box-Stil hinzufügen */
+.assessment-category {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+}
+
 /* Überschriften in den Bewertungs-Kategorien mittig zentrieren */
 .category-header {
   text-align: center;
   margin-bottom: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 8px;
+  border-radius: 6px;
 }
 
 .category-header h3 {
-  color: var(--primary-color);
   margin: 0;
+  color: white;
 }
 
 .category-grade {
@@ -673,11 +686,12 @@ table {
   display: inline-block;
 }
 
-/* Neue CSS-Regel für das Textfeld: vergrößertes Rechteck */
+/* Höhe des Textfeldes angepasst */
 #studentInfoText {
   width: 100%;
-  min-height: 300px;
+  height: 100px; /* 4 Zeilen statt min-height: 300px */
   box-sizing: border-box;
+  resize: vertical; /* Optional: ermöglicht Benutzer das Anpassen der Höhe */
 }
 
 /* Animation für gespeicherten Text */
@@ -690,7 +704,57 @@ table {
   100% { background-color: transparent; }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Sticky-Durchschnitts-Anzeige */
+.sticky-average {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  font-weight: bold;
+  z-index: 100;
+  display: none; /* Standardmäßig ausgeblendet */
+}
+
+/* Druck-Button */
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #3498db;
+}
+
+.print-btn:hover {
+  background-color: #2980b9;
+}
+
+/* Für den Ausdruck */
+@media print {
+  header, .tabs, .selectors, button, .sidebar {
+    display: none !important;
+  }
+  
+  body, .container, .content-area {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  .table-container {
+    overflow: visible !important;
+  }
+  
+  table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
 }
