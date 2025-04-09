@@ -3,6 +3,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./constants.js";
 
 export let supabaseClient = null;
 
+/**
+ * Initialisiert die Datenbankverbindung zu Supabase
+ */
 export async function initDatabase() {
   try {
     if (typeof supabase === "undefined") {
@@ -17,7 +20,7 @@ export async function initDatabase() {
         detectSessionInUrl: false
       },
       global: {
-        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" }
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
       }
     });
     console.log("Supabase-Client erfolgreich initialisiert");
@@ -40,6 +43,9 @@ export async function initDatabase() {
   }
 }
 
+/**
+ * Erstellt die Datenbanktabelle manuell, falls RPC nicht funktioniert
+ */
 async function createTableManually() {
   try {
     console.log("Tabelle wird manuell erstellt...");
