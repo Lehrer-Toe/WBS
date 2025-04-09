@@ -82,15 +82,16 @@ export function getAvailableYears() {
     years.add(getYearFromDate(student.examDate));
   });
 
-  // Sortiere die Jahre aufsteigend
-  let yearArray = Array.from(years).sort();
-  
-  // Stelle sicher, dass das aktuelle Jahr an erster Stelle ist
+  // Extrahiere das aktuelle Jahr
   const currentYearStr = currentYear.toString();
-  if (yearArray.includes(currentYearStr)) {
-    yearArray = yearArray.filter(y => y !== currentYearStr);
-    yearArray.unshift(currentYearStr);
-  }
+  
+  // Filtere das aktuelle Jahr heraus und sortiere die übrigen Jahre numerisch aufsteigend
+  let yearArray = Array.from(years)
+    .filter(y => y !== currentYearStr)
+    .sort((a, b) => parseInt(a) - parseInt(b));
+  
+  // Füge das aktuelle Jahr an erster Stelle ein
+  yearArray.unshift(currentYearStr);
   
   return yearArray;
 }
