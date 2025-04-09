@@ -841,21 +841,10 @@ function updateOverviewTab() {
   updateOverviewContent();
 }
 
-// Sortiert Jahre absteigend und beginnt mit aktuellem Jahr
+// Verwendet die vorsortierte Jahre-Liste aus getAvailableYears()
 function populateOverviewYearSelect() {
   if (!overviewYearSelect) return;
   const years = getAvailableYears();
-  
-  // Sortiere Jahre absteigend (neueste zuerst)
-  years.sort((a, b) => parseInt(b) - parseInt(a));
-  
-  // Setze aktuelles Jahr an erste Stelle, falls vorhanden
-  const currentYear = new Date().getFullYear().toString();
-  if (years.includes(currentYear)) {
-    const index = years.indexOf(currentYear);
-    years.splice(index, 1);
-    years.unshift(currentYear);
-  }
   
   overviewYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
   years.forEach((year) => {
