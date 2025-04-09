@@ -799,7 +799,7 @@ function showAssessmentForm(student) {
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, parseFloat(avgGrade));
-        showNotification("Durchschnitt als Endnote übernommen.");
+showNotification("Durchschnitt als Endnote übernommen.");
       } catch (error) {
         console.error(error);
         showNotification("Fehler beim Speichern.", "error");
@@ -1034,4 +1034,86 @@ function exportData() {
     filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
   }
   if (day) {
-    filtered = filtered.
+    filtered = filtered.filter((s) => s.examDate === day);
+  }
+  
+  if (useTxt) {
+    let txtContent = "Export WBS Bewertungssystem\n\n";
+    filtered.forEach((student) => {
+      const assessment = teacherData.assessments[student.id] || {};
+      txtContent += `Name: ${student.name}\n`;
+      txtContent += `Datum: ${formatDate(student.examDate)}\n`;
+      txtContent += `Thema: ${student.topic || '-'}\n`;
+      txtContent += `Endnote: ${assessment.finalGrade || '-'}\n`;
+      txtContent += `Kategorien:\n`;
+      ASSESSMENT_CATEGORIES.forEach(cat => {
+        txtContent += `  ${cat.name}: ${assessment[cat.id] || '-'}\n`;
+      });
+      txtContent += `Info-Text: ${assessment.infoText || ''}\n\n`;
+      txtContent += "--------------------------------\n\n";
+    });
+    downloadFile(`WBS_Export.txt`, txtContent, "text/plain");
+  } else {
+    // JSON-Export
+    const exportData = [];
+    filtered.forEach((student) => {
+      const assessment = teacherData.assessments[student.id] || {};
+      const entry = {
+        name: student.name,
+        examDate: formatDate(student.examDate),
+        topic: student.topic || '',
+        finalGrade: assessment.finalGrade || '',
+        categories: {}
+      };
+      ASSESSMENT_CATEGORIES.forEach(cat => {
+        entry.categories[cat.name] = assessment[cat.id] || '-';
+      });
+      entry.infoText = assessment.infoText || '';
+      exportData.push(entry);
+    });
+    const jsonString = JSON.stringify(exportData, null, 2);
+    downloadFile(`WBS_Export.json`, jsonString, "application/json");
+  }
+}
+
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function confirmDeleteAllData() {
+  if (!deleteVerificationCode) return;
+  if (deleteVerificationCode.value.trim() !== (currentUser.code || "")) {
+    showNotification("Bestätigungscode ist falsch.", "error");
+    return;
+  }
+  if (!confirm("Sollen wirklich alle Daten gelöscht werden? Das kann nicht rückgängig gemacht werden!")) {
+    return;
+  }
+  deleteAllData();
+}
+
+async function deleteAllData() {
+  if (!currentUser.code) return;
+  try {
+    showLoader();
+    teacherData.students = [];
+    teacherData.assessments = {};
+    await saveTeacherData();
+    updateStudentsTab();
+    updateAssessmentTab();
+    updateOverviewTab();
+    showNotification("Alle Daten wurden gelöscht.");
+  } catch (error) {
+    console.error("Fehler beim Löschen aller Daten:", error);
+    showNotification("Fehler beim Löschen.", "error");
+  } finally {
+    hideLoader();
+  }
+}
