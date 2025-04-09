@@ -12,6 +12,7 @@
   --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
   --transition: all 0.3s ease;
   --header-bg: #34495e;
+  --blue-accent: #3498db; /* Neue Farbe für blauen Rahmen */
 }
 
 * {
@@ -395,9 +396,10 @@ button:active {
   transform: scale(1.1);
 }
 
+/* Geändert: Blauer Rahmen für ausgewählte Note-Buttons */
 .grade-button.selected {
   transform: scale(1.1);
-  box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--blue-accent);
 }
 
 .grade-button.grade-0  { background-color: #95a5a6; }
@@ -676,6 +678,16 @@ table {
   width: 100%;
   min-height: 300px;
   box-sizing: border-box;
+}
+
+/* Animation für gespeicherten Text */
+.save-flash {
+  animation: saveFlash 1s ease;
+}
+
+@keyframes saveFlash {
+  0% { background-color: rgba(52, 152, 219, 0.2); }
+  100% { background-color: transparent; }
 }
 
 @keyframes fadeIn {
