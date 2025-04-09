@@ -95,8 +95,8 @@ export function calculateAverageGrade(assessment) {
   return (sum / count).toFixed(1);
 }
 
-// Nur für Beispielzwecke, falls man die Lehrer dynamisch anzeigen möchte
-export function initTeacherGrid(teacherGrid, showPasswordModal) {
+// Initialisiert das Lehrer-Grid für die Anmeldung
+export function initTeacherGrid(teacherGrid, showPasswordModalCallback) {
   if (!teacherGrid) return;
   teacherGrid.innerHTML = "";
   DEFAULT_TEACHERS.forEach((teacher) => {
@@ -109,7 +109,7 @@ export function initTeacherGrid(teacherGrid, showPasswordModal) {
       <h3>${teacher.name}</h3>
     `;
     card.addEventListener("click", () => {
-      showPasswordModal(teacher);
+      showPasswordModalCallback(teacher);
     });
     teacherGrid.appendChild(card);
   });

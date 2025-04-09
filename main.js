@@ -18,6 +18,7 @@ import {
   calculateAverageGrade,
   initTeacherGrid
 } from "./uiService.js";
+import { ASSESSMENT_CATEGORIES } from "./constants.js";
 
 // Globale Zustände
 let selectedStudent = null;
@@ -96,14 +97,21 @@ const defaultDate =
 
 // Start
 document.addEventListener("DOMContentLoaded", async () => {
+  console.log("WBS Bewertungssystem wird initialisiert...");
   showLoader();
-  await initDatabase();
-  initTeacherGrid(teacherGrid, showPasswordModal);
-  setupEventListeners();
-  if (examDate) {
-    examDate.value = defaultDate;
+  try {
+    await initDatabase();
+    initTeacherGrid(teacherGrid, showPasswordModal);
+    setupEventListeners();
+    if (examDate) {
+      examDate.value = defaultDate;
+    }
+  } catch (error) {
+    console.error("Fehler bei der Initialisierung:", error);
+    showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
+  } finally {
+    hideLoader();
   }
-  hideLoader();
 });
 
 // Zeigt den Passwortdialog
@@ -111,6 +119,7 @@ function showPasswordModal(teacher) {
   loginPrompt.textContent = `Bitte das Passwort für ${teacher.name} eingeben:`;
   passwordInput.value = "";
   passwordModal.style.display = "flex";
+  passwordInput.focus();
   currentUser.name = teacher.name;
   currentUser.code = teacher.code;
   currentUser.password = teacher.password;
@@ -244,6 +253,11 @@ function setupEventListeners() {
   }
 }
 
+// Generiert eine eindeutige ID
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+}
+
 // Führt den Login aus
 async function login() {
   if (passwordInput.value === currentUser.password) {
@@ -270,6 +284,7 @@ function logout() {
   }
   currentUser.name = null;
   currentUser.code = null;
+  currentUser.password = null;
   teacherData.students = [];
   teacherData.assessments = {};
   loginSection.style.display = "block";
@@ -312,24 +327,29 @@ function updateStudentsTab() {
 async function addNewStudent() {
   const name = newStudentName.value.trim();
   const date = examDate.value;
-  const topic = newStudentTopic.value.trim();
+  const topic = newStudentTopic ? newStudentTopic.value.trim() : "";
+  
   lastSelectedDate = date;
   if (topic) {
     lastSelectedTopic = topic;
   }
+  
   if (!name) {
     showNotification("Bitte einen Namen eingeben.", "warning");
     return;
   }
+  
   const existing = teacherData.students.find(
     (s) => s.name.toLowerCase() === name.toLowerCase() && s.examDate === date
   );
+  
   if (existing) {
     showNotification(`Prüfling "${name}" existiert bereits.`, "warning");
     return;
   }
+  
   showLoader();
-  const newId = Date.now().toString(36) + Math.random().toString(36).substring(2);
+  const newId = generateId();
   const newStudent = {
     id: newId,
     name: name,
@@ -337,17 +357,14 @@ async function addNewStudent() {
     topic: topic,
     createdAt: new Date().toISOString()
   };
+  
   teacherData.students.push(newStudent);
   teacherData.assessments[newId] = {};
-  // Beispiel: Standard-Noten
-  teacherData.assessments[newId].presentation = 2;
-  teacherData.assessments[newId].content = 2;
-  teacherData.assessments[newId].language = 2;
-  teacherData.assessments[newId].impression = 2;
-  teacherData.assessments[newId].examination = 2;
-  teacherData.assessments[newId].reflection = 2;
-  teacherData.assessments[newId].expertise = 2;
-  teacherData.assessments[newId].documentation = 2;
+  
+  // Standardnoten setzen
+  ASSESSMENT_CATEGORIES.forEach(category => {
+    teacherData.assessments[newId][category.id] = 2;
+  });
   teacherData.assessments[newId].infoText = "";
   teacherData.assessments[newId].finalGrade = 2.0;
 
@@ -355,7 +372,7 @@ async function addNewStudent() {
   hideLoader();
   if (saved) {
     newStudentName.value = "";
-    newStudentTopic.value = "";
+    if (newStudentTopic) newStudentTopic.value = "";
     examDate.value = lastSelectedDate;
     updateStudentsTab();
     populateAssessmentDateSelect();
@@ -369,7 +386,9 @@ async function addNewStudent() {
 function showEditStudentModal(student) {
   editStudentName.value = student.name;
   editExamDate.value = student.examDate;
-  editStudentTopic.value = student.topic || "";
+  if (editStudentTopic) {
+    editStudentTopic.value = student.topic || "";
+  }
   selectedStudent = student;
   editStudentModal.style.display = "flex";
 }
@@ -377,27 +396,40 @@ function showEditStudentModal(student) {
 // Speichert Änderungen am Prüfling
 async function saveEditedStudent() {
   if (!selectedStudent) return;
+  
   const name = editStudentName.value.trim();
   const date = editExamDate.value;
-  const topic = editStudentTopic.value.trim();
+  const topic = editStudentTopic ? editStudentTopic.value.trim() : "";
+  
+  if (date !== selectedStudent.examDate) {
+    lastSelectedDate = date;
+  }
+  if (topic && topic !== selectedStudent.topic) {
+    lastSelectedTopic = topic;
+  }
+  
   if (!name) {
     showNotification("Bitte einen Namen eingeben.", "warning");
     return;
   }
+  
   const existing = teacherData.students.find(
     (s) =>
       s.id !== selectedStudent.id &&
       s.name.toLowerCase() === name.toLowerCase() &&
       s.examDate === date
   );
+  
   if (existing) {
     showNotification(`Prüfling "${name}" existiert bereits.`, "warning");
     return;
   }
+  
   showLoader();
   selectedStudent.name = name;
   selectedStudent.examDate = date;
   selectedStudent.topic = topic;
+  
   const saved = await saveTeacherData();
   hideLoader();
   if (saved) {
@@ -454,7 +486,7 @@ function populateAssessmentDateSelect() {
     defaultVal = lastSelectedDate;
   } else if (dates.includes(defaultDate)) {
     defaultVal = defaultDate;
-  } else {
+  } else if (dates.length > 0) {
     defaultVal = dates[0];
   }
   dates.forEach((date) => {
@@ -498,8 +530,10 @@ function populateAssessmentTopicSelect() {
 function updateAssessmentStudentList() {
   if (!assessmentStudentList || !assessmentContent) return;
   const selectedDate = assessmentDateSelect.value;
-  const selectedTopic = assessmentTopicSelect.value;
+  const selectedTopic = assessmentTopicSelect ? assessmentTopicSelect.value : "";
+  
   assessmentStudentList.innerHTML = "";
+  
   if (!selectedDate && !selectedTopic) {
     assessmentStudentList.innerHTML = "<li>Bitte Datum oder Thema wählen</li>";
     assessmentContent.innerHTML = `
@@ -511,6 +545,7 @@ function updateAssessmentStudentList() {
     currentSelectedStudentId = null;
     return;
   }
+  
   let filtered = teacherData.students;
   if (selectedDate) {
     filtered = filtered.filter((s) => s.examDate === selectedDate);
@@ -518,6 +553,7 @@ function updateAssessmentStudentList() {
   if (selectedTopic) {
     filtered = filtered.filter((s) => s.topic === selectedTopic);
   }
+  
   if (filtered.length === 0) {
     assessmentStudentList.innerHTML = "<li>Keine Prüflinge gefunden</li>";
     assessmentContent.innerHTML = `
@@ -529,17 +565,25 @@ function updateAssessmentStudentList() {
     currentSelectedStudentId = null;
     return;
   }
-  filtered.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
+  
+  filtered.sort((a, b) => {
+    const dateComp = new Date(b.examDate) - new Date(a.examDate);
+    if (dateComp !== 0) return dateComp;
+    return a.name.localeCompare(b.name);
+  });
+  
   filtered.forEach((student) => {
     const li = document.createElement("li");
     li.className = "student-item";
     li.dataset.id = student.id;
-    const ass = teacherData.assessments[student.id] || {};
-    const finalGrade = ass.finalGrade || "-";
+    const assessment = teacherData.assessments[student.id] || {};
+    const finalGrade = assessment.finalGrade || "-";
+    
     li.innerHTML = `
       <div class="student-name">${student.name}${student.topic ? ` (${student.topic})` : ""}</div>
       <div class="average-grade grade-${Math.round(finalGrade)}">${finalGrade}</div>
     `;
+    
     li.addEventListener("click", () => {
       document.querySelectorAll(".student-item").forEach((item) => {
         item.classList.remove("active");
@@ -548,26 +592,45 @@ function updateAssessmentStudentList() {
       currentSelectedStudentId = student.id;
       showAssessmentForm(student);
     });
+    
     assessmentStudentList.appendChild(li);
   });
+  
+  // Wählen den vorherigen Schüler aus, wenn verfügbar, andernfalls den ersten
   let studentToSelect = null;
+  
   if (currentSelectedStudentId) {
     studentToSelect = document.querySelector(`.student-item[data-id="${currentSelectedStudentId}"]`);
   }
+  
   if (!studentToSelect && filtered.length > 0) {
     studentToSelect = document.querySelector(".student-item");
   }
+  
   if (studentToSelect) {
     studentToSelect.click();
   }
 }
 
+// Aktualisiert die Bewertung im Schülerlistenelement ohne die ganze Liste neu zu laden
+function updateStudentGradeInList(studentId, finalGrade) {
+  const studentItem = document.querySelector(`.student-item[data-id="${studentId}"]`);
+  if (studentItem) {
+    const gradeElement = studentItem.querySelector(".average-grade");
+    if (gradeElement) {
+      gradeElement.textContent = finalGrade;
+      gradeElement.className = `average-grade grade-${Math.round(finalGrade)}`;
+    }
+  }
+}
+
 function showAssessmentForm(student) {
   selectedStudent = student;
-  const ass = teacherData.assessments[student.id] || {};
-  const avg = calculateAverageGrade(ass);
-  const finalGrade = ass.finalGrade || avg || "-";
-  const infoText = ass.infoText || "";
+  const assessment = teacherData.assessments[student.id] || {};
+  const avgGrade = calculateAverageGrade(assessment);
+  const finalGrade = assessment.finalGrade || avgGrade || "-";
+  const infoText = assessment.infoText || "";
+  
   let html = `
     <div class="assessment-container">
       <div class="student-header">
@@ -575,11 +638,14 @@ function showAssessmentForm(student) {
         <p>Prüfungsdatum: ${formatDate(student.examDate)}</p>
         ${student.topic ? `<p>Thema: ${student.topic}</p>` : ""}
       </div>
+      
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
         <textarea id="studentInfoText" rows="5" placeholder="Notizen zum Prüfling...">${infoText}</textarea>
       </div>
-      <div class="final-grade-display">Ø ${avg || "0.0"}</div>
+      
+      <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
+      
       <div class="final-grade-input">
         <label for="finalGrade">Endnote:</label>
         <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
@@ -587,76 +653,72 @@ function showAssessmentForm(student) {
         <button id="useAverageBtn">Durchschnitt übernehmen</button>
       </div>
   `;
+  
   // Kategorie-Noten
-  const catIds = [
-    "presentation",
-    "content",
-    "language",
-    "impression",
-    "examination",
-    "reflection",
-    "expertise",
-    "documentation"
-  ];
-  catIds.forEach((category) => {
-    const grade = ass[category] || 0;
-    const categoryName = {
-      presentation: "Präsentation",
-      content: "Inhalt",
-      language: "Sprache",
-      impression: "Eindruck",
-      examination: "Prüfung",
-      reflection: "Reflexion",
-      expertise: "Fachwissen",
-      documentation: "Dokumentation"
-    }[category];
+  ASSESSMENT_CATEGORIES.forEach((category) => {
+    const grade = assessment[category.id] || 0;
     html += `
       <div class="assessment-category">
         <div class="category-header">
-          <h3>${categoryName}</h3>
+          <h3>${category.name}</h3>
         </div>
         <div class="category-grade">${grade > 0 ? grade.toFixed(1) : "-"}</div>
-        <div class="grade-buttons" data-category="${category}">
+        <div class="grade-buttons" data-category="${category.id}">
     `;
+    
     for (let i = 1; i <= 6; i++) {
-      for (let dec of [0, 0.5]) {
-        const g = i + dec;
-        if (g <= 6) {
-          const selected = grade === g ? " selected" : "";
+      for (let decimal of [0, 0.5]) {
+        const currentGrade = i + decimal;
+        if (currentGrade <= 6) {
+          const isSelected = (grade === currentGrade);
           html += `
-            <button class="grade-button grade-${Math.floor(g)}${selected}" data-grade="${g}">
-              ${g.toFixed(1)}
+            <button class="grade-button grade-${Math.floor(currentGrade)}${isSelected ? ' selected' : ''}" 
+                    data-grade="${currentGrade}">
+              ${currentGrade.toFixed(1)}
             </button>
           `;
         }
       }
     }
-    const zeroSel = grade === 0 ? " selected" : "";
+    
+    const isZeroSelected = (grade === 0);
     html += `
-          <button class="grade-button grade-0${zeroSel}" data-grade="0">-</button>
+          <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
         </div>
       </div>
     `;
   });
+  
   html += `</div>`;
   assessmentContent.innerHTML = html;
-  // Klick auf Noten-Buttons
+  
+  // Event-Listener für die Note-Buttons und weitere Aktionen
   document.querySelectorAll(".grade-buttons .grade-button").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const catId = btn.parentElement.dataset.category;
-      const val = parseFloat(btn.dataset.grade);
-      btn.parentElement.querySelectorAll("button").forEach((b) => b.classList.remove("selected"));
+      const categoryId = btn.parentElement.dataset.category;
+      const gradeValue = parseFloat(btn.dataset.grade);
+      const buttons = btn.parentElement.querySelectorAll("button");
+      buttons.forEach((b) => b.classList.remove("selected"));
       btn.classList.add("selected");
-      btn.parentElement.previousElementSibling.textContent = val > 0 ? val.toFixed(1) : "-";
-      teacherData.assessments[student.id][catId] = val;
+      
+      const gradeDisplay = btn.parentElement.previousElementSibling;
+      gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
+      
+      if (!teacherData.assessments[student.id]) {
+        teacherData.assessments[student.id] = {};
+      }
+      teacherData.assessments[student.id][categoryId] = gradeValue;
+      
       const newAvg = calculateAverageGrade(teacherData.assessments[student.id]);
       const avgDisplay = document.querySelector(".final-grade-display");
       avgDisplay.textContent = `Ø ${newAvg || "0.0"}`;
+      
       if (!teacherData.assessments[student.id].finalGrade) {
         teacherData.assessments[student.id].finalGrade = parseFloat(newAvg);
         const fgInput = document.getElementById("finalGrade");
         if (fgInput) fgInput.value = newAvg;
       }
+      
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, teacherData.assessments[student.id].finalGrade);
@@ -666,6 +728,7 @@ function showAssessmentForm(student) {
       }
     });
   });
+  
   const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
   if (saveFinalGradeBtn) {
     saveFinalGradeBtn.addEventListener("click", async () => {
@@ -685,6 +748,7 @@ function showAssessmentForm(student) {
       }
     });
   }
+  
   const useAverageBtn = document.getElementById("useAverageBtn");
   if (useAverageBtn) {
     useAverageBtn.addEventListener("click", async () => {
@@ -705,23 +769,13 @@ function showAssessmentForm(student) {
       }
     });
   }
+  
   const infoTextArea = document.getElementById("studentInfoText");
   if (infoTextArea) {
     infoTextArea.addEventListener("input", () => {
       infoTextArea.dataset.changed = "true";
     });
     setupInfoTextAutoSave(student.id);
-  }
-}
-
-function updateStudentGradeInList(studentId, finalGrade) {
-  const item = document.querySelector(`.student-item[data-id="${studentId}"]`);
-  if (item) {
-    const gradeElem = item.querySelector(".average-grade");
-    if (gradeElem) {
-      gradeElem.textContent = finalGrade;
-      gradeElem.className = `average-grade grade-${Math.round(finalGrade)}`;
-    }
   }
 }
 
@@ -781,7 +835,7 @@ function populateOverviewTopicSelect() {
   let filtered = teacherData.students;
   const year = overviewYearSelect.value;
   if (year) {
-    filtered = filtered.filter((s) => s.examDate.startsWith(year));
+    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
   }
   const d = overviewDateSelect.value;
   if (d) {
@@ -808,7 +862,7 @@ function updateOverviewContent() {
   let filtered = teacherData.students;
   const year = overviewYearSelect.value;
   if (year) {
-    filtered = filtered.filter((s) => s.examDate.startsWith(year));
+    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
   }
   const d = overviewDateSelect.value;
   if (d) {
@@ -826,21 +880,21 @@ function updateOverviewContent() {
   }
   filtered.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
   filtered.forEach((student) => {
-    const ass = teacherData.assessments[student.id] || {};
+    const assessment = teacherData.assessments[student.id] || {};
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${student.name}</td>
       <td>${formatDate(student.examDate)}</td>
       <td>${student.topic || "-"}</td>
-      <td>${ass.presentation || "-"}</td>
-      <td>${ass.content || "-"}</td>
-      <td>${ass.language || "-"}</td>
-      <td>${ass.impression || "-"}</td>
-      <td>${ass.examination || "-"}</td>
-      <td>${ass.reflection || "-"}</td>
-      <td>${ass.expertise || "-"}</td>
-      <td>${ass.documentation || "-"}</td>
-      <td>${ass.finalGrade !== undefined ? ass.finalGrade : "-"}</td>
+      <td>${assessment.presentation || "-"}</td>
+      <td>${assessment.content || "-"}</td>
+      <td>${assessment.language || "-"}</td>
+      <td>${assessment.impression || "-"}</td>
+      <td>${assessment.examination || "-"}</td>
+      <td>${assessment.reflection || "-"}</td>
+      <td>${assessment.expertise || "-"}</td>
+      <td>${assessment.documentation || "-"}</td>
+      <td>${assessment.finalGrade !== undefined ? assessment.finalGrade : "-"}</td>
       <td>
         <button class="edit-btn" data-id="${student.id}">✏️</button>
       </td>
@@ -855,8 +909,8 @@ function updateOverviewContent() {
 // Öffnet das Modal zum Bearbeiten der Endnote
 function openEditGradeModal(student) {
   selectedGradeStudent = student;
-  const ass = teacherData.assessments[student.id] || {};
-  editFinalGrade.value = ass.finalGrade || "";
+  const assessment = teacherData.assessments[student.id] || {};
+  editFinalGrade.value = assessment.finalGrade || "";
   editGradeModal.style.display = "flex";
 }
 
@@ -872,7 +926,13 @@ async function saveEditedGrade() {
   const saved = await saveTeacherData();
   hideLoader();
   if (saved) {
-    updateOverviewTab();
+    updateOverviewContent();
+    // Bei geöffnetem Bewertungs-Tab die Notendarstellung aktualisieren
+    if (selectedGradeStudent.id === currentSelectedStudentId) {
+      const finalGradeInput = document.getElementById("finalGrade");
+      if (finalGradeInput) finalGradeInput.value = val;
+    }
+    updateStudentGradeInList(selectedGradeStudent.id, val);
     showNotification("Note aktualisiert.");
     editGradeModal.style.display = "none";
   }
@@ -910,50 +970,66 @@ function populateSettingsDateSelect() {
 }
 
 function exportData() {
-  const useTxt = document.getElementById("exportTXT").checked;
+  const useTxt = document.getElementById("exportTXT") && document.getElementById("exportTXT").checked;
   const year = settingsYearSelect.value;
   const day = settingsDateSelect.value;
   let filtered = teacherData.students;
+  
   if (year) {
-    filtered = filtered.filter((s) => s.examDate.startsWith(year));
+    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
   }
   if (day) {
     filtered = filtered.filter((s) => s.examDate === day);
   }
-  const exportObj = { students: [], assessments: {} };
-  filtered.forEach((student) => {
-    exportObj.students.push(student);
-    exportObj.assessments[student.id] = teacherData.assessments[student.id];
-  });
-  const fileName = `WBS_Daten_${new Date().getTime()}`;
+  
   if (useTxt) {
-    let txtContent = "";
-    filtered.forEach((s) => {
-      const ass = teacherData.assessments[s.id] || {};
-      txtContent += `Name: ${s.name}, Datum: ${s.examDate}, Thema: ${s.topic}\n`;
-      txtContent += `- Präsentation: ${ass.presentation ?? "-"}\n`;
-      txtContent += `- Inhalt: ${ass.content ?? "-"}\n`;
-      txtContent += `- Sprache: ${ass.language ?? "-"}\n`;
-      txtContent += `- Eindruck: ${ass.impression ?? "-"}\n`;
-      txtContent += `- Prüfung: ${ass.examination ?? "-"}\n`;
-      txtContent += `- Reflexion: ${ass.reflection ?? "-"}\n`;
-      txtContent += `- Fachwissen: ${ass.expertise ?? "-"}\n`;
-      txtContent += `- Dokumentation: ${ass.documentation ?? "-"}\n`;
-      txtContent += `- Endnote: ${ass.finalGrade ?? "-"}\n\n`;
+    let txtContent = "Export WBS Bewertungssystem\n\n";
+    filtered.forEach((student) => {
+      const assessment = teacherData.assessments[student.id] || {};
+      txtContent += `Name: ${student.name}\n`;
+      txtContent += `Datum: ${formatDate(student.examDate)}\n`;
+      txtContent += `Thema: ${student.topic || '-'}\n`;
+      txtContent += `Endnote: ${assessment.finalGrade || '-'}\n`;
+      txtContent += `Kategorien:\n`;
+      ASSESSMENT_CATEGORIES.forEach(cat => {
+        txtContent += `  ${cat.name}: ${assessment[cat.id] || '-'}\n`;
+      });
+      txtContent += `Info-Text: ${assessment.infoText || ''}\n\n`;
+      txtContent += "--------------------------------\n\n";
     });
-    downloadFile(`${fileName}.txt`, txtContent, "text/plain");
+    downloadFile(`WBS_Export.txt`, txtContent, "text/plain");
   } else {
-    const jsonString = JSON.stringify(exportObj, null, 2);
-    downloadFile(`${fileName}.json`, jsonString, "application/json");
+    // JSON-Export
+    const exportData = [];
+    filtered.forEach((student) => {
+      const assessment = teacherData.assessments[student.id] || {};
+      const entry = {
+        name: student.name,
+        examDate: formatDate(student.examDate),
+        topic: student.topic || '',
+        finalGrade: assessment.finalGrade || '',
+        categories: {}
+      };
+      ASSESSMENT_CATEGORIES.forEach(cat => {
+        entry.categories[cat.name] = assessment[cat.id] || '-';
+      });
+      entry.infoText = assessment.infoText || '';
+      exportData.push(entry);
+    });
+    const jsonString = JSON.stringify(exportData, null, 2);
+    downloadFile(`WBS_Export.json`, jsonString, "application/json");
   }
 }
 
 function downloadFile(name, content, mime) {
   const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
+  link.href = url;
   link.download = name;
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
 }
 
 function confirmDeleteAllData() {
@@ -962,23 +1038,27 @@ function confirmDeleteAllData() {
     showNotification("Bestätigungscode ist falsch.", "error");
     return;
   }
-  showLoader();
-  supabaseClient
-    .from("wbs_data")
-    .delete()
-    .eq("teacher_code", currentUser.code)
-    .then(({ error }) => {
-      hideLoader();
-      if (error) {
-        console.error(error);
-        showNotification("Fehler beim Löschen.", "error");
-      } else {
-        teacherData.students = [];
-        teacherData.assessments = {};
-        updateStudentsTab();
-        updateAssessmentTab();
-        updateOverviewTab();
-        showNotification("Alle Daten wurden gelöscht.");
-      }
-    });
+  if (!confirm("Sollen wirklich alle Daten gelöscht werden? Das kann nicht rückgängig gemacht werden!")) {
+    return;
+  }
+  deleteAllData();
+}
+
+async function deleteAllData() {
+  if (!currentUser.code) return;
+  try {
+    showLoader();
+    teacherData.students = [];
+    teacherData.assessments = {};
+    await saveTeacherData();
+    updateStudentsTab();
+    updateAssessmentTab();
+    updateOverviewTab();
+    showNotification("Alle Daten wurden gelöscht.");
+  } catch (error) {
+    console.error("Fehler beim Löschen aller Daten:", error);
+    showNotification("Fehler beim Löschen.", "error");
+  } finally {
+    hideLoader();
+  }
 }
