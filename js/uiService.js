@@ -2,6 +2,9 @@
 import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
 import { teacherData } from "./dataService.js";
 
+/**
+ * Zeigt den Ladebildschirm
+ */
 export function showLoader() {
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
@@ -9,6 +12,9 @@ export function showLoader() {
   }
 }
 
+/**
+ * Versteckt den Ladebildschirm
+ */
 export function hideLoader() {
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
@@ -16,6 +22,11 @@ export function hideLoader() {
   }
 }
 
+/**
+ * Zeigt eine Benachrichtigung
+ * @param {string} message - Anzuzeigender Text
+ * @param {string} type - Art der Benachrichtigung (success, warning, error)
+ */
 export function showNotification(message, type = "success") {
   const notification = document.createElement("div");
   notification.className = `notification ${type}`;
@@ -27,6 +38,11 @@ export function showNotification(message, type = "success") {
   }, 3000);
 }
 
+/**
+ * Formatiert einen ISO-Datumstring in deutsches Format
+ * @param {string} isoDateString - ISO-Datum (YYYY-MM-DD)
+ * @returns {string} Formatiertes Datum (DD.MM.YYYY)
+ */
 export function formatDate(isoDateString) {
   if (!isoDateString) return "";
   const date = new Date(isoDateString + "T00:00:00");
@@ -38,18 +54,29 @@ export function formatDate(isoDateString) {
   });
 }
 
+/**
+ * Extrahiert das Jahr aus einem ISO-Datum
+ * @param {string} isoDateString - ISO-Datum (YYYY-MM-DD)
+ * @returns {string} Jahr
+ */
 export function getYearFromDate(isoDateString) {
   return isoDateString.split("-")[0];
 }
 
+/**
+ * Gibt verfügbare Jahre zurück
+ * @returns {string[]} Liste von Jahren
+ */
 export function getAvailableYears() {
   const years = new Set();
   const currentYear = new Date().getFullYear();
 
+  // Aktuelle Jahre plus 10 Jahre in die Zukunft
   for (let i = 0; i <= 10; i++) {
     years.add((currentYear + i).toString());
   }
 
+  // Jahre aus vorhandenen Daten
   teacherData.students.forEach((student) => {
     years.add(getYearFromDate(student.examDate));
   });
@@ -57,6 +84,11 @@ export function getAvailableYears() {
   return Array.from(years).sort((a, b) => a - b).reverse();
 }
 
+/**
+ * Gibt verfügbare Daten zurück
+ * @param {string} year - Optional: Jahr filtern
+ * @returns {string[]} Liste von Daten
+ */
 export function getAvailableDates(year = null) {
   const dates = new Set();
   teacherData.students.forEach((student) => {
@@ -67,6 +99,11 @@ export function getAvailableDates(year = null) {
   return Array.from(dates).sort().reverse();
 }
 
+/**
+ * Gibt verfügbare Themen zurück
+ * @param {string} selectedDate - Optional: Datum filtern
+ * @returns {string[]} Liste von Themen
+ */
 export function getAvailableTopics(selectedDate = null) {
   const topics = new Set();
   let filteredStudents = teacherData.students;
@@ -81,6 +118,11 @@ export function getAvailableTopics(selectedDate = null) {
   return Array.from(topics).sort();
 }
 
+/**
+ * Berechnet den Durchschnitt der Bewertungen
+ * @param {Object} assessment - Bewertungsobjekt
+ * @returns {string|null} Durchschnittsnote oder null
+ */
 export function calculateAverageGrade(assessment) {
   if (!assessment) return null;
   let sum = 0;
@@ -95,7 +137,11 @@ export function calculateAverageGrade(assessment) {
   return (sum / count).toFixed(1);
 }
 
-// Initialisiert das Lehrer-Grid für die Anmeldung
+/**
+ * Initialisiert das Lehrer-Grid für die Anmeldung
+ * @param {HTMLElement} teacherGrid - DOM-Element für das Grid
+ * @param {Function} showPasswordModalCallback - Callback für Passwortdialog
+ */
 export function initTeacherGrid(teacherGrid, showPasswordModalCallback) {
   if (!teacherGrid) return;
   teacherGrid.innerHTML = "";
