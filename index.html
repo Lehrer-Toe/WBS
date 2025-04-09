@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>WBS Bewertungssystem</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="loader-container" id="mainLoader">
@@ -302,8 +305,16 @@
 
   <!-- Supabase library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
-  <!-- Application JS -->
-  <script src="app.js"></script>
+
+  <!-- Eigene JS-Module: Reihenfolge beachten, alle als ES-Module laden -->
+  <script type="module">
+    /* Ordnerstruktur-Beispiel: /js/constants.js, /js/supabaseClient.js, 
+       /js/dataService.js, /js/uiService.js, /js/main.js */
+    import "./js/constants.js";
+    import "./js/supabaseClient.js";
+    import "./js/dataService.js";
+    import "./js/uiService.js";
+    import "./js/main.js";
+  </script>
 </body>
 </html>
