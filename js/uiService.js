@@ -64,7 +64,8 @@ export function getYearFromDate(isoDateString) {
 }
 
 /**
- * Gibt verfügbare Jahre zurück
+ * Gibt verfügbare Jahre zurück - aktuelles Jahr immer an erster Stelle,
+ * dann aufsteigend bis 10 Jahre in die Zukunft
  * @returns {string[]} Liste von Jahren
  */
 export function getAvailableYears() {
@@ -81,7 +82,17 @@ export function getAvailableYears() {
     years.add(getYearFromDate(student.examDate));
   });
 
-  return Array.from(years).sort((a, b) => a - b).reverse();
+  // Sortiere die Jahre aufsteigend
+  let yearArray = Array.from(years).sort();
+  
+  // Stelle sicher, dass das aktuelle Jahr an erster Stelle ist
+  const currentYearStr = currentYear.toString();
+  if (yearArray.includes(currentYearStr)) {
+    yearArray = yearArray.filter(y => y !== currentYearStr);
+    yearArray.unshift(currentYearStr);
+  }
+  
+  return yearArray;
 }
 
 /**
