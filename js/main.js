@@ -1,6 +1,6 @@
 // js/main.js
 
-import { initDatabase, supabaseClient } from "./supabaseClient.js";
+import { initDatabase } from "./supabaseClient.js";
 import {
   teacherData,
   currentUser,
@@ -18,7 +18,7 @@ import {
   calculateAverageGrade,
   initTeacherGrid
 } from "./uiService.js";
-import { ASSESSMENT_CATEGORIES } from "./constants.js";
+import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
 
 // Globale Zustände
 let selectedStudent = null;
