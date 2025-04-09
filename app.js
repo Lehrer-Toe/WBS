@@ -23,6 +23,7 @@ let selectedGradeStudent = null;
 let infoTextSaveTimer = null;
 let lastSelectedDate = null; 
 let lastSelectedTopic = null; 
+let currentSelectedStudentId = null; // Neue Variable zum Speichern des aktuell ausgewählten Schülers
 
 // Aktuelles Datum (lokale Zeit) für Default-Wert
 const today = new Date();
@@ -930,6 +931,7 @@ function updateAssessmentStudentList() {
         <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Prüfling aus der Liste auswählen.</p>
       </div>
     `;
+    currentSelectedStudentId = null;
     return;
   }
   
@@ -950,6 +952,7 @@ function updateAssessmentStudentList() {
         <p>Für diesen Filter keine Einträge.</p>
       </div>
     `;
+    currentSelectedStudentId = null;
     return;
   }
   
@@ -976,16 +979,39 @@ function updateAssessmentStudentList() {
         item.classList.remove('active');
       });
       li.classList.add('active');
+      currentSelectedStudentId = student.id;
       showAssessmentForm(student);
     });
     
     assessmentStudentList.appendChild(li);
   });
   
-  if (studentsFiltered.length > 0 && !document.querySelector('.student-item.active')) {
-    const firstStudent = document.querySelector('.student-item');
-    if (firstStudent) {
-      firstStudent.click();
+  // Wählen den vorherigen Schüler aus, wenn verfügbar, andernfalls den ersten
+  let studentToSelect = null;
+  
+  if (currentSelectedStudentId) {
+    studentToSelect = document.querySelector(`.student-item[data-id="${currentSelectedStudentId}"]`);
+  }
+  
+  if (!studentToSelect && studentsFiltered.length > 0) {
+    studentToSelect = document.querySelector('.student-item');
+  }
+  
+  if (studentToSelect) {
+    studentToSelect.click();
+  }
+}
+
+/**
+ * Aktualisiert die Bewertung im Schülerlistenelement ohne die ganze Liste neu zu laden
+ */
+function updateStudentGradeInList(studentId, finalGrade) {
+  const studentItem = document.querySelector(`.student-item[data-id="${studentId}"]`);
+  if (studentItem) {
+    const gradeElement = studentItem.querySelector('.average-grade');
+    if (gradeElement) {
+      gradeElement.textContent = finalGrade;
+      gradeElement.className = `average-grade grade-${Math.round(finalGrade)}`;
     }
   }
 }
@@ -1113,7 +1139,8 @@ function showAssessmentForm(student) {
       
       try {
         await saveTeacherData();
-        updateAssessmentStudentList();
+        // Aktualisiere nur die Note im Listenelement ohne die Liste neu zu laden
+        updateStudentGradeInList(student.id, teacherData.assessments[student.id].finalGrade);
       } catch (error) {
         console.error("Fehler beim Speichern der Note:", error);
         showNotification("Fehler beim Speichern.", "error");
@@ -1133,7 +1160,8 @@ function showAssessmentForm(student) {
       try {
         teacherData.assessments[student.id].finalGrade = finalGradeValue;
         await saveTeacherData();
-        updateAssessmentStudentList();
+        // Aktualisiere nur die Note im Listenelement ohne die Liste neu zu laden
+        updateStudentGradeInList(student.id, finalGradeValue);
         showNotification("Endnote gespeichert.");
       } catch (error) {
         console.error("Fehler beim Speichern der Endnote:", error);
@@ -1154,7 +1182,8 @@ function showAssessmentForm(student) {
         document.getElementById("finalGrade").value = avgGradeCurrent;
         teacherData.assessments[student.id].finalGrade = parseFloat(avgGradeCurrent);
         await saveTeacherData();
-        updateAssessmentStudentList();
+        // Aktualisiere nur die Note im Listenelement ohne die Liste neu zu laden
+        updateStudentGradeInList(student.id, parseFloat(avgGradeCurrent));
         showNotification("Durchschnitt als Endnote übernommen.");
       } catch (error) {
         console.error("Fehler:", error);
@@ -1322,7 +1351,12 @@ async function saveEditedGrade() {
     teacherData.assessments[selectedGradeStudent.id].finalGrade = finalGradeValue;
     await saveTeacherData();
     updateOverviewContent();
-    updateAssessmentStudentList();
+    // Bei geöffnetem Bewertungs-Tab die Notendarstellung aktualisieren, ohne neu zu laden
+    if (selectedGradeStudent.id === currentSelectedStudentId) {
+      const finalGradeInput = document.getElementById("finalGrade");
+      if (finalGradeInput) finalGradeInput.value = finalGradeValue;
+    }
+    updateStudentGradeInList(selectedGradeStudent.id, finalGradeValue);
     editGradeModal.style.display = "none";
     showNotification("Endnote gespeichert.");
   } catch (error) {
