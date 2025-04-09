@@ -28,6 +28,7 @@ let infoTextSaveTimer = null;
 let lastSelectedDate = null;
 let lastSelectedTopic = null;
 let currentSelectedStudentId = null;
+let stickyAverageElement = null; // Für die Sticky-Durchschnittsanzeige
 
 // DOM-Elemente
 const loginSection = document.getElementById("loginSection");
@@ -58,6 +59,7 @@ const overviewYearSelect = document.getElementById("overviewYearSelect");
 const overviewDateSelect = document.getElementById("overviewDateSelect");
 const overviewTopicSelect = document.getElementById("overviewTopicSelect");
 const overviewTable = document.getElementById("overviewTable");
+const printBtn = document.getElementById("printBtn");
 
 const settingsYearSelect = document.getElementById("settingsYearSelect");
 const settingsDateSelect = document.getElementById("settingsDateSelect");
@@ -106,6 +108,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (examDate) {
       examDate.value = defaultDate;
     }
+    createStickyAverageElement();
   } catch (error) {
     console.error("Fehler bei der Initialisierung:", error);
     showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
@@ -113,6 +116,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideLoader();
   }
 });
+
+// Erstellt das Element für die schwebende Durchschnittsanzeige
+function createStickyAverageElement() {
+  stickyAverageElement = document.createElement("div");
+  stickyAverageElement.className = "sticky-average";
+  stickyAverageElement.textContent = "Ø 0.0";
+  document.body.appendChild(stickyAverageElement);
+
+  // Scroll-Event-Listener für die Sticky-Anzeige
+  window.addEventListener("scroll", () => {
+    if (!assessmentContent) return;
+    if (!assessmentContent.querySelector(".final-grade-display")) return;
+    
+    const rect = assessmentContent.querySelector(".final-grade-display").getBoundingClientRect();
+    if (rect.top < 0) {
+      stickyAverageElement.style.display = "block";
+    } else {
+      stickyAverageElement.style.display = "none";
+    }
+  });
+}
 
 // Zeigt den Passwortdialog
 function showPasswordModal(teacher) {
@@ -205,6 +229,9 @@ function setupEventListeners() {
   }
   if (overviewTopicSelect) {
     overviewTopicSelect.addEventListener("change", updateOverviewContent);
+  }
+  if (printBtn) {
+    printBtn.addEventListener("click", printOverviewData);
   }
 
   if (settingsYearSelect) {
@@ -641,7 +668,7 @@ function showAssessmentForm(student) {
       
       <div class="info-text-container">
         <h3>Informationen zum Prüfling</h3>
-        <textarea id="studentInfoText" rows="5" placeholder="Notizen zum Prüfling...">${infoText}</textarea>
+        <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Prüfling...">${infoText}</textarea>
       </div>
       
       <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
@@ -692,6 +719,11 @@ function showAssessmentForm(student) {
   html += `</div>`;
   assessmentContent.innerHTML = html;
   
+  // Sticky-Anzeige aktualisieren
+  if (stickyAverageElement) {
+    stickyAverageElement.textContent = `Ø ${avgGrade || "0.0"}`;
+  }
+  
   // Event-Listener für die Note-Buttons und weitere Aktionen
   document.querySelectorAll(".grade-buttons .grade-button").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -712,6 +744,11 @@ function showAssessmentForm(student) {
       const newAvg = calculateAverageGrade(teacherData.assessments[student.id]);
       const avgDisplay = document.querySelector(".final-grade-display");
       avgDisplay.textContent = `Ø ${newAvg || "0.0"}`;
+      
+      // Sticky-Anzeige aktualisieren
+      if (stickyAverageElement) {
+        stickyAverageElement.textContent = `Ø ${newAvg || "0.0"}`;
+      }
       
       if (!teacherData.assessments[student.id].finalGrade) {
         teacherData.assessments[student.id].finalGrade = parseFloat(newAvg);
@@ -804,9 +841,22 @@ function updateOverviewTab() {
   updateOverviewContent();
 }
 
+// Sortiert Jahre absteigend und beginnt mit aktuellem Jahr
 function populateOverviewYearSelect() {
   if (!overviewYearSelect) return;
   const years = getAvailableYears();
+  
+  // Sortiere Jahre absteigend (neueste zuerst)
+  years.sort((a, b) => parseInt(b) - parseInt(a));
+  
+  // Setze aktuelles Jahr an erste Stelle, falls vorhanden
+  const currentYear = new Date().getFullYear().toString();
+  if (years.includes(currentYear)) {
+    const index = years.indexOf(currentYear);
+    years.splice(index, 1);
+    years.unshift(currentYear);
+  }
+  
   overviewYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
   years.forEach((year) => {
     const opt = document.createElement("option");
@@ -906,6 +956,11 @@ function updateOverviewContent() {
   });
 }
 
+// Drucken der Übersicht
+function printOverviewData() {
+  window.print();
+}
+
 // Öffnet das Modal zum Bearbeiten der Endnote
 function openEditGradeModal(student) {
   selectedGradeStudent = student;
@@ -979,86 +1034,4 @@ function exportData() {
     filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
   }
   if (day) {
-    filtered = filtered.filter((s) => s.examDate === day);
-  }
-  
-  if (useTxt) {
-    let txtContent = "Export WBS Bewertungssystem\n\n";
-    filtered.forEach((student) => {
-      const assessment = teacherData.assessments[student.id] || {};
-      txtContent += `Name: ${student.name}\n`;
-      txtContent += `Datum: ${formatDate(student.examDate)}\n`;
-      txtContent += `Thema: ${student.topic || '-'}\n`;
-      txtContent += `Endnote: ${assessment.finalGrade || '-'}\n`;
-      txtContent += `Kategorien:\n`;
-      ASSESSMENT_CATEGORIES.forEach(cat => {
-        txtContent += `  ${cat.name}: ${assessment[cat.id] || '-'}\n`;
-      });
-      txtContent += `Info-Text: ${assessment.infoText || ''}\n\n`;
-      txtContent += "--------------------------------\n\n";
-    });
-    downloadFile(`WBS_Export.txt`, txtContent, "text/plain");
-  } else {
-    // JSON-Export
-    const exportData = [];
-    filtered.forEach((student) => {
-      const assessment = teacherData.assessments[student.id] || {};
-      const entry = {
-        name: student.name,
-        examDate: formatDate(student.examDate),
-        topic: student.topic || '',
-        finalGrade: assessment.finalGrade || '',
-        categories: {}
-      };
-      ASSESSMENT_CATEGORIES.forEach(cat => {
-        entry.categories[cat.name] = assessment[cat.id] || '-';
-      });
-      entry.infoText = assessment.infoText || '';
-      exportData.push(entry);
-    });
-    const jsonString = JSON.stringify(exportData, null, 2);
-    downloadFile(`WBS_Export.json`, jsonString, "application/json");
-  }
-}
-
-function downloadFile(name, content, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function confirmDeleteAllData() {
-  if (!deleteVerificationCode) return;
-  if (deleteVerificationCode.value.trim() !== (currentUser.code || "")) {
-    showNotification("Bestätigungscode ist falsch.", "error");
-    return;
-  }
-  if (!confirm("Sollen wirklich alle Daten gelöscht werden? Das kann nicht rückgängig gemacht werden!")) {
-    return;
-  }
-  deleteAllData();
-}
-
-async function deleteAllData() {
-  if (!currentUser.code) return;
-  try {
-    showLoader();
-    teacherData.students = [];
-    teacherData.assessments = {};
-    await saveTeacherData();
-    updateStudentsTab();
-    updateAssessmentTab();
-    updateOverviewTab();
-    showNotification("Alle Daten wurden gelöscht.");
-  } catch (error) {
-    console.error("Fehler beim Löschen aller Daten:", error);
-    showNotification("Fehler beim Löschen.", "error");
-  } finally {
-    hideLoader();
-  }
-}
+    filtered = filtered.
