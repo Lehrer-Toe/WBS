@@ -4,7 +4,11 @@ const path = require('path');
 try {
   console.log('Firebase-Konfigurationsdatei wird erstellt...');
   
-  // Prüfe, ob alle benötigten Umgebungsvariablen existieren
+  // Erstelle das Verzeichnis, falls es nicht existiert
+  if (!fs.existsSync('js')) {
+    fs.mkdirSync('js', { recursive: true });
+  }
+  
   const firebaseConfig = {
     apiKey: process.env.VITE_FIREBASE_API_KEY || '',
     authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -13,25 +17,26 @@ try {
     messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
     appId: process.env.VITE_FIREBASE_APP_ID || ''
   };
-  
-  // Warne, wenn Variablen fehlen, aber fahre trotzdem fort
+
+  // Überprüfe leere Werte und gib Warnungen aus
+  let missingVars = [];
   Object.entries(firebaseConfig).forEach(([key, value]) => {
-    if (!value) console.warn(`Warnung: ${key} ist nicht definiert!`);
+    if (!value) missingVars.push(key);
   });
+  
+  if (missingVars.length > 0) {
+    console.warn(`Warnung: Folgende Umgebungsvariablen fehlen oder sind leer: ${missingVars.join(', ')}`);
+    console.warn('Die Anwendung könnte möglicherweise nicht richtig funktionieren.');
+  }
 
   const configFileContent = `
 // js/firebaseConfig.js - AUTOMATISCH GENERIERT, NICHT BEARBEITEN
 export const FIREBASE_CONFIG = ${JSON.stringify(firebaseConfig, null, 2)};
 `;
 
-  // Erstelle das Verzeichnis, falls es nicht existiert
-  if (!fs.existsSync('js')) {
-    fs.mkdirSync('js', { recursive: true });
-  }
-
   fs.writeFileSync('js/firebaseConfig.js', configFileContent);
   console.log('Firebase-Konfigurationsdatei wurde erfolgreich erstellt.');
 } catch (error) {
   console.error('Fehler beim Erstellen der Firebase-Konfigurationsdatei:', error);
-  process.exit(1);  // Exit mit Fehlercode
+  process.exit(1);
 }
