@@ -9,6 +9,7 @@ try {
     fs.mkdirSync('js', { recursive: true });
   }
   
+  // Hier werden die Umgebungsvariablen direkt verwendet
   const firebaseConfig = {
     apiKey: process.env.VITE_FIREBASE_API_KEY || '',
     authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -29,6 +30,7 @@ try {
     console.warn('Die Anwendung könnte möglicherweise nicht richtig funktionieren.');
   }
 
+  // Hier wird die Firebase-Konfiguration direkt als KONSTANTE exportiert - kein Vite-Syntax (import.meta.env)
   const configFileContent = `
 // js/firebaseConfig.js - AUTOMATISCH GENERIERT, NICHT BEARBEITEN
 export const FIREBASE_CONFIG = ${JSON.stringify(firebaseConfig, null, 2)};
