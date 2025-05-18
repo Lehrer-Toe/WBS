@@ -9,6 +9,12 @@ export let auth = null;
  */
 export async function initDatabase() {
   try {
+    // Prüfen, ob die Konfiguration gültig ist
+    if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
+      console.error("Firebase-Konfiguration unvollständig:", FIREBASE_CONFIG);
+      return false;
+    }
+
     // Firebase initialisieren
     firebase.initializeApp(FIREBASE_CONFIG);
     
@@ -17,18 +23,23 @@ export async function initDatabase() {
     auth = firebase.auth();
     
     // Offline-Persistenz aktivieren (optional)
-    await db.enablePersistence().catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Persistenz konnte nicht aktiviert werden, möglicherweise mehrere Tabs geöffnet');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Ihr Browser unterstützt keine Persistenz');
-      }
-    });
+    try {
+      await db.enablePersistence({synchronizeTabs: true}).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          console.warn('Persistenz konnte nicht aktiviert werden, möglicherweise mehrere Tabs geöffnet');
+        } else if (err.code === 'unimplemented') {
+          console.warn('Ihr Browser unterstützt keine Persistenz');
+        }
+      });
+    } catch (persistenceError) {
+      console.warn("Persistenz-Fehler, nicht kritisch:", persistenceError);
+    }
     
     console.log("Firebase erfolgreich initialisiert");
     return true;
   } catch (error) {
     console.error("Fehler bei der Firebase-Initialisierung:", error);
+    alert("Fehler bei der Firebase-Initialisierung. Bitte prüfen Sie die Konsole für Details.");
     return false;
   }
 }
