@@ -1,6 +1,6 @@
 // js/main.js
 
-import { initDatabase } from "./supabaseClient.js";
+import { initDatabase, ensureCollection } from "./firebaseClient.js";
 import {
   teacherData,
   currentUser,
@@ -103,6 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   showLoader();
   try {
     await initDatabase();
+    await ensureCollection(); // Neu: Stellt sicher, dass die Collection existiert
     initTeacherGrid(teacherGrid, showPasswordModal);
     setupEventListeners();
     if (examDate) {
@@ -1105,4 +1106,8 @@ async function deleteAllData() {
   } finally {
     hideLoader();
   }
+}
+
+function getYearFromDate(isoDateString) {
+  return isoDateString.split("-")[0];
 }
