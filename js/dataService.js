@@ -38,6 +38,7 @@ function migrateAssessmentCategories() {
   // Für jeden Schüler die Bewertungen durchgehen und ggf. umbenennen
   for (const studentId in teacherData.assessments) {
     const assessment = teacherData.assessments[studentId];
+    if (!assessment) continue; // Schutz vor undefined
 
     // Alte Schlüssel durch neue ersetzen
     for (const oldCategory in categoryMapping) {
@@ -72,6 +73,12 @@ function migrateAssessmentCategories() {
 export async function loadTeacherData() {
   if (!currentUser.code) return false;
   try {
+    // Sicherheitscheck: Firebase muss initialisiert sein
+    if (!db) {
+      console.error("Firestore nicht initialisiert!");
+      return false;
+    }
+
     // Eintrag mit passendem Kürzel laden
     const docRef = db.collection("wbs_data").doc(currentUser.code);
     const doc = await docRef.get();
@@ -79,12 +86,23 @@ export async function loadTeacherData() {
     // Wenn Daten vorhanden => local übernehmen
     if (doc.exists) {
       const data = doc.data();
-      teacherData = data.data;
-      migrateAssessmentCategories();
-      return true;
+      if (data && data.data) {
+        teacherData = data.data;
+        migrateAssessmentCategories();
+        console.log("Lehrerdaten erfolgreich geladen");
+        return true;
+      } else {
+        console.error("Datenstruktur ungültig:", data);
+        teacherData = {
+          students: [],
+          assessments: {}
+        };
+        return await saveTeacherData();
+      }
     } 
     // Ansonsten: neue Struktur speichern
     else {
+      console.log("Keine vorhandenen Daten gefunden, erstelle neue Struktur");
       teacherData = {
         students: [],
         assessments: {}
@@ -92,7 +110,8 @@ export async function loadTeacherData() {
       return await saveTeacherData();
     }
   } catch (error) {
-    console.error("Fehler in loadTeacherData:", error);
+    console.error("Fehler in loadTeacherData:", error.code, error.message, error);
+    alert("Fehler beim Laden der Lehrerdaten. Bitte prüfen Sie die Firebase-Berechtigungen.");
     return false;
   }
 }
@@ -104,6 +123,18 @@ export async function loadTeacherData() {
 export async function saveTeacherData() {
   if (!currentUser.code) return false;
   try {
+    // Sicherheitscheck: Firebase muss initialisiert sein
+    if (!db) {
+      console.error("Firestore nicht initialisiert!");
+      return false;
+    }
+    
+    // Prüfen, ob die Datenstruktur gültig ist
+    if (!teacherData || !teacherData.students || !teacherData.assessments) {
+      console.error("Ungültige Datenstruktur:", teacherData);
+      return false;
+    }
+
     await db.collection("wbs_data").doc(currentUser.code).set({
       teacher_code: currentUser.code,
       teacher_name: currentUser.name,
@@ -111,9 +142,11 @@ export async function saveTeacherData() {
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
     
+    console.log("Lehrerdaten erfolgreich gespeichert");
     return true;
   } catch (error) {
-    console.error("Fehler in saveTeacherData:", error);
+    console.error("Fehler in saveTeacherData:", error.code, error.message, error);
+    alert("Fehler beim Speichern der Daten. Bitte prüfen Sie die Firebase-Berechtigungen.");
     return false;
   }
 }
