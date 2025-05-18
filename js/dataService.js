@@ -1,7 +1,7 @@
 // js/dataService.js
 
 import { ASSESSMENT_CATEGORIES } from "./constants.js";
-import { supabaseClient } from "./supabaseClient.js";
+import { db } from "./firebaseClient.js";
 
 /**
  * Globale Datenstruktur, in der alle Studierenden (students) und
@@ -66,27 +66,19 @@ function migrateAssessmentCategories() {
 }
 
 /**
- * Lädt die Lehrerdaten aus Supabase für das Kürzel in currentUser.code.
+ * Lädt die Lehrerdaten aus Firebase für das Kürzel in currentUser.code.
  * Falls keine Daten vorliegen, wird teacherData neu angelegt und gespeichert.
  */
 export async function loadTeacherData() {
   if (!currentUser.code) return false;
   try {
     // Eintrag mit passendem Kürzel laden
-    const { data, error } = await supabaseClient
-      .from("wbs_data")
-      .select("*")
-      .eq("teacher_code", currentUser.code)
-      .single();
-
-    // Falls anderer Fehler als "not found"
-    if (error && error.code !== "PGRST116") {
-      console.error("Fehler in loadTeacherData:", error);
-      return false;
-    }
+    const docRef = db.collection("wbs_data").doc(currentUser.code);
+    const doc = await docRef.get();
 
     // Wenn Daten vorhanden => local übernehmen
-    if (data) {
+    if (doc.exists) {
+      const data = doc.data();
       teacherData = data.data;
       migrateAssessmentCategories();
       return true;
@@ -106,25 +98,19 @@ export async function loadTeacherData() {
 }
 
 /**
- * Speichert teacherData und currentUser in Supabase.
+ * Speichert teacherData und currentUser in Firebase.
  * Falls es für das Kürzel bereits Einträge gibt, wird ein Update ausgeführt.
  */
 export async function saveTeacherData() {
   if (!currentUser.code) return false;
   try {
-    const { error } = await supabaseClient
-      .from("wbs_data")
-      .upsert({
-        teacher_code: currentUser.code,
-        teacher_name: currentUser.name,
-        data: teacherData,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "teacher_code" });
-
-    if (error) {
-      console.error("Fehler beim Speichern der Daten:", error);
-      return false;
-    }
+    await db.collection("wbs_data").doc(currentUser.code).set({
+      teacher_code: currentUser.code,
+      teacher_name: currentUser.name,
+      data: teacherData,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
     return true;
   } catch (error) {
     console.error("Fehler in saveTeacherData:", error);
