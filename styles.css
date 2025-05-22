@@ -13,6 +13,8 @@
   --transition: all 0.3s ease;
   --header-bg: #34495e;
   --blue-accent: #3498db; /* Neue Farbe für blauen Rahmen */
+  --danger-bg: #fdf2f2; /* Neuer Hintergrund für Gefahrenbereiche */
+  --danger-border: #fecaca; /* Neuer Rand für Gefahrenbereiche */
 }
 
 * {
@@ -758,8 +760,8 @@ table {
     page-break-after: auto !important;
   }
 }
-/* Admin-Bereich CSS-Erweiterungen für styles.css */
-/* Diese Styles müssen zur bestehenden styles.css hinzugefügt werden */
+
+/* Admin-Bereich CSS-Erweiterungen */
 
 /* Admin-Login Bereich */
 .admin-login-form {
@@ -895,6 +897,101 @@ table {
   border-radius: 8px;
 }
 
+/* NEUE ADMIN-LÖSCH-STYLES */
+
+/* Gefahrenbereich - Rote Karte */
+.danger-zone {
+  background: var(--danger-bg);
+  border: 2px solid var(--danger-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.danger-zone h3 {
+  color: var(--error-color);
+  border-bottom: 2px solid var(--error-color);
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+}
+
+.warning-text {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  color: #991b1b;
+}
+
+.danger-actions {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.danger-actions .btn-danger {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.danger-actions .btn-danger:hover {
+  background-color: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.danger-explanation {
+  background: #fef3f2;
+  border: 1px solid #fed7d7;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.danger-explanation h4 {
+  color: var(--error-color);
+  margin-bottom: 10px;
+}
+
+.danger-explanation ul {
+  margin-left: 20px;
+  color: #7f1d1d;
+}
+
+.danger-explanation li {
+  margin-bottom: 8px;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.help-text br {
+  margin-bottom: 3px;
+}
+
+/* System-Aktionen */
+.system-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.system-actions button {
+  flex: 1;
+  min-width: 150px;
+}
+
 /* Responsive Admin-Layout */
 @media (max-width: 768px) {
   .admin-buttons {
@@ -913,6 +1010,18 @@ table {
   
   #systemStats {
     grid-template-columns: 1fr;
+  }
+  
+  .danger-actions {
+    flex-direction: column;
+  }
+  
+  .danger-actions .btn-danger {
+    min-width: auto;
+  }
+  
+  .system-actions {
+    flex-direction: column;
   }
 }
 
@@ -961,4 +1070,30 @@ table {
     opacity: 1; 
     transform: translateY(0); 
   }
+}
+
+/* Spezielle Hervorhebung für destruktive Aktionen */
+.btn-danger:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.3);
+}
+
+/* Erfolgs-/Fehler-Feedback für Admin-Aktionen */
+.action-feedback {
+  padding: 10px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.action-feedback.success {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.action-feedback.error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
 }
