@@ -758,3 +758,207 @@ table {
     page-break-after: auto !important;
   }
 }
+/* Admin-Bereich CSS-Erweiterungen für styles.css */
+/* Diese Styles müssen zur bestehenden styles.css hinzugefügt werden */
+
+/* Admin-Login Bereich */
+.admin-login-form {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.admin-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-buttons button {
+  flex: 1;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+.admin-access {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  margin-top: 2rem;
+}
+
+.admin-access button {
+  background-color: #6c757d;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+}
+
+/* Admin-Panel */
+.teacher-admin-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 12px 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.teacher-admin-table td {
+  padding: 12px 15px;
+  border-top: 1px solid #e0e0e0;
+  vertical-align: middle;
+}
+
+.teacher-admin-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.teacher-admin-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.teacher-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.teacher-actions button {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+}
+
+/* System-Info */
+.card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+#systemStats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Admin-spezifische Formulare */
+.section {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.section h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  text-align: center;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+/* Responsive Admin-Layout */
+@media (max-width: 768px) {
+  .admin-buttons {
+    flex-direction: column;
+  }
+  
+  .teacher-actions {
+    flex-direction: column;
+  }
+  
+  .stat-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  #systemStats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Admin-Status-Indikatoren */
+.status-online {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.status-offline {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.status-warning {
+  color: var(--warning-color);
+  font-weight: bold;
+}
+
+/* Lehrer-Code Hervorhebung */
+.teacher-code {
+  font-family: 'Courier New', monospace;
+  background-color: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Admin-Tabellen-Scrolling */
+.table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Animation für Admin-Bereiche */
+.admin-fade-in {
+  animation: adminFadeIn 0.4s ease forwards;
+}
+
+@keyframes adminFadeIn {
+  0% { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
