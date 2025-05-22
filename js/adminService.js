@@ -1,7 +1,7 @@
 // js/adminService.js
 
 import { db } from "./firebaseClient.js";
-import { ADMIN_CONFIG } from "./constants.js";
+import { ADMIN_CONFIG, DEFAULT_TEACHERS } from "./constants.js";
 
 /**
  * Globale Variable für alle registrierten Lehrer
@@ -23,11 +23,10 @@ export async function loadAllTeachers() {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
     // Fallback auf Standard-Lehrer
-    allTeachers = [
-      { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
-      { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
-      { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
-    ];
+    allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
+      ...teacher,
+      createdAt: new Date().toISOString()
+    }))];
     return true;
   }
 
@@ -44,11 +43,10 @@ export async function loadAllTeachers() {
     } else {
       console.log("Keine Lehrer-Daten gefunden, erstelle Standard-Lehrer...");
       // Erste Initialisierung - erstelle Dokument mit Standard-Lehrern
-      allTeachers = [
-        { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
-        { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
-        { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
-      ];
+      allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
+        ...teacher,
+        createdAt: new Date().toISOString()
+      }))];
       
       // Versuche zu speichern, aber ignoriere Fehler
       try {
@@ -64,11 +62,10 @@ export async function loadAllTeachers() {
     
     // Fallback: Verwende Standard-Lehrer aus constants.js
     console.log("Verwende Fallback-Lehrer...");
-    allTeachers = [
-      { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
-      { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
-      { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
-    ];
+    allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
+      ...teacher,
+      createdAt: new Date().toISOString()
+    }))];
     
     // System funktioniert trotzdem, nur ohne persistente Lehrerdaten
     return true;
@@ -229,6 +226,128 @@ export async function deleteTeacher(code) {
   }
 
   return deletedTeacher;
+}
+
+/**
+ * NEUE FUNKTION: Alle Lehrer löschen und auf Standard zurücksetzen
+ */
+export async function deleteAllTeachers() {
+  try {
+    console.log("Setze alle Lehrer auf Standard zurück...");
+    
+    // Zurück zu Standard-Lehrern
+    allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
+      ...teacher,
+      createdAt: new Date().toISOString(),
+      resetAt: new Date().toISOString()
+    }))];
+    
+    // Speichern
+    const saved = await saveAllTeachers();
+    if (!saved) {
+      throw new Error("Fehler beim Zurücksetzen der Lehrer.");
+    }
+    
+    console.log("Alle Lehrer auf Standard zurückgesetzt");
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Zurücksetzen der Lehrer:", error);
+    throw error;
+  }
+}
+
+/**
+ * NEUE FUNKTION: Alle Bewertungsdaten aller Lehrer löschen
+ */
+export async function deleteAllTeacherData() {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    throw new Error("Datenbank nicht verfügbar");
+  }
+
+  try {
+    console.log("Lösche alle Bewertungsdaten...");
+    
+    // Hole alle Dokumente aus der wbs_data Collection
+    const snapshot = await db.collection("wbs_data").get();
+    
+    if (snapshot.empty) {
+      console.log("Keine Bewertungsdaten gefunden");
+      return true;
+    }
+    
+    // Batch-Delete für bessere Performance
+    const batch = db.batch();
+    let deleteCount = 0;
+    
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      deleteCount++;
+    });
+    
+    // Batch ausführen
+    await batch.commit();
+    
+    console.log(`${deleteCount} Bewertungsdaten-Dokumente gelöscht`);
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Löschen der Bewertungsdaten:", error);
+    throw error;
+  }
+}
+
+/**
+ * NEUE FUNKTION: Spezifische Lehrer-Bewertungsdaten löschen
+ */
+export async function deleteTeacherData(teacherCode) {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    throw new Error("Datenbank nicht verfügbar");
+  }
+
+  try {
+    console.log(`Lösche Bewertungsdaten für Lehrer: ${teacherCode}`);
+    
+    // Lösche das spezifische Dokument
+    await db.collection("wbs_data").doc(teacherCode).delete();
+    
+    console.log(`Bewertungsdaten für ${teacherCode} gelöscht`);
+    return true;
+  } catch (error) {
+    console.error(`Fehler beim Löschen der Daten für ${teacherCode}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * NEUE FUNKTION: System-Statistiken abrufen
+ */
+export async function getSystemStats() {
+  if (!db) {
+    return {
+      totalTeachers: allTeachers.length,
+      totalStudentData: 0,
+      firebaseStatus: "Offline"
+    };
+  }
+
+  try {
+    // Zähle alle Bewertungsdokumente
+    const snapshot = await db.collection("wbs_data").get();
+    
+    return {
+      totalTeachers: allTeachers.length,
+      totalStudentData: snapshot.size,
+      firebaseStatus: "Online"
+    };
+  } catch (error) {
+    console.error("Fehler beim Abrufen der System-Statistiken:", error);
+    return {
+      totalTeachers: allTeachers.length,
+      totalStudentData: 0,
+      firebaseStatus: "Error"
+    };
+  }
 }
 
 /**
