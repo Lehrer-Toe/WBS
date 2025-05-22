@@ -16,9 +16,19 @@ export const ASSESSMENT_CATEGORIES = [
 
 /**
  * Standard-Benutzer für die Anmeldung
+ * Diese werden durch die dynamisch geladenen Lehrer ergänzt/ersetzt
  */
 export const DEFAULT_TEACHERS = [
   { name: "Kretz", code: "KRE", password: "Luna" },
   { name: "Riffel", code: "RIF", password: "Luna" },
   { name: "Töllner", code: "TOE", password: "Luna" }
 ];
+
+/**
+ * Admin-Konfiguration
+ */
+export const ADMIN_CONFIG = {
+  username: "admin",
+  password: "WBS2024Admin!",
+  collectionName: "wbs_teachers"
+};
