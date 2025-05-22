@@ -150,14 +150,33 @@ export function calculateAverageGrade(assessment) {
 }
 
 /**
- * Initialisiert das Lehrer-Grid für die Anmeldung
+ * Initialisiert das Lehrer-Grid für die Anmeldung - DYNAMISCH aus Firebase
  * @param {HTMLElement} teacherGrid - DOM-Element für das Grid
  * @param {Function} showPasswordModalCallback - Callback für Passwortdialog
+ * @param {Array} teachersArray - Array mit Lehrer-Objekten (optional)
  */
-export function initTeacherGrid(teacherGrid, showPasswordModalCallback) {
+export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachersArray = null) {
   if (!teacherGrid) return;
+  
+  console.log("Initialisiere Lehrer-Grid...");
   teacherGrid.innerHTML = "";
-  DEFAULT_TEACHERS.forEach((teacher) => {
+  
+  // Verwende übergebenes Array, globales allTeachers oder Fallback zu DEFAULT_TEACHERS
+  let teachersToShow = teachersArray;
+  
+  if (!teachersToShow && window.allTeachers && window.allTeachers.length > 0) {
+    teachersToShow = window.allTeachers;
+    console.log("Verwende globale allTeachers:", teachersToShow.length);
+  }
+  
+  if (!teachersToShow || teachersToShow.length === 0) {
+    teachersToShow = DEFAULT_TEACHERS;
+    console.log("Verwende DEFAULT_TEACHERS als Fallback");
+  }
+  
+  console.log("Anzahl Lehrer im Grid:", teachersToShow.length);
+    
+  teachersToShow.forEach((teacher) => {
     const card = document.createElement("div");
     card.className = "teacher-card";
     card.dataset.code = teacher.code;
