@@ -29,7 +29,9 @@ import {
   deleteTeacher,
   validateTeacher,
   currentAdmin,
-  allTeachers
+  allTeachers,
+  deleteAllTeachers,
+  deleteAllTeacherData
 } from "./adminService.js";
 
 // Globale Zustände
@@ -81,6 +83,11 @@ const firebaseStatus = document.getElementById("firebaseStatus");
 const lastUpdate = document.getElementById("lastUpdate");
 const refreshSystemBtn = document.getElementById("refreshSystemBtn");
 const exportTeachersBtn = document.getElementById("exportTeachersBtn");
+
+// Neue Admin-Lösch-Elemente
+const deleteAllTeachersBtn = document.getElementById("deleteAllTeachersBtn");
+const deleteAllDataBtn = document.getElementById("deleteAllDataBtn");
+const adminDeleteVerificationCode = document.getElementById("adminDeleteVerificationCode");
 
 // Edit Teacher Modal
 const editTeacherModal = document.getElementById("editTeacherModal");
@@ -156,18 +163,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   console.log("WBS Bewertungssystem wird initialisiert...");
   showLoader();
   try {
+    // 1. Firebase initialisieren
     await initDatabase();
     await ensureCollection();
-    await loadAllTeachers(); // Lade Admin-Lehrerdaten
-    initTeacherGrid(teacherGrid, showPasswordModal);
+    
+    // 2. Lehrer aus Firebase laden
+    console.log("Lade Lehrer-Daten...");
+    await loadAllTeachers();
+    
+    // 3. Globale Variable setzen für uiService
+    window.allTeachers = allTeachers;
+    console.log("Verfügbare Lehrer:", allTeachers.length);
+    
+    // 4. UI mit geladenen Lehrern initialisieren
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
+    
+    // 5. Event-Listener einrichten
     setupEventListeners();
+    
+    // 6. Standard-Datum setzen
     if (examDate) {
       examDate.value = defaultDate;
     }
+    
+    // 7. Sticky-Element erstellen
     createStickyAverageElement();
     
-    // Mache allTeachers global verfügbar für uiService
-    window.allTeachers = allTeachers;
+    console.log("Initialisierung abgeschlossen!");
   } catch (error) {
     console.error("Fehler bei der Initialisierung:", error);
     showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
@@ -414,6 +436,14 @@ function setupAdminEventListeners() {
     exportTeachersBtn.addEventListener("click", exportAllTeachers);
   }
 
+  // NEUE Admin-Lösch-Funktionen
+  if (deleteAllTeachersBtn) {
+    deleteAllTeachersBtn.addEventListener("click", confirmDeleteAllTeachers);
+  }
+  if (deleteAllDataBtn) {
+    deleteAllDataBtn.addEventListener("click", confirmDeleteAllSystemData);
+  }
+
   // Edit Teacher Modal
   if (closeEditTeacherModal) {
     closeEditTeacherModal.addEventListener("click", () => {
@@ -518,9 +548,9 @@ async function addNewTeacher() {
     if (newTeacherPassword) newTeacherPassword.value = "";
     updateTeachersAdminTab();
     updateSystemInfoTab();
-    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    // Aktualisiere das Lehrer-Grid für die normale Anmeldung
     window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal);
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
     showNotification(`Lehrer "${name}" wurde hinzugefügt.`);
   } catch (error) {
     showNotification(error.message, "error");
@@ -593,6 +623,8 @@ async function refreshSystemInfo() {
   showLoader();
   try {
     await loadAllTeachers();
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
     updateSystemInfoTab();
     showNotification("System-Informationen aktualisiert.");
   } catch (error) {
@@ -614,6 +646,83 @@ function exportAllTeachers() {
   const jsonString = JSON.stringify(exportData, null, 2);
   downloadFile(`WBS_Lehrer_Export_${new Date().toISOString().split('T')[0]}.json`, jsonString, "application/json");
   showNotification("Lehrer exportiert.");
+}
+
+// NEUE FUNKTION: Alle Lehrer löschen bestätigen
+function confirmDeleteAllTeachers() {
+  if (!adminDeleteVerificationCode) return;
+  
+  const code = adminDeleteVerificationCode.value.trim().toLowerCase();
+  if (code !== "delete teachers") {
+    showNotification('Bitte "delete teachers" eingeben, um zu bestätigen.', "error");
+    return;
+  }
+  
+  if (!confirm("Sollen wirklich ALLE Lehrer gelöscht werden?\n\nDas System wird auf Standard-Lehrer zurückgesetzt!\n\nDieser Vorgang kann nicht rückgängig gemacht werden!")) {
+    return;
+  }
+  
+  performDeleteAllTeachers();
+}
+
+// NEUE FUNKTION: Alle Lehrer löschen
+async function performDeleteAllTeachers() {
+  showLoader();
+  try {
+    await deleteAllTeachers();
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
+    updateTeachersAdminTab();
+    updateSystemInfoTab();
+    if (adminDeleteVerificationCode) adminDeleteVerificationCode.value = "";
+    showNotification("Alle Lehrer wurden gelöscht. Standard-Lehrer wiederhergestellt.");
+  } catch (error) {
+    showNotification("Fehler beim Löschen der Lehrer: " + error.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// NEUE FUNKTION: Alle Systemdaten löschen bestätigen
+function confirmDeleteAllSystemData() {
+  if (!adminDeleteVerificationCode) return;
+  
+  const code = adminDeleteVerificationCode.value.trim().toLowerCase();
+  if (code !== "delete everything") {
+    showNotification('Bitte "delete everything" eingeben, um zu bestätigen.', "error");
+    return;
+  }
+  
+  if (!confirm("Sollen wirklich ALLE DATEN gelöscht werden?\n\n- Alle Lehrer (außer Standard-Lehrer)\n- Alle Bewertungsdaten aller Lehrer\n- Kompletter System-Reset\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!")) {
+    return;
+  }
+  
+  performDeleteAllSystemData();
+}
+
+// NEUE FUNKTION: Alle Systemdaten löschen
+async function performDeleteAllSystemData() {
+  showLoader();
+  try {
+    // 1. Alle Lehrer-Bewertungsdaten löschen
+    await deleteAllTeacherData();
+    
+    // 2. Alle Lehrer auf Standard zurücksetzen
+    await deleteAllTeachers();
+    
+    // 3. UI aktualisieren
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
+    updateTeachersAdminTab();
+    updateSystemInfoTab();
+    if (adminDeleteVerificationCode) adminDeleteVerificationCode.value = "";
+    
+    showNotification("Kompletter System-Reset durchgeführt. Alle Daten gelöscht.");
+  } catch (error) {
+    showNotification("Fehler beim System-Reset: " + error.message, "error");
+  } finally {
+    hideLoader();
+  }
 }
 
 // Lehrer bearbeiten Modal anzeigen
@@ -649,9 +758,9 @@ async function saveEditedTeacher() {
     await updateTeacher(selectedTeacher.code, name, code, password);
     updateTeachersAdminTab();
     updateSystemInfoTab();
-    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    // Aktualisiere das Lehrer-Grid für die normale Anmeldung
     window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal);
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
     showNotification(`Lehrer "${name}" wurde aktualisiert.`);
     if (editTeacherModal) editTeacherModal.style.display = "none";
   } catch (error) {
@@ -679,9 +788,9 @@ async function confirmDeleteTeacher() {
     await deleteTeacher(teacherToDelete.code);
     updateTeachersAdminTab();
     updateSystemInfoTab();
-    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    // Aktualisiere das Lehrer-Grid für die normale Anmeldung
     window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal);
+    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
     showNotification(`Lehrer "${teacherToDelete.name}" wurde gelöscht.`);
     if (confirmDeleteTeacherModal) confirmDeleteTeacherModal.style.display = "none";
     teacherToDelete = null;
