@@ -22,10 +22,17 @@ export let currentAdmin = {
 export async function loadAllTeachers() {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
-    return false;
+    // Fallback auf Standard-Lehrer
+    allTeachers = [
+      { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
+      { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
+      { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
+    ];
+    return true;
   }
 
   try {
+    console.log("Versuche Lehrer zu laden...");
     const docRef = db.collection(ADMIN_CONFIG.collectionName).doc("teachers_list");
     const doc = await docRef.get();
 
@@ -35,18 +42,36 @@ export async function loadAllTeachers() {
       console.log("Lehrer erfolgreich geladen:", allTeachers.length);
       return true;
     } else {
+      console.log("Keine Lehrer-Daten gefunden, erstelle Standard-Lehrer...");
       // Erste Initialisierung - erstelle Dokument mit Standard-Lehrern
       allTeachers = [
         { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
         { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
         { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
       ];
-      await saveAllTeachers();
+      
+      // Versuche zu speichern, aber ignoriere Fehler
+      try {
+        await saveAllTeachers();
+      } catch (saveError) {
+        console.warn("Konnte Standard-Lehrer nicht speichern:", saveError);
+        // Weiter machen - lokale Daten verwenden
+      }
       return true;
     }
   } catch (error) {
     console.error("Fehler beim Laden der Lehrer:", error);
-    return false;
+    
+    // Fallback: Verwende Standard-Lehrer aus constants.js
+    console.log("Verwende Fallback-Lehrer...");
+    allTeachers = [
+      { name: "Kretz", code: "KRE", password: "Luna", createdAt: new Date().toISOString() },
+      { name: "Riffel", code: "RIF", password: "Luna", createdAt: new Date().toISOString() },
+      { name: "Töllner", code: "TOE", password: "Luna", createdAt: new Date().toISOString() }
+    ];
+    
+    // System funktioniert trotzdem, nur ohne persistente Lehrerdaten
+    return true;
   }
 }
 
@@ -68,6 +93,14 @@ export async function saveAllTeachers() {
     return true;
   } catch (error) {
     console.error("Fehler beim Speichern der Lehrer:", error);
+    
+    // Spezifische Fehlermeldungen
+    if (error.code === 'permission-denied') {
+      console.error("Berechtigung verweigert. Bitte Firebase-Regeln prüfen.");
+    } else if (error.code === 'unavailable') {
+      console.error("Firebase ist momentan nicht verfügbar.");
+    }
+    
     return false;
   }
 }
@@ -110,12 +143,19 @@ export async function addTeacher(name, code, password) {
   };
 
   allTeachers.push(newTeacher);
-  const saved = await saveAllTeachers();
   
-  if (!saved) {
+  // Versuche zu speichern
+  try {
+    const saved = await saveAllTeachers();
+    if (!saved) {
+      // Rollback bei Fehler
+      allTeachers.pop();
+      throw new Error("Fehler beim Speichern des Lehrers.");
+    }
+  } catch (error) {
     // Rollback bei Fehler
     allTeachers.pop();
-    throw new Error("Fehler beim Speichern des Lehrers.");
+    throw error;
   }
 
   return newTeacher;
@@ -148,12 +188,17 @@ export async function updateTeacher(originalCode, name, code, password) {
     updatedAt: new Date().toISOString()
   };
 
-  const saved = await saveAllTeachers();
-  
-  if (!saved) {
+  try {
+    const saved = await saveAllTeachers();
+    if (!saved) {
+      // Rollback bei Fehler
+      allTeachers[index] = oldTeacher;
+      throw new Error("Fehler beim Speichern der Änderungen.");
+    }
+  } catch (error) {
     // Rollback bei Fehler
     allTeachers[index] = oldTeacher;
-    throw new Error("Fehler beim Speichern der Änderungen.");
+    throw error;
   }
 
   return allTeachers[index];
@@ -169,12 +214,18 @@ export async function deleteTeacher(code) {
   }
 
   const deletedTeacher = allTeachers.splice(index, 1)[0];
-  const saved = await saveAllTeachers();
   
-  if (!saved) {
+  try {
+    const saved = await saveAllTeachers();
+    if (!saved) {
+      // Rollback bei Fehler
+      allTeachers.splice(index, 0, deletedTeacher);
+      throw new Error("Fehler beim Löschen des Lehrers.");
+    }
+  } catch (error) {
     // Rollback bei Fehler
     allTeachers.splice(index, 0, deletedTeacher);
-    throw new Error("Fehler beim Löschen des Lehrers.");
+    throw error;
   }
 
   return deletedTeacher;
