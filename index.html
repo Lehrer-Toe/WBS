@@ -20,7 +20,7 @@
   <div id="loginSection">
     <header>
       <h1>WBS Bewertungssystem</h1>
-      <div class="version">v1.6</div>
+      <div class="version">v1.7</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -56,7 +56,7 @@
   <div id="adminLoginSection" style="display: none;">
     <header>
       <h1>WBS Bewertungssystem - Admin</h1>
-      <div class="version">v1.6</div>
+      <div class="version">v1.7</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -164,9 +164,45 @@
         </div>
         
         <div class="card">
-          <h3>Aktionen</h3>
-          <button id="refreshSystemBtn">System aktualisieren</button>
-          <button id="exportTeachersBtn" class="btn-secondary">Lehrer exportieren</button>
+          <h3>System-Aktionen</h3>
+          <div class="system-actions">
+            <button id="refreshSystemBtn">System aktualisieren</button>
+            <button id="exportTeachersBtn" class="btn-secondary">Lehrer exportieren</button>
+          </div>
+        </div>
+
+        <!-- NEUE SEKTION: Datenlöschung -->
+        <div class="card danger-zone">
+          <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
+          <p class="warning-text">
+            <strong>Achtung:</strong> Diese Aktionen können nicht rückgängig gemacht werden!
+          </p>
+          
+          <div class="form-group">
+            <label for="adminDeleteVerificationCode">Bestätigungscode eingeben:</label>
+            <input type="text" id="adminDeleteVerificationCode" placeholder='z.B. "delete teachers" oder "delete everything"'>
+            <small class="help-text">
+              • Für Lehrer löschen: "delete teachers"<br>
+              • Für kompletten Reset: "delete everything"
+            </small>
+          </div>
+          
+          <div class="danger-actions">
+            <button id="deleteAllTeachersBtn" class="btn-danger">
+              🧑‍🏫 Alle Lehrer löschen
+            </button>
+            <button id="deleteAllDataBtn" class="btn-danger">
+              💥 Kompletter System-Reset
+            </button>
+          </div>
+          
+          <div class="danger-explanation">
+            <h4>Was passiert bei den Aktionen:</h4>
+            <ul>
+              <li><strong>Alle Lehrer löschen:</strong> Setzt alle Lehrer auf Standard zurück (KRE, RIF, TOE)</li>
+              <li><strong>Kompletter System-Reset:</strong> Löscht ALLE Lehrer UND alle Bewertungsdaten aller Lehrer</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
