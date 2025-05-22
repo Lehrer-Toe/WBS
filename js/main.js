@@ -19,6 +19,18 @@ import {
   initTeacherGrid
 } from "./uiService.js";
 import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
+import {
+  loadAllTeachers,
+  saveAllTeachers,
+  loginAdmin,
+  logoutAdmin,
+  addTeacher,
+  updateTeacher,
+  deleteTeacher,
+  validateTeacher,
+  currentAdmin,
+  allTeachers
+} from "./adminService.js";
 
 // Globale Zustände
 let selectedStudent = null;
@@ -29,6 +41,10 @@ let lastSelectedDate = null;
 let lastSelectedTopic = null;
 let currentSelectedStudentId = null;
 let stickyAverageElement = null; // Für die Sticky-Durchschnittsanzeige
+
+// Admin-spezifische globale Variablen
+let selectedTeacher = null;
+let teacherToDelete = null;
 
 // DOM-Elemente
 const loginSection = document.getElementById("loginSection");
@@ -43,6 +59,44 @@ const confirmLogin = document.getElementById("confirmLogin");
 const cancelLogin = document.getElementById("cancelLogin");
 const closePasswordModal = document.getElementById("closePasswordModal");
 const logoutBtn = document.getElementById("logoutBtn");
+
+// Admin DOM-Elemente
+const showAdminLoginBtn = document.getElementById("showAdminLoginBtn");
+const adminLoginSection = document.getElementById("adminLoginSection");
+const backToLoginBtn = document.getElementById("backToLoginBtn");
+const adminUsername = document.getElementById("adminUsername");
+const adminPassword = document.getElementById("adminPassword");
+const adminLoginBtn = document.getElementById("adminLoginBtn");
+const adminSection = document.getElementById("adminSection");
+const adminLogoutBtn = document.getElementById("adminLogoutBtn");
+
+// Admin-Panel Elemente
+const newTeacherName = document.getElementById("newTeacherName");
+const newTeacherCode = document.getElementById("newTeacherCode");
+const newTeacherPassword = document.getElementById("newTeacherPassword");
+const addTeacherBtn = document.getElementById("addTeacherBtn");
+const teachersAdminTable = document.getElementById("teachersAdminTable");
+const totalTeachers = document.getElementById("totalTeachers");
+const firebaseStatus = document.getElementById("firebaseStatus");
+const lastUpdate = document.getElementById("lastUpdate");
+const refreshSystemBtn = document.getElementById("refreshSystemBtn");
+const exportTeachersBtn = document.getElementById("exportTeachersBtn");
+
+// Edit Teacher Modal
+const editTeacherModal = document.getElementById("editTeacherModal");
+const closeEditTeacherModal = document.getElementById("closeEditTeacherModal");
+const editTeacherName = document.getElementById("editTeacherName");
+const editTeacherCode = document.getElementById("editTeacherCode");
+const editTeacherPassword = document.getElementById("editTeacherPassword");
+const saveTeacherBtn = document.getElementById("saveTeacherBtn");
+const deleteTeacherBtn = document.getElementById("deleteTeacherBtn");
+
+// Confirm Delete Teacher Modal
+const confirmDeleteTeacherModal = document.getElementById("confirmDeleteTeacherModal");
+const closeConfirmDeleteTeacherModal = document.getElementById("closeConfirmDeleteTeacherModal");
+const deleteTeacherName = document.getElementById("deleteTeacherName");
+const cancelDeleteTeacherBtn = document.getElementById("cancelDeleteTeacherBtn");
+const confirmDeleteTeacherBtn = document.getElementById("confirmDeleteTeacherBtn");
 
 const newStudentName = document.getElementById("newStudentName");
 const newStudentTopic = document.getElementById("newStudentTopic");
@@ -103,13 +157,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   showLoader();
   try {
     await initDatabase();
-    await ensureCollection(); // Neu: Stellt sicher, dass die Collection existiert
+    await ensureCollection();
+    await loadAllTeachers(); // Lade Admin-Lehrerdaten
     initTeacherGrid(teacherGrid, showPasswordModal);
     setupEventListeners();
     if (examDate) {
       examDate.value = defaultDate;
     }
     createStickyAverageElement();
+    
+    // Mache allTeachers global verfügbar für uiService
+    window.allTeachers = allTeachers;
   } catch (error) {
     console.error("Fehler bei der Initialisierung:", error);
     showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
@@ -278,6 +336,359 @@ function setupEventListeners() {
   }
   if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener("click", deleteStudent);
+  }
+
+  // Admin Event-Listener hinzufügen
+  setupAdminEventListeners();
+}
+
+// Admin Event-Listener Setup
+function setupAdminEventListeners() {
+  // Admin Login anzeigen
+  if (showAdminLoginBtn) {
+    showAdminLoginBtn.addEventListener("click", () => {
+      loginSection.style.display = "none";
+      adminLoginSection.style.display = "block";
+    });
+  }
+
+  // Zurück zur normalen Anmeldung
+  if (backToLoginBtn) {
+    backToLoginBtn.addEventListener("click", () => {
+      adminLoginSection.style.display = "none"; 
+      loginSection.style.display = "block";
+      if (adminUsername) adminUsername.value = "";
+      if (adminPassword) adminPassword.value = "";
+    });
+  }
+
+  // Admin Login
+  if (adminLoginBtn) {
+    adminLoginBtn.addEventListener("click", performAdminLogin);
+  }
+  if (adminPassword) {
+    adminPassword.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        performAdminLogin();
+      }
+    });
+  }
+
+  // Admin Logout
+  if (adminLogoutBtn) {
+    adminLogoutBtn.addEventListener("click", performAdminLogout);
+  }
+
+  // Admin Tab switching
+  const adminTabs = document.querySelectorAll("#adminSection .tab");
+  const adminTabContents = document.querySelectorAll("#adminSection .tab-content");
+  
+  adminTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const tabId = tab.dataset.tab;
+      adminTabs.forEach((t) => t.classList.remove("active"));
+      adminTabContents.forEach((c) => c.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(`${tabId}-tab`).classList.add("active");
+      
+      if (tabId === "teachers") {
+        updateTeachersAdminTab();
+      } else if (tabId === "system") {
+        updateSystemInfoTab();
+      }
+    });
+  });
+
+  // Lehrer hinzufügen
+  if (addTeacherBtn) {
+    addTeacherBtn.addEventListener("click", addNewTeacher);
+  }
+
+  // System aktualisieren
+  if (refreshSystemBtn) {
+    refreshSystemBtn.addEventListener("click", refreshSystemInfo);
+  }
+
+  // Lehrer exportieren
+  if (exportTeachersBtn) {
+    exportTeachersBtn.addEventListener("click", exportAllTeachers);
+  }
+
+  // Edit Teacher Modal
+  if (closeEditTeacherModal) {
+    closeEditTeacherModal.addEventListener("click", () => {
+      editTeacherModal.style.display = "none";
+    });
+  }
+  if (saveTeacherBtn) {
+    saveTeacherBtn.addEventListener("click", saveEditedTeacher);
+  }
+  if (deleteTeacherBtn) {
+    deleteTeacherBtn.addEventListener("click", showDeleteTeacherConfirmation);
+  }
+
+  // Confirm Delete Teacher Modal
+  if (closeConfirmDeleteTeacherModal) {
+    closeConfirmDeleteTeacherModal.addEventListener("click", () => {
+      confirmDeleteTeacherModal.style.display = "none";
+    });
+  }
+  if (cancelDeleteTeacherBtn) {
+    cancelDeleteTeacherBtn.addEventListener("click", () => {
+      confirmDeleteTeacherModal.style.display = "none";
+    });
+  }
+  if (confirmDeleteTeacherBtn) {
+    confirmDeleteTeacherBtn.addEventListener("click", confirmDeleteTeacher);
+  }
+}
+
+// Admin Login durchführen
+async function performAdminLogin() {
+  const username = adminUsername ? adminUsername.value.trim() : "";
+  const password = adminPassword ? adminPassword.value.trim() : "";
+
+  if (!username || !password) {
+    showNotification("Bitte alle Felder ausfüllen.", "warning");
+    return;
+  }
+
+  showLoader();
+  
+  try {
+    // Lehrer laden (falls noch nicht geladen)
+    const loaded = await loadAllTeachers();
+    if (!loaded) {
+      showNotification("Fehler beim Laden der Lehrerdaten.", "error");
+      hideLoader();
+      return;
+    }
+
+    // Admin Login prüfen
+    const loginSuccess = loginAdmin(username, password);
+    if (loginSuccess) {
+      adminLoginSection.style.display = "none";
+      adminSection.style.display = "block";
+      updateTeachersAdminTab();
+      updateSystemInfoTab();
+      showNotification("Admin-Anmeldung erfolgreich!");
+    } else {
+      showNotification("Ungültige Anmeldedaten!", "error");
+    }
+  } catch (error) {
+    console.error("Admin Login Fehler:", error);
+    showNotification("Fehler bei der Anmeldung.", "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// Admin Logout
+function performAdminLogout() {
+  logoutAdmin();
+  adminSection.style.display = "none";
+  loginSection.style.display = "block";
+  if (adminUsername) adminUsername.value = "";
+  if (adminPassword) adminPassword.value = "";
+  showNotification("Admin-Abmeldung erfolgreich.");
+}
+
+// Neuen Lehrer hinzufügen
+async function addNewTeacher() {
+  const name = newTeacherName ? newTeacherName.value.trim() : "";
+  const code = newTeacherCode ? newTeacherCode.value.trim() : "";
+  const password = newTeacherPassword ? newTeacherPassword.value.trim() : "";
+
+  if (!name || !code || !password) {
+    showNotification("Bitte alle Felder ausfüllen.", "warning");
+    return;
+  }
+
+  if (code.length > 5) {
+    showNotification("Kürzel darf maximal 5 Zeichen haben.", "warning");
+    return;
+  }
+
+  showLoader();
+  
+  try {
+    await addTeacher(name, code, password);
+    if (newTeacherName) newTeacherName.value = "";
+    if (newTeacherCode) newTeacherCode.value = "";
+    if (newTeacherPassword) newTeacherPassword.value = "";
+    updateTeachersAdminTab();
+    updateSystemInfoTab();
+    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal);
+    showNotification(`Lehrer "${name}" wurde hinzugefügt.`);
+  } catch (error) {
+    showNotification(error.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// Lehrer-Admin-Tab aktualisieren
+function updateTeachersAdminTab() {
+  if (!teachersAdminTable) return;
+  
+  const tbody = teachersAdminTable.querySelector("tbody");
+  tbody.innerHTML = "";
+
+  if (allTeachers.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="4">Keine Lehrer vorhanden</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+
+  // Sortiere Lehrer nach Namen
+  const sortedTeachers = [...allTeachers].sort((a, b) => a.name.localeCompare(b.name));
+
+  sortedTeachers.forEach((teacher) => {
+    const tr = document.createElement("tr");
+    const createdDate = teacher.createdAt ? formatDate(teacher.createdAt.split('T')[0]) : '-';
+    
+    tr.innerHTML = `
+      <td>${teacher.name}</td>
+      <td><span class="teacher-code">${teacher.code}</span></td>
+      <td>${createdDate}</td>
+      <td>
+        <div class="teacher-actions">
+          <button class="edit-btn" data-code="${teacher.code}">✏️</button>
+        </div>
+      </td>
+    `;
+    
+    tr.querySelector(".edit-btn").addEventListener("click", () => {
+      showEditTeacherModal(teacher);
+    });
+    
+    tbody.appendChild(tr);
+  });
+}
+
+// System-Info-Tab aktualisieren
+function updateSystemInfoTab() {
+  if (totalTeachers) {
+    totalTeachers.textContent = allTeachers.length;
+  }
+  
+  if (firebaseStatus) {
+    // Importiere db aus firebaseClient
+    import("./firebaseClient.js").then(({ db }) => {
+      firebaseStatus.textContent = db ? "Online" : "Offline";
+      firebaseStatus.className = db ? "stat-value status-online" : "stat-value status-offline";
+    });
+  }
+  
+  if (lastUpdate) {
+    lastUpdate.textContent = new Date().toLocaleString("de-DE");
+  }
+}
+
+// System-Info aktualisieren
+async function refreshSystemInfo() {
+  showLoader();
+  try {
+    await loadAllTeachers();
+    updateSystemInfoTab();
+    showNotification("System-Informationen aktualisiert.");
+  } catch (error) {
+    showNotification("Fehler beim Aktualisieren.", "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// Alle Lehrer exportieren
+function exportAllTeachers() {
+  const exportData = allTeachers.map(teacher => ({
+    name: teacher.name,
+    code: teacher.code,
+    createdAt: teacher.createdAt || '',
+    updatedAt: teacher.updatedAt || ''
+  }));
+
+  const jsonString = JSON.stringify(exportData, null, 2);
+  downloadFile(`WBS_Lehrer_Export_${new Date().toISOString().split('T')[0]}.json`, jsonString, "application/json");
+  showNotification("Lehrer exportiert.");
+}
+
+// Lehrer bearbeiten Modal anzeigen
+function showEditTeacherModal(teacher) {
+  if (editTeacherName) editTeacherName.value = teacher.name;
+  if (editTeacherCode) editTeacherCode.value = teacher.code;
+  if (editTeacherPassword) editTeacherPassword.value = teacher.password;
+  selectedTeacher = teacher;
+  if (editTeacherModal) editTeacherModal.style.display = "flex";
+}
+
+// Bearbeiteten Lehrer speichern
+async function saveEditedTeacher() {
+  if (!selectedTeacher) return;
+
+  const name = editTeacherName ? editTeacherName.value.trim() : "";
+  const code = editTeacherCode ? editTeacherCode.value.trim() : "";
+  const password = editTeacherPassword ? editTeacherPassword.value.trim() : "";
+
+  if (!name || !code || !password) {
+    showNotification("Bitte alle Felder ausfüllen.", "warning");
+    return;
+  }
+
+  if (code.length > 5) {
+    showNotification("Kürzel darf maximal 5 Zeichen haben.", "warning");
+    return;
+  }
+
+  showLoader();
+  
+  try {
+    await updateTeacher(selectedTeacher.code, name, code, password);
+    updateTeachersAdminTab();
+    updateSystemInfoTab();
+    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal);
+    showNotification(`Lehrer "${name}" wurde aktualisiert.`);
+    if (editTeacherModal) editTeacherModal.style.display = "none";
+  } catch (error) {
+    showNotification(error.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// Lehrer löschen Bestätigung anzeigen
+function showDeleteTeacherConfirmation() {
+  teacherToDelete = selectedTeacher;
+  if (deleteTeacherName) deleteTeacherName.textContent = teacherToDelete.name;
+  if (editTeacherModal) editTeacherModal.style.display = "none";
+  if (confirmDeleteTeacherModal) confirmDeleteTeacherModal.style.display = "flex";
+}
+
+// Lehrer löschen bestätigen
+async function confirmDeleteTeacher() {
+  if (!teacherToDelete) return;
+  
+  showLoader();
+  
+  try {
+    await deleteTeacher(teacherToDelete.code);
+    updateTeachersAdminTab();
+    updateSystemInfoTab();
+    // Aktualisiere auch das Lehrer-Grid für die normale Anmeldung
+    window.allTeachers = allTeachers;
+    initTeacherGrid(teacherGrid, showPasswordModal);
+    showNotification(`Lehrer "${teacherToDelete.name}" wurde gelöscht.`);
+    if (confirmDeleteTeacherModal) confirmDeleteTeacherModal.style.display = "none";
+    teacherToDelete = null;
+  } catch (error) {
+    showNotification(error.message, "error");
+  } finally {
+    hideLoader();
   }
 }
 
@@ -800,7 +1211,7 @@ function showAssessmentForm(student) {
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, parseFloat(avgGrade));
-showNotification("Durchschnitt als Endnote übernommen.");
+        showNotification("Durchschnitt als Endnote übernommen.");
       } catch (error) {
         console.error(error);
         showNotification("Fehler beim Speichern.", "error");
