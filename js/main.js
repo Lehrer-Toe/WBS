@@ -12,8 +12,18 @@ import {
   getAssessmentTemplate,
   getAllAssessmentTemplates,
   getAssignedStudents,
+  getCreatedStudents,
+  getAccessibleStudents,
   getAllStudents,
-  createStudent
+  createStudent,
+  getDashboardStats,
+  getCurrentSchoolYear,
+  getStudentsBySchoolYear,
+  getAvailableSchoolYears,
+  updateAssessmentStatus,
+  canAssessStudent,
+  hasAccessToStudent,
+  ASSESSMENT_STATUS
 } from "./dataService.js";
 import {
   showLoader,
@@ -24,6 +34,7 @@ import {
   getAvailableTopics,
   getAvailableYears,
   calculateAverageGrade,
+  calculateWeightedAverageGrade,
   initTeacherGrid
 } from "./uiService.js";
 import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS, APP_CONFIG } from "./constants.js";
@@ -60,6 +71,10 @@ let teacherToDelete = null;
 let selectedTemplate = null;
 let templateToDelete = null;
 let editingTemplate = null;
+
+// Dashboard-spezifische Variablen
+let dashboardStats = null;
+let dashboardUpdateTimer = null;
 
 // DOM-Elemente
 const loginSection = document.getElementById("loginSection");
@@ -118,6 +133,21 @@ const deleteTeacherName = document.getElementById("deleteTeacherName");
 const cancelDeleteTeacherBtn = document.getElementById("cancelDeleteTeacherBtn");
 const confirmDeleteTeacherBtn = document.getElementById("confirmDeleteTeacherBtn");
 
+// Dashboard-Elemente
+const totalAccessibleStudents = document.getElementById("totalAccessibleStudents");
+const totalAssignedStudents = document.getElementById("totalAssignedStudents");
+const studentsThisYear = document.getElementById("studentsThisYear");
+const completedAssessments = document.getElementById("completedAssessments");
+const statusCompleted = document.getElementById("statusCompleted");
+const statusInProgress = document.getElementById("statusInProgress");
+const statusNotStarted = document.getElementById("statusNotStarted");
+const completedCount = document.getElementById("completedCount");
+const inProgressCount = document.getElementById("inProgressCount");
+const notStartedCount = document.getElementById("notStartedCount");
+const currentSchoolYear = document.getElementById("currentSchoolYear");
+const dashboardSchoolYearSelect = document.getElementById("dashboardSchoolYearSelect");
+const dashboardStudentCards = document.getElementById("dashboardStudentCards");
+
 // Schüler-Elemente
 const newStudentName = document.getElementById("newStudentName");
 const newStudentTopic = document.getElementById("newStudentTopic");
@@ -149,6 +179,7 @@ const deleteTemplateBtn = document.getElementById("deleteTemplateBtn");
 // Bewertungs-Elemente
 const assessmentDateSelect = document.getElementById("assessmentDateSelect");
 const assessmentTopicSelect = document.getElementById("assessmentTopicSelect");
+const assessmentStatusFilter = document.getElementById("assessmentStatusFilter");
 const assessmentStudentList = document.getElementById("assessmentStudentList");
 const assessmentContent = document.getElementById("assessmentContent");
 
@@ -156,6 +187,7 @@ const assessmentContent = document.getElementById("assessmentContent");
 const overviewYearSelect = document.getElementById("overviewYearSelect");
 const overviewDateSelect = document.getElementById("overviewDateSelect");
 const overviewTopicSelect = document.getElementById("overviewTopicSelect");
+const overviewStatusSelect = document.getElementById("overviewStatusSelect");
 const overviewTable = document.getElementById("overviewTable");
 const printBtn = document.getElementById("printBtn");
 
@@ -303,30 +335,24 @@ function setupEventListeners() {
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
-      tabs.forEach((t) => t.classList.remove("active"));
-      tabContents.forEach((c) => c.classList.remove("active"));
-      tab.classList.add("active");
-      document.getElementById(`${tabId}-tab`).classList.add("active");
-      
-      switch (tabId) {
-        case "students":
-          updateStudentsTab();
-          break;
-        case "templates":
-          updateTemplatesTab();
-          break;
-        case "assessment":
-          updateAssessmentTab();
-          break;
-        case "overview":
-          updateOverviewTab();
-          break;
-        case "settings":
-          updateSettingsTab();
-          break;
+      switchTab(tabId);
+    });
+  });
+
+  // Quick Actions
+  document.querySelectorAll(".quick-action-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetTab = btn.dataset.tab;
+      if (targetTab) {
+        switchTab(targetTab);
       }
     });
   });
+
+  // Dashboard-Event-Listener
+  if (dashboardSchoolYearSelect) {
+    dashboardSchoolYearSelect.addEventListener("change", updateDashboardContent);
+  }
 
   // Schüler-Event-Listener
   if (addStudentBtn) {
@@ -361,6 +387,9 @@ function setupEventListeners() {
       updateAssessmentStudentList();
     });
   }
+  if (assessmentStatusFilter) {
+    assessmentStatusFilter.addEventListener("change", updateAssessmentStudentList);
+  }
 
   // Übersichts-Event-Listener
   if (overviewYearSelect) {
@@ -375,6 +404,9 @@ function setupEventListeners() {
   }
   if (overviewTopicSelect) {
     overviewTopicSelect.addEventListener("change", updateOverviewContent);
+  }
+  if (overviewStatusSelect) {
+    overviewStatusSelect.addEventListener("change", updateOverviewContent);
   }
   if (printBtn) {
     printBtn.addEventListener("click", printOverviewData);
@@ -401,6 +433,41 @@ function setupEventListeners() {
   
   // Admin-Event-Listener
   setupAdminEventListeners();
+}
+
+// Tab-Wechsel-Logik
+function switchTab(tabId) {
+  tabs.forEach((t) => t.classList.remove("active"));
+  tabContents.forEach((c) => c.classList.remove("active"));
+  
+  const targetTab = document.querySelector(`[data-tab="${tabId}"]`);
+  const targetContent = document.getElementById(`${tabId}-tab`);
+  
+  if (targetTab && targetContent) {
+    targetTab.classList.add("active");
+    targetContent.classList.add("active");
+    
+    switch (tabId) {
+      case "dashboard":
+        updateDashboard();
+        break;
+      case "students":
+        updateStudentsTab();
+        break;
+      case "templates":
+        updateTemplatesTab();
+        break;
+      case "assessment":
+        updateAssessmentTab();
+        break;
+      case "overview":
+        updateOverviewTab();
+        break;
+      case "settings":
+        updateSettingsTab();
+        break;
+    }
+  }
 }
 
 // Modal-Event-Listener Setup
@@ -572,10 +639,12 @@ async function login() {
     teacherName.textContent = currentUser.name;
     
     // Initialisiere alle Tabs
-    updateStudentsTab();
-    updateTemplatesTab();
+    updateDashboard();
     populateTeacherSelects();
     populateTemplateSelects();
+    
+    // Dashboard-Timer starten
+    startDashboardTimer();
     
     hideLoader();
     showNotification(`Willkommen, ${currentUser.name}!`);
@@ -590,6 +659,11 @@ function logout() {
     clearInterval(infoTextSaveTimer);
     infoTextSaveTimer = null;
   }
+  if (dashboardUpdateTimer) {
+    clearInterval(dashboardUpdateTimer);
+    dashboardUpdateTimer = null;
+  }
+  
   currentUser.name = null;
   currentUser.code = null;
   currentUser.password = null;
@@ -599,6 +673,224 @@ function logout() {
   loginSection.style.display = "block";
   appSection.style.display = "none";
   showNotification("Abmeldung erfolgreich.");
+}
+
+// Dashboard-Timer
+function startDashboardTimer() {
+  // Aktualisiere Dashboard alle 5 Minuten
+  dashboardUpdateTimer = setInterval(() => {
+    if (document.querySelector('.tab[data-tab="dashboard"]').classList.contains('active')) {
+      updateDashboard();
+    }
+  }, 300000); // 5 Minuten
+}
+
+// === DASHBOARD ===
+
+function updateDashboard() {
+  dashboardStats = getDashboardStats();
+  updateDashboardStats();
+  updateDashboardStatusBar();
+  updateDashboardSchoolYearSelect();
+  updateDashboardContent();
+}
+
+function updateDashboardStats() {
+  if (!dashboardStats) return;
+  
+  if (totalAccessibleStudents) {
+    totalAccessibleStudents.textContent = dashboardStats.totalAccessible;
+  }
+  if (totalAssignedStudents) {
+    totalAssignedStudents.textContent = dashboardStats.totalAssigned;
+  }
+  if (studentsThisYear) {
+    studentsThisYear.textContent = dashboardStats.studentsThisYear;
+  }
+  if (completedAssessments) {
+    completedAssessments.textContent = dashboardStats.assessmentStats.completed;
+  }
+  if (currentSchoolYear) {
+    currentSchoolYear.textContent = dashboardStats.currentSchoolYear;
+  }
+}
+
+function updateDashboardStatusBar() {
+  if (!dashboardStats) return;
+  
+  const { assessmentStats } = dashboardStats;
+  const total = assessmentStats.completed + assessmentStats.inProgress + assessmentStats.notStarted;
+  
+  if (total === 0) {
+    if (statusCompleted) statusCompleted.style.width = "0%";
+    if (statusInProgress) statusInProgress.style.width = "0%";
+    if (statusNotStarted) statusNotStarted.style.width = "100%";
+  } else {
+    const completedPercent = (assessmentStats.completed / total) * 100;
+    const inProgressPercent = (assessmentStats.inProgress / total) * 100;
+    const notStartedPercent = (assessmentStats.notStarted / total) * 100;
+    
+    if (statusCompleted) statusCompleted.style.width = `${completedPercent}%`;
+    if (statusInProgress) statusInProgress.style.width = `${inProgressPercent}%`;
+    if (statusNotStarted) statusNotStarted.style.width = `${notStartedPercent}%`;
+  }
+  
+  if (completedCount) completedCount.textContent = assessmentStats.completed;
+  if (inProgressCount) inProgressCount.textContent = assessmentStats.inProgress;
+  if (notStartedCount) notStartedCount.textContent = assessmentStats.notStarted;
+}
+
+function updateDashboardSchoolYearSelect() {
+  if (!dashboardSchoolYearSelect) return;
+  
+  const schoolYears = getAvailableSchoolYears();
+  const currentValue = dashboardSchoolYearSelect.value;
+  
+  dashboardSchoolYearSelect.innerHTML = '<option value="">Alle Schuljahre</option>';
+  
+  schoolYears.forEach(year => {
+    const option = document.createElement("option");
+    option.value = year;
+    option.textContent = year;
+    if (year === getCurrentSchoolYear() && !currentValue) {
+      option.selected = true;
+    }
+    dashboardSchoolYearSelect.appendChild(option);
+  });
+  
+  if (currentValue) {
+    dashboardSchoolYearSelect.value = currentValue;
+  }
+}
+
+function updateDashboardContent() {
+  if (!dashboardStudentCards) return;
+  
+  const selectedYear = dashboardSchoolYearSelect ? dashboardSchoolYearSelect.value : "";
+  const students = selectedYear ? getStudentsBySchoolYear(selectedYear) : getAccessibleStudents();
+  
+  dashboardStudentCards.innerHTML = "";
+  
+  if (students.length === 0) {
+    dashboardStudentCards.innerHTML = `
+      <div class="welcome-card" style="grid-column: 1 / -1;">
+        <h3>Keine Schüler gefunden</h3>
+        <p>Für das gewählte Schuljahr sind keine Schüler vorhanden.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Sortiere nach Bewertungsstatus und dann nach Datum
+  const sortedStudents = students.sort((a, b) => {
+    const statusA = teacherData.assessments[a.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
+    const statusB = teacherData.assessments[b.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
+    
+    // Priorisiere nicht begonnene, dann in Bearbeitung, dann abgeschlossene
+    const statusOrder = {
+      [ASSESSMENT_STATUS.NOT_STARTED]: 0,
+      [ASSESSMENT_STATUS.IN_PROGRESS]: 1,
+      [ASSESSMENT_STATUS.COMPLETED]: 2
+    };
+    
+    const statusComp = statusOrder[statusA] - statusOrder[statusB];
+    if (statusComp !== 0) return statusComp;
+    
+    return new Date(b.examDate) - new Date(a.examDate);
+  });
+  
+  sortedStudents.forEach(student => {
+    const assessment = teacherData.assessments[student.id] || {};
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
+    const canAssess = canAssessStudent(student);
+    
+    const card = document.createElement("div");
+    card.className = `student-card ${status}`;
+    card.innerHTML = `
+      <div class="student-card-header">
+        <h3 class="student-card-name">${student.name}</h3>
+        <div class="status-indicator ${status}">
+          <div class="status-dot ${status}"></div>
+          ${getStatusText(status)}
+        </div>
+      </div>
+      <div class="student-card-info">
+        <p><strong>Datum:</strong> ${formatDate(student.examDate)}</p>
+        ${student.topic ? `<p><strong>Thema:</strong> ${student.topic}</p>` : ""}
+        <p><strong>Zugewiesen an:</strong> ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</p>
+        ${assessment.finalGrade ? `<p><strong>Note:</strong> ${assessment.finalGrade}</p>` : ""}
+      </div>
+      <div class="student-card-footer">
+        <div class="student-card-actions">
+          ${canAssess ? `
+            <button class="btn-primary assess-btn" data-student-id="${student.id}">
+              Bewerten
+            </button>
+          ` : `
+            <button class="btn-secondary view-btn" data-student-id="${student.id}">
+              Ansehen
+            </button>
+          `}
+          <button class="btn-secondary edit-btn" data-student-id="${student.id}">
+            ✏️ Bearbeiten
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Event-Listener für Karten-Aktionen
+    const assessBtn = card.querySelector(".assess-btn");
+    const viewBtn = card.querySelector(".view-btn");
+    const editBtn = card.querySelector(".edit-btn");
+    
+    if (assessBtn) {
+      assessBtn.addEventListener("click", () => {
+        switchTab("assessment");
+        // Setze Filter für diesen Schüler
+        setTimeout(() => {
+          if (assessmentDateSelect) assessmentDateSelect.value = student.examDate;
+          updateAssessmentStudentList();
+          setTimeout(() => {
+            const studentItem = document.querySelector(`.student-item[data-id="${student.id}"]`);
+            if (studentItem) studentItem.click();
+          }, 100);
+        }, 100);
+      });
+    }
+    
+    if (viewBtn) {
+      viewBtn.addEventListener("click", () => {
+        switchTab("overview");
+        // Filter auf diesen Schüler setzen
+        setTimeout(() => {
+          if (overviewDateSelect) overviewDateSelect.value = student.examDate;
+          updateOverviewContent();
+        }, 100);
+      });
+    }
+    
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        showEditStudentModal(student);
+      });
+    }
+    
+    dashboardStudentCards.appendChild(card);
+  });
+}
+
+function getStatusText(status) {
+  switch (status) {
+    case ASSESSMENT_STATUS.NOT_STARTED:
+      return "Nicht begonnen";
+    case ASSESSMENT_STATUS.IN_PROGRESS:
+      return "In Bearbeitung";
+    case ASSESSMENT_STATUS.COMPLETED:
+      return "Abgeschlossen";
+    default:
+      return "Unbekannt";
+  }
 }
 
 // Populiert Lehrer-Auswahlfelder
@@ -698,25 +990,23 @@ function updateStudentsTab() {
   tbody.innerHTML = "";
   
   let studentsToShow = [];
-  const filter = studentViewFilter ? studentViewFilter.value : "assigned";
+  const filter = studentViewFilter ? studentViewFilter.value : "accessible";
   
   switch (filter) {
+    case "accessible":
+      studentsToShow = getAccessibleStudents();
+      break;
     case "assigned":
       studentsToShow = getAssignedStudents();
       break;
     case "created":
-      studentsToShow = teacherData.students.filter(student => 
-        student.createdBy === currentUser.code
-      );
-      break;
-    case "all":
-      studentsToShow = getAllStudents();
+      studentsToShow = getCreatedStudents();
       break;
   }
   
   if (studentsToShow.length === 0) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="6">Keine Schüler vorhanden</td>';
+    tr.innerHTML = '<td colspan="8">Keine Schüler vorhanden</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -729,14 +1019,22 @@ function updateStudentsTab() {
     const tr = document.createElement("tr");
     const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
     const createdByTeacher = allTeachers.find(t => t.code === student.createdBy);
-    const template = getAssessmentTemplate(student.templateId);
+    const assessment = teacherData.assessments[student.id] || {};
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
     
     tr.innerHTML = `
+      <td class="status-cell">
+        <div class="status-indicator ${status}">
+          <div class="status-dot ${status}"></div>
+          ${getStatusText(status)}
+        </div>
+      </td>
       <td>${student.name}</td>
       <td>${formatDate(student.examDate)}</td>
       <td>${student.topic || "-"}</td>
       <td class="assigned-teacher-col">${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</td>
       <td class="created-by-col">${createdByTeacher ? createdByTeacher.name : student.createdBy}</td>
+      <td>${student.schoolYear || "-"}</td>
       <td>
         <button class="edit-btn" data-id="${student.id}">✏️</button>
       </td>
@@ -789,6 +1087,7 @@ async function addNewStudent() {
       templateSelect.value = "";
       
       updateStudentsTab();
+      updateDashboard(); // Dashboard aktualisieren
       populateAssessmentDateSelect();
       populateAssessmentTopicSelect();
       populateOverviewTopicSelect();
@@ -814,6 +1113,8 @@ function showEditStudentModal(student) {
   }
   if (editTemplateSelect) {
     editTemplateSelect.value = student.templateId || "";
+    // Template-Select nur für zugewiesenen Lehrer aktivieren
+    editTemplateSelect.disabled = !canAssessStudent(student);
   }
   selectedStudent = student;
   editStudentModal.style.display = "flex";
@@ -827,7 +1128,12 @@ async function saveEditedStudent() {
   const date = editExamDate.value;
   const topic = editStudentTopic ? editStudentTopic.value.trim() : "";
   const assignedTeacher = editAssignedTeacher ? editAssignedTeacher.value : selectedStudent.assignedTeacher;
-  const templateId = editTemplateSelect ? editTemplateSelect.value : selectedStudent.templateId;
+  let templateId = selectedStudent.templateId;
+  
+  // Template nur ändern, wenn der Benutzer berechtigt ist
+  if (canAssessStudent(selectedStudent) && editTemplateSelect && !editTemplateSelect.disabled) {
+    templateId = editTemplateSelect.value || selectedStudent.templateId;
+  }
   
   if (date !== selectedStudent.examDate) {
     lastSelectedDate = date;
@@ -859,6 +1165,7 @@ async function saveEditedStudent() {
   selectedStudent.examDate = date;
   selectedStudent.topic = topic;
   selectedStudent.assignedTeacher = assignedTeacher;
+  selectedStudent.schoolYear = selectedStudent.schoolYear || getCurrentSchoolYear();
   
   // Template-Wechsel behandeln
   if (templateId !== selectedStudent.templateId) {
@@ -875,13 +1182,18 @@ async function saveEditedStudent() {
       teacherData.assessments[selectedStudent.id] = {
         templateId: templateId,
         infoText: savedInfo,
-        finalGrade: savedGrade
+        finalGrade: savedGrade,
+        status: ASSESSMENT_STATUS.NOT_STARTED,
+        lastModified: new Date().toISOString()
       };
       
       // Neue Kategorien initialisieren
       template.categories.forEach(category => {
-        teacherData.assessments[selectedStudent.id][category.id] = 2;
+        teacherData.assessments[selectedStudent.id][category.id] = 0;
       });
+      
+      // Status neu berechnen
+      updateAssessmentStatus(selectedStudent.id);
     }
   }
   
@@ -890,6 +1202,7 @@ async function saveEditedStudent() {
   
   if (saved) {
     updateStudentsTab();
+    updateDashboard(); // Dashboard aktualisieren
     populateAssessmentDateSelect();
     populateAssessmentTopicSelect();
     populateOverviewTopicSelect();
@@ -916,6 +1229,7 @@ async function deleteStudent() {
   hideLoader();
   if (saved) {
     updateStudentsTab();
+    updateDashboard(); // Dashboard aktualisieren
     populateAssessmentDateSelect();
     populateAssessmentTopicSelect();
     updateOverviewTab();
@@ -1237,22 +1551,23 @@ function updateAssessmentStudentList() {
   if (!assessmentStudentList || !assessmentContent) return;
   const selectedDate = assessmentDateSelect.value;
   const selectedTopic = assessmentTopicSelect ? assessmentTopicSelect.value : "";
+  const selectedStatus = assessmentStatusFilter ? assessmentStatusFilter.value : "";
   
   assessmentStudentList.innerHTML = "";
   
-  if (!selectedDate && !selectedTopic) {
-    assessmentStudentList.innerHTML = "<li>Bitte Datum oder Thema wählen</li>";
+  if (!selectedDate && !selectedTopic && !selectedStatus) {
+    assessmentStudentList.innerHTML = "<li>Bitte Filter auswählen</li>";
     assessmentContent.innerHTML = `
       <div class="welcome-card">
         <h2>Willkommen bei der Bewertungsapp</h2>
-        <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Schüler aus der Liste auswählen.</p>
+        <p>Bitte wählen Sie Filter aus und anschließend einen Schüler aus der Liste.</p>
       </div>
     `;
     currentSelectedStudentId = null;
     return;
   }
   
-  // Nur zugewiesene Schüler anzeigen
+  // Nur zugewiesene Schüler anzeigen (zum Bewerten)
   let filtered = getAssignedStudents();
   
   if (selectedDate) {
@@ -1260,6 +1575,13 @@ function updateAssessmentStudentList() {
   }
   if (selectedTopic) {
     filtered = filtered.filter((s) => s.topic === selectedTopic);
+  }
+  if (selectedStatus) {
+    filtered = filtered.filter((s) => {
+      const assessment = teacherData.assessments[s.id];
+      const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
+      return status === selectedStatus;
+    });
   }
   
   if (filtered.length === 0) {
@@ -1286,9 +1608,16 @@ function updateAssessmentStudentList() {
     li.dataset.id = student.id;
     const assessment = teacherData.assessments[student.id] || {};
     const finalGrade = assessment.finalGrade || "-";
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    
+    // Statusklasse hinzufügen
+    li.classList.add(status);
     
     li.innerHTML = `
-      <div class="student-name">${student.name}${student.topic ? ` (${student.topic})` : ""}</div>
+      <div class="student-name">
+        ${student.name}${student.topic ? ` (${student.topic})` : ""}
+        <div class="student-meta">${getStatusText(status)}</div>
+      </div>
       <div class="average-grade grade-${Math.round(finalGrade)}">${finalGrade}</div>
     `;
     
@@ -1346,9 +1675,8 @@ function showAssessmentForm(student) {
     return;
   }
   
-  const avgGrade = calculateAverageGradeWithTemplate(assessment, template);
+  const avgGrade = calculateWeightedAverageGrade(assessment, template);
   const finalGrade = assessment.finalGrade || avgGrade || "-";
-  const infoText = assessment.infoText || "";
   
   let html = `
     <div class="assessment-container">
@@ -1357,11 +1685,6 @@ function showAssessmentForm(student) {
         <p>Prüfungsdatum: ${formatDate(student.examDate)}</p>
         ${student.topic ? `<p>Thema: ${student.topic}</p>` : ""}
         <p>Bewertungsraster: <strong>${template.name}</strong></p>
-      </div>
-      
-      <div class="info-text-container">
-        <h3>Informationen zum Schüler</h3>
-        <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
       </div>
       
       <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
@@ -1409,7 +1732,16 @@ function showAssessmentForm(student) {
     `;
   });
   
-  html += `</div>`;
+  // Info-Text-Container am Ende hinzufügen
+  const infoText = assessment.infoText || "";
+  html += `
+      <div class="info-text-container">
+        <h3>Informationen zum Schüler</h3>
+        <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
+      </div>
+    </div>
+  `;
+  
   assessmentContent.innerHTML = html;
   
   // Sticky-Anzeige aktualisieren
@@ -1430,11 +1762,15 @@ function showAssessmentForm(student) {
       gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
       
       if (!teacherData.assessments[student.id]) {
-        teacherData.assessments[student.id] = { templateId: student.templateId };
+        teacherData.assessments[student.id] = { 
+          templateId: student.templateId,
+          status: ASSESSMENT_STATUS.NOT_STARTED,
+          lastModified: new Date().toISOString()
+        };
       }
       teacherData.assessments[student.id][categoryId] = gradeValue;
       
-      const newAvg = calculateAverageGradeWithTemplate(teacherData.assessments[student.id], template);
+      const newAvg = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
       const avgDisplay = document.querySelector(".final-grade-display");
       avgDisplay.textContent = `Ø ${newAvg || "0.0"}`;
       
@@ -1449,9 +1785,28 @@ function showAssessmentForm(student) {
         if (fgInput) fgInput.value = newAvg;
       }
       
+      // Status aktualisieren
+      const newStatus = updateAssessmentStatus(student.id);
+      
+      // UI-Element in der Liste aktualisieren
+      const listItem = document.querySelector(`.student-item[data-id="${student.id}"]`);
+      if (listItem) {
+        // Alte Status-Klassen entfernen
+        listItem.classList.remove(ASSESSMENT_STATUS.NOT_STARTED, ASSESSMENT_STATUS.IN_PROGRESS, ASSESSMENT_STATUS.COMPLETED);
+        // Neue Status-Klasse hinzufügen
+        listItem.classList.add(newStatus);
+        
+        // Status-Text aktualisieren
+        const metaElement = listItem.querySelector(".student-meta");
+        if (metaElement) {
+          metaElement.textContent = getStatusText(newStatus);
+        }
+      }
+      
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, teacherData.assessments[student.id].finalGrade);
+        updateDashboard(); // Dashboard aktualisieren
       } catch (error) {
         console.error("Fehler beim Speichern:", error);
         showNotification("Fehler beim Speichern.", "error");
@@ -1469,9 +1824,14 @@ function showAssessmentForm(student) {
         return;
       }
       teacherData.assessments[student.id].finalGrade = inputVal;
+      
+      // Status aktualisieren
+      updateAssessmentStatus(student.id);
+      
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, inputVal);
+        updateDashboard(); // Dashboard aktualisieren
         showNotification("Endnote gespeichert.");
       } catch (error) {
         console.error(error);
@@ -1483,16 +1843,21 @@ function showAssessmentForm(student) {
   const useAverageBtn = document.getElementById("useAverageBtn");
   if (useAverageBtn) {
     useAverageBtn.addEventListener("click", async () => {
-      const avgGrade = calculateAverageGradeWithTemplate(teacherData.assessments[student.id], template);
+      const avgGrade = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
       if (!avgGrade) {
         showNotification("Es ist kein Durchschnitt vorhanden.", "warning");
         return;
       }
       document.getElementById("finalGrade").value = avgGrade;
       teacherData.assessments[student.id].finalGrade = parseFloat(avgGrade);
+      
+      // Status aktualisieren
+      updateAssessmentStatus(student.id);
+      
       try {
         await saveTeacherData();
         updateStudentGradeInList(student.id, parseFloat(avgGrade));
+        updateDashboard(); // Dashboard aktualisieren
         showNotification("Durchschnitt als Endnote übernommen.");
       } catch (error) {
         console.error(error);
@@ -1510,32 +1875,19 @@ function showAssessmentForm(student) {
   }
 }
 
-// Berechnet Durchschnitt mit Template-Gewichtung
-function calculateAverageGradeWithTemplate(assessment, template) {
-  if (!assessment || !template) return null;
-  
-  let sum = 0;
-  let totalWeight = 0;
-  
-  template.categories.forEach((category) => {
-    if (assessment[category.id] && assessment[category.id] > 0) {
-      sum += assessment[category.id] * (category.weight || 1);
-      totalWeight += (category.weight || 1);
-    }
-  });
-  
-  if (totalWeight === 0) return null;
-  return (sum / totalWeight).toFixed(1);
-}
-
 function setupInfoTextAutoSave(studentId) {
   if (infoTextSaveTimer) clearInterval(infoTextSaveTimer);
   infoTextSaveTimer = setInterval(async () => {
     const area = document.getElementById("studentInfoText");
     if (area && area.dataset.changed === "true") {
       teacherData.assessments[studentId].infoText = area.value;
+      
+      // Status aktualisieren
+      updateAssessmentStatus(studentId);
+      
       await saveTeacherData();
       area.dataset.changed = "false";
+      
       showNotification("Informationstext automatisch gespeichert.");
       area.classList.add("save-flash");
       setTimeout(() => {
@@ -1583,7 +1935,7 @@ function populateOverviewDateSelect() {
 function populateOverviewTopicSelect() {
   if (!overviewTopicSelect) return;
   overviewTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
-  let filtered = getAssignedStudents(); // Nur zugewiesene Schüler
+  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
   const year = overviewYearSelect.value;
   if (year) {
     filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
@@ -1611,7 +1963,7 @@ function updateOverviewContent() {
   const tbody = overviewTable.querySelector("tbody");
   tbody.innerHTML = "";
   
-  let filtered = getAssignedStudents(); // Nur zugewiesene Schüler
+  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
   const year = overviewYearSelect.value;
   if (year) {
     filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
@@ -1624,10 +1976,18 @@ function updateOverviewContent() {
   if (t) {
     filtered = filtered.filter((s) => s.topic === t);
   }
+  const statusFilter = overviewStatusSelect ? overviewStatusSelect.value : "";
+  if (statusFilter) {
+    filtered = filtered.filter((s) => {
+      const assessment = teacherData.assessments[s.id];
+      const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
+      return status === statusFilter;
+    });
+  }
   
   if (filtered.length === 0) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="8">Keine Schüler gefunden</td>';
+    tr.innerHTML = '<td colspan="9">Keine Schüler gefunden</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -1638,6 +1998,7 @@ function updateOverviewContent() {
     const assessment = teacherData.assessments[student.id] || {};
     const template = getAssessmentTemplate(student.templateId);
     const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
     
     // Bewertungen dynamisch anzeigen
     let ratingsHtml = "";
@@ -1650,20 +2011,35 @@ function updateOverviewContent() {
     
     const tr = document.createElement("tr");
     tr.innerHTML = `
+      <td class="status-cell">
+        <div class="status-indicator ${status}">
+          <div class="status-dot ${status}"></div>
+          ${getStatusText(status)}
+        </div>
+      </td>
       <td>${student.name}</td>
       <td>${formatDate(student.examDate)}</td>
       <td>${student.topic || "-"}</td>
       <td class="assigned-teacher-col">${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</td>
       <td class="template-name-col">${template ? template.name : "Unbekannt"}</td>
-      <td title="${ratingsHtml}">${ratingsHtml || "-"}</td>
+      <td title="${ratingsHtml}" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${ratingsHtml || "-"}</td>
       <td><strong>${assessment.finalGrade !== undefined ? assessment.finalGrade : "-"}</strong></td>
       <td>
-        <button class="edit-btn" data-id="${student.id}">✏️</button>
+        ${canAssessStudent(student) ? `
+          <button class="edit-btn" data-id="${student.id}">✏️</button>
+        ` : `
+          <span style="color: #999;">Nur ansehen</span>
+        `}
       </td>
     `;
-    tr.querySelector(".edit-btn").addEventListener("click", () => {
-      openEditGradeModal(student);
-    });
+    
+    const editBtn = tr.querySelector(".edit-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        openEditGradeModal(student);
+      });
+    }
+    
     tbody.appendChild(tr);
   });
 }
@@ -1687,11 +2063,16 @@ async function saveEditedGrade() {
     return;
   }
   teacherData.assessments[selectedGradeStudent.id].finalGrade = val;
+  
+  // Status aktualisieren
+  updateAssessmentStatus(selectedGradeStudent.id);
+  
   showLoader();
   const saved = await saveTeacherData();
   hideLoader();
   if (saved) {
     updateOverviewContent();
+    updateDashboard(); // Dashboard aktualisieren
     // Bei geöffnetem Bewertungs-Tab die Notendarstellung aktualisieren
     if (selectedGradeStudent.id === currentSelectedStudentId) {
       const finalGradeInput = document.getElementById("finalGrade");
@@ -1741,7 +2122,7 @@ function exportData() {
   const year = settingsYearSelect.value;
   const day = settingsDateSelect.value;
   
-  let filtered = getAssignedStudents(); // Nur zugewiesene Schüler
+  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
   
   if (year) {
     filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
@@ -1755,10 +2136,14 @@ function exportData() {
     filtered.forEach((student) => {
       const assessment = teacherData.assessments[student.id] || {};
       const template = getAssessmentTemplate(student.templateId);
+      const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
+      const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
       
       txtContent += `Name: ${student.name}\n`;
       txtContent += `Datum: ${formatDate(student.examDate)}\n`;
       txtContent += `Thema: ${student.topic || '-'}\n`;
+      txtContent += `Zugewiesen an: ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}\n`;
+      txtContent += `Status: ${getStatusText(status)}\n`;
       txtContent += `Bewertungsraster: ${template ? template.name : 'Unbekannt'}\n`;
       txtContent += `Endnote: ${assessment.finalGrade || '-'}\n`;
       txtContent += `Kategorien:\n`;
@@ -1779,10 +2164,15 @@ function exportData() {
     filtered.forEach((student) => {
       const assessment = teacherData.assessments[student.id] || {};
       const template = getAssessmentTemplate(student.templateId);
+      const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
+      const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+      
       const entry = {
         name: student.name,
         examDate: formatDate(student.examDate),
         topic: student.topic || '',
+        assignedTeacher: assignedTeacher ? assignedTeacher.name : student.assignedTeacher,
+        status: getStatusText(status),
         templateName: template ? template.name : 'Unbekannt',
         finalGrade: assessment.finalGrade || '',
         categories: {}
@@ -1837,6 +2227,7 @@ async function deleteAllData() {
     updateTemplatesTab();
     updateAssessmentTab();
     updateOverviewTab();
+    updateDashboard();
     showNotification("Alle Daten wurden gelöscht.");
   } catch (error) {
     console.error("Fehler beim Löschen aller Daten:", error);
