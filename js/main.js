@@ -1,6 +1,59 @@
 // js/main.js - KOMPLETT ÜBERARBEITET für Gruppen-System
 
-import { initDatabase, ensureCollection } from "./firebaseClient.js";
+import { initDatabase, ensureCollection }
+
+function openEditGradeModal(student) {
+  selectedGradeStudent = student;
+  const assessment = teacherData.assessments[student.id] || {};
+  const editFinalGrade = document.getElementById("editFinalGrade");
+  const editGradeModal = document.getElementById("editGradeModal");
+  
+  if (editFinalGrade) editFinalGrade.value = assessment.finalGrade || "";
+  if (editGradeModal) editGradeModal.style.display = "flex";
+}
+
+async function saveEditedGrade() {
+  if (!selectedGradeStudent) return;
+  const editFinalGrade = document.getElementById("editFinalGrade");
+  const val = parseFloat(editFinalGrade.value);
+  
+  if (isNaN(val) || val < 1 || val > 6) {
+    showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
+    return;
+  }
+  
+  if (!teacherData.assessments[selectedGradeStudent.id]) {
+    teacherData.assessments[selectedGradeStudent.id] = {
+      templateId: selectedGradeStudent.templateId || "wbs_standard",
+      status: ASSESSMENT_STATUS.NOT_STARTED
+    };
+  }
+  
+  teacherData.assessments[selectedGradeStudent.id].finalGrade = val;
+  updateAssessmentStatus(selectedGradeStudent.id);
+  
+  showLoader();
+  const saved = await saveTeacherData();
+  hideLoader();
+  
+  if (saved) {
+    updateOverviewContent();
+    updateDashboard();
+    
+    if (selectedGradeStudent.id === currentSelectedStudentId) {
+      const finalGradeInput = document.getElementById("finalGrade");
+      if (finalGradeInput) finalGradeInput.value = val;
+    }
+    updateStudentGradeInList(selectedGradeStudent.id, val);
+    showNotification("Note aktualisiert.");
+    const editGradeModal = document.getElementById("editGradeModal");
+    if (editGradeModal) editGradeModal.style.display = "none";
+  }
+}
+
+function printOverviewData() {
+  window.print();
+} from "./firebaseClient.js";
 import {
   teacherData, currentUser, loadTeacherData, saveTeacherData,
   createGroup, addStudentToGroup, getResponsibleGroups, getAssignedStudents, getAccessibleStudents,
@@ -375,6 +428,38 @@ function setupModalEventListeners() {
       quickOverviewModal.style.display = "none";
     });
   }
+  
+  // Edit Grade Modal
+  const editGradeModal = document.getElementById("editGradeModal");
+  const closeEditGradeModal = document.getElementById("closeEditGradeModal");
+  const saveGradeBtn = document.getElementById("saveGradeBtn");
+  
+  if (closeEditGradeModal) {
+    closeEditGradeModal.addEventListener("click", () => {
+      editGradeModal.style.display = "none";
+    });
+  }
+  if (saveGradeBtn) {
+    saveGradeBtn.addEventListener("click", saveEditedGrade);
+  }
+  
+  // Edit Template Modal
+  const editTemplateModal = document.getElementById("editTemplateModal");
+  const closeEditTemplateModal = document.getElementById("closeEditTemplateModal");
+  const updateTemplateBtn = document.getElementById("updateTemplateBtn");
+  const deleteTemplateBtn = document.getElementById("deleteTemplateBtn");
+  
+  if (closeEditTemplateModal) {
+    closeEditTemplateModal.addEventListener("click", () => {
+      editTemplateModal.style.display = "none";
+    });
+  }
+  if (updateTemplateBtn) {
+    updateTemplateBtn.addEventListener("click", saveEditedTemplate);
+  }
+  if (deleteTemplateBtn) {
+    deleteTemplateBtn.addEventListener("click", () => confirmDeleteTemplate(editingTemplate));
+  }
 }
 
 // Admin Event-Listener
@@ -450,6 +535,18 @@ function setupAdminEventListeners() {
   if (deleteAllDataBtn) deleteAllDataBtn.addEventListener("click", confirmDeleteAllSystemData);
   if (setSchoolYearBtn) setSchoolYearBtn.addEventListener("click", setSchoolYearManually);
   if (startNewSchoolYearBtn) startNewSchoolYearBtn.addEventListener("click", confirmStartNewSchoolYear);
+  
+  // Lehrer bearbeiten/löschen Eventlistener
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('edit-teacher-btn')) {
+      const teacherCode = e.target.dataset.code;
+      if (teacherCode) showEditTeacherModal(teacherCode);
+    }
+    if (e.target.classList.contains('delete-teacher-btn')) {
+      const teacherCode = e.target.dataset.code;
+      if (teacherCode) showDeleteTeacherConfirmation(teacherCode);
+    }
+  });
 }
 
 // === TAB-WECHSEL & LOGIN ===
@@ -680,7 +777,7 @@ function createGroupCard(group) {
       ${group.examDate ? `<p><strong>Prüfungsdatum:</strong> ${formatDate(group.examDate)}</p>` : ''}
     </div>
     <div class="group-card-footer">
-      <button class="edit-btn" data-group-id="${group.id}" title="Gruppe bearbeiten">✏️</button>
+      <button class="edit-btn" data-group-id="${group.id}" title="Bearbeiten">✏️</button>
     </div>
   `;
   
@@ -853,8 +950,89 @@ function getStatusText(status) {
 }
 
 function toggleDashboardView() {
-  // Implementierung für Reihenfolge anpassen
-  showNotification("Funktion wird bald verfügbar sein.", "info");
+  const dashboardStudentCards = document.getElementById("dashboardStudentCards");
+  const dashboardViewToggle = document.getElementById("dashboardViewToggle");
+  
+  if (dashboardStudentCards.classList.contains("reorder-mode")) {
+    // Speichern der neuen Themen-Reihenfolge
+    const cards = dashboardStudentCards.querySelectorAll(".group-card");
+    const themeOrder = {};
+    
+    cards.forEach((card, index) => {
+      const themeElement = card.querySelector(".group-card-title");
+      if (themeElement) {
+        const theme = themeElement.textContent;
+        themeOrder[theme] = index;
+      }
+    });
+    
+    setThemeSortOrder(themeOrder);
+    dashboardStudentCards.classList.remove("reorder-mode");
+    dashboardViewToggle.textContent = "🔧 Reihenfolge anpassen";
+    updateDashboardContent();
+  } else {
+    // Aktiviere Drag & Drop für Reihenfolge
+    dashboardStudentCards.classList.add("reorder-mode");
+    dashboardViewToggle.textContent = "✅ Reihenfolge speichern";
+    
+    // Mache Cards sortierbar
+    const cards = dashboardStudentCards.querySelectorAll(".group-card");
+    cards.forEach(card => {
+      card.setAttribute("draggable", "true");
+      card.addEventListener("dragstart", handleDragStart);
+      card.addEventListener("dragover", handleDragOver);
+      card.addEventListener("drop", handleDrop);
+      card.addEventListener("dragend", handleDragEnd);
+    });
+  }
+}
+
+// Drag & Drop Funktionalität für Dashboard-Karten
+let draggedCard = null;
+
+function handleDragStart(e) {
+  draggedCard = this;
+  this.style.opacity = "0.4";
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleDragOver(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = "move";
+  return false;
+}
+
+function handleDrop(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+  
+  if (draggedCard !== this) {
+    const dashboardStudentCards = document.getElementById("dashboardStudentCards");
+    const cards = Array.from(dashboardStudentCards.querySelectorAll(".group-card"));
+    const draggedIndex = cards.indexOf(draggedCard);
+    const targetIndex = cards.indexOf(this);
+    
+    if (draggedIndex < targetIndex) {
+      dashboardStudentCards.insertBefore(draggedCard, this.nextSibling);
+    } else {
+      dashboardStudentCards.insertBefore(draggedCard, this);
+    }
+  }
+  
+  return false;
+}
+
+function handleDragEnd() {
+  this.style.opacity = "1";
+  
+  const dashboardStudentCards = document.getElementById("dashboardStudentCards");
+  const cards = dashboardStudentCards.querySelectorAll(".group-card");
+  cards.forEach(card => {
+    card.classList.remove("over");
+  });
 }
 
 // === GRUPPEN-VERWALTUNG ===
@@ -936,7 +1114,7 @@ function updateGroupsTab() {
       <td>${group.schoolYear || "-"}</td>
       <td>
         ${canEditGroup(group) ? `
-          <button class="edit-btn" data-id="${group.id}" title="Gruppe bearbeiten">✏️</button>
+          <button class="edit-btn" data-id="${group.id}" title="Bearbeiten">✏️</button>
         ` : `
           <span style="color: #999;" title="Keine Berechtigung">🔒</span>
         `}
@@ -1014,7 +1192,19 @@ function showEditGroupModal(group) {
   
   if (editGroupTheme) editGroupTheme.value = group.theme;
   if (editGroupDate) editGroupDate.value = group.examDate || "";
-  if (editGroupResponsibleTeacher) editGroupResponsibleTeacher.value = group.responsibleTeacher;
+  if (editGroupResponsibleTeacher) {
+    // Lehrer-Optionen erstellen
+    editGroupResponsibleTeacher.innerHTML = "";
+    allTeachers.forEach(teacher => {
+      const option = document.createElement("option");
+      option.value = teacher.code;
+      option.textContent = teacher.name;
+      if (teacher.code === group.responsibleTeacher) {
+        option.selected = true;
+      }
+      editGroupResponsibleTeacher.appendChild(option);
+    });
+  }
   
   if (editGroupStudentsContainer) {
     editGroupStudentsContainer.innerHTML = "";
@@ -2054,7 +2244,7 @@ function updateOverviewContent() {
       <td><strong>${assessment.finalGrade !== undefined ? assessment.finalGrade : "-"}</strong></td>
       <td>
         ${canAssessStudent(student) ? `
-          <button class="edit-btn" data-id="${student.id}" title="Note bearbeiten">✏️</button>
+          <button class="edit-btn" data-id="${student.id}" title="Bearbeiten">✏️</button>
         ` : `
           <span style="color: #999;" title="Nur ansehen">👁️</span>
         `}
@@ -2070,260 +2260,3 @@ function updateOverviewContent() {
     
     tbody.appendChild(tr);
   });
-}
-
-function openEditGradeModal(student) {
-  selectedGradeStudent = student;
-  const assessment = teacherData.assessments[student.id] || {};
-  const editFinalGrade = document.getElementById("editFinalGrade");
-  const editGradeModal = document.getElementById("editGradeModal");
-  
-  if (editFinalGrade) editFinalGrade.value = assessment.finalGrade || "";
-  if (editGradeModal) editGradeModal.style.display = "flex";
-}
-
-async function saveEditedGrade() {
-  if (!selectedGradeStudent) return;
-  const editFinalGrade = document.getElementById("editFinalGrade");
-  const val = parseFloat(editFinalGrade.value);
-  
-  if (isNaN(val) || val < 1 || val > 6) {
-    showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
-    return;
-  }
-  
-  teacherData.assessments[selectedGradeStudent.id].finalGrade = val;
-  updateAssessmentStatus(selectedGradeStudent.id);
-  
-  showLoader();
-  const saved = await saveTeacherData();
-  hideLoader();
-  
-  if (saved) {
-    updateOverviewContent();
-    updateDashboard();
-    
-    if (selectedGradeStudent.id === currentSelectedStudentId) {
-      const finalGradeInput = document.getElementById("finalGrade");
-      if (finalGradeInput) finalGradeInput.value = val;
-    }
-    updateStudentGradeInList(selectedGradeStudent.id, val);
-    showNotification("Note aktualisiert.");
-    const editGradeModal = document.getElementById("editGradeModal");
-    if (editGradeModal) editGradeModal.style.display = "none";
-  }
-}
-
-function printOverviewData() {
-  window.print();
-}
-
-// === EINSTELLUNGEN ===
-
-function updateSettingsTab() {
-  populateSettingsYearSelect();
-  populateSettingsDateSelect();
-  populateTemplateSelects();
-  
-  const defaultSortingSelect = document.getElementById("defaultSortingSelect");
-  if (defaultSortingSelect && teacherData.settings) {
-    defaultSortingSelect.value = teacherData.settings.preferredSorting || "theme";
-  }
-}
-
-function populateSettingsYearSelect() {
-  const settingsYearSelect = document.getElementById("settingsYearSelect");
-  if (!settingsYearSelect) return;
-  
-  const years = new Set();
-  const accessibleStudents = getAccessibleStudents();
-  
-  accessibleStudents.forEach(student => {
-    if (student.examDate) {
-      years.add(student.examDate.split("-")[0]);
-    }
-  });
-  
-  settingsYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
-  Array.from(years).sort().reverse().forEach(year => {
-    const opt = document.createElement("option");
-    opt.value = year;
-    opt.textContent = year;
-    settingsYearSelect.appendChild(opt);
-  });
-}
-
-function populateSettingsDateSelect() {
-  const settingsDateSelect = document.getElementById("settingsDateSelect");
-  if (!settingsDateSelect) return;
-  
-  const year = document.getElementById("settingsYearSelect")?.value;
-  const dates = new Set();
-  let filtered = getAccessibleStudents();
-  
-  if (year) {
-    filtered = filtered.filter(s => s.examDate && s.examDate.startsWith(year));
-  }
-  
-  filtered.forEach(s => {
-    if (s.examDate) dates.add(s.examDate);
-  });
-  
-  settingsDateSelect.innerHTML = '<option value="">Alle Tage</option>';
-  Array.from(dates).sort().reverse().forEach(date => {
-    const opt = document.createElement("option");
-    opt.value = date;
-    opt.textContent = formatDate(date);
-    settingsDateSelect.appendChild(opt);
-  });
-}
-
-function populateTemplateSelects() {
-  const selects = [document.getElementById("defaultTemplateSelect")];
-  
-  selects.forEach(select => {
-    if (!select) return;
-    
-    const currentValue = select.value;
-    select.innerHTML = "";
-    
-    const templates = getAllAssessmentTemplates();
-    templates.forEach(template => {
-      const option = document.createElement("option");
-      option.value = template.id;
-      option.textContent = template.name + (template.isDefault ? " (Standard)" : "");
-      select.appendChild(option);
-    });
-    
-    if (currentValue) {
-      select.value = currentValue;
-    } else if (teacherData.settings && teacherData.settings.defaultTemplate) {
-      select.value = teacherData.settings.defaultTemplate;
-    }
-  });
-}
-
-async function saveAppSettings() {
-  if (!teacherData.settings) {
-    teacherData.settings = {};
-  }
-  
-  const defaultTemplateSelect = document.getElementById("defaultTemplateSelect");
-  if (defaultTemplateSelect) {
-    teacherData.settings.defaultTemplate = defaultTemplateSelect.value;
-  }
-  
-  showLoader();
-  const saved = await saveTeacherData();
-  hideLoader();
-  
-  if (saved) {
-    showNotification("Einstellungen gespeichert.");
-  }
-}
-
-async function saveSortingSettings() {
-  if (!teacherData.settings) {
-    teacherData.settings = {};
-  }
-  
-  const defaultSortingSelect = document.getElementById("defaultSortingSelect");
-  if (defaultSortingSelect) {
-    teacherData.settings.preferredSorting = defaultSortingSelect.value;
-    setPreferredSorting(defaultSortingSelect.value);
-  }
-  
-  showLoader();
-  const saved = await saveTeacherData();
-  hideLoader();
-  
-  if (saved) {
-    showNotification("Sortier-Einstellungen gespeichert.");
-    updateDashboard(); // Dashboard neu laden mit neuer Sortierung
-  }
-}
-
-function exportData() {
-  const useTxt = document.getElementById("exportTXT") && document.getElementById("exportTXT").checked;
-  const year = document.getElementById("settingsYearSelect")?.value;
-  const day = document.getElementById("settingsDateSelect")?.value;
-  
-  let filtered = getAccessibleStudents();
-  
-  if (year) {
-    filtered = filtered.filter(s => s.examDate && s.examDate.startsWith(year));
-  }
-  if (day) {
-    filtered = filtered.filter(s => s.examDate === day);
-  }
-  
-  if (useTxt) {
-    let txtContent = `Export ${APP_CONFIG.name}\n\n`;
-    filtered.forEach((student) => {
-      const assessment = teacherData.assessments[student.id] || {};
-      const template = getAssessmentTemplate(student.templateId);
-      const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
-      const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
-      
-      txtContent += `Name: ${student.name}\n`;
-      txtContent += `Thema: ${student.theme}\n`;
-      txtContent += `Datum: ${formatDate(student.examDate || student.assessmentDate)}\n`;
-      txtContent += `Zugewiesen an: ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}\n`;
-      txtContent += `Status: ${getStatusText(status)}\n`;
-      txtContent += `Bewertungsraster: ${template ? template.name : 'Unbekannt'}\n`;
-      txtContent += `Endnote: ${assessment.finalGrade || '-'}\n`;
-      txtContent += `Kategorien:\n`;
-      
-      if (template && template.categories) {
-        template.categories.forEach(cat => {
-          txtContent += `  ${cat.name}: ${assessment[cat.id] || '-'}\n`;
-        });
-      }
-      
-      txtContent += `Info-Text: ${assessment.infoText || ''}\n\n`;
-      txtContent += "--------------------------------\n\n";
-    });
-    downloadFile(`${APP_CONFIG.name}_Export.txt`, txtContent, "text/plain");
-  } else {
-    const exportData = [];
-    filtered.forEach((student) => {
-      const assessment = teacherData.assessments[student.id] || {};
-      const template = getAssessmentTemplate(student.templateId);
-      const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
-      const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
-      
-      const entry = {
-        name: student.name,
-        theme: student.theme,
-        examDate: formatDate(student.examDate || student.assessmentDate),
-        assignedTeacher: assignedTeacher ? assignedTeacher.name : student.assignedTeacher,
-        status: getStatusText(status),
-        templateName: template ? template.name : 'Unbekannt',
-        finalGrade: assessment.finalGrade || '',
-        categories: {}
-      };
-      
-      if (template && template.categories) {
-        template.categories.forEach(cat => {
-          entry.categories[cat.name] = assessment[cat.id] || '-';
-        });
-      }
-      
-      entry.infoText = assessment.infoText || '';
-      exportData.push(entry);
-    });
-    const jsonString = JSON.stringify(exportData, null, 2);
-    downloadFile(`${APP_CONFIG.name}_Export.json`, jsonString, "application/json");
-  }
-}
-
-function downloadFile(name, content, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
