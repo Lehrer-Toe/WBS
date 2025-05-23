@@ -1,6 +1,6 @@
 // js/uiService.js
-import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
-import { teacherData, getAssignedStudents } from "./dataService.js";
+import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
+import { teacherData } from "./dataService.js";
 
 /**
  * Zeigt den Ladebildschirm
@@ -77,9 +77,8 @@ export function getAvailableYears() {
     years.add((currentYear + i).toString());
   }
 
-  // Jahre aus vorhandenen Daten (nur zugewiesene Schüler)
-  const assignedStudents = getAssignedStudents();
-  assignedStudents.forEach((student) => {
+  // Jahre aus vorhandenen Daten
+  teacherData.students.forEach((student) => {
     years.add(getYearFromDate(student.examDate));
   });
 
@@ -98,15 +97,13 @@ export function getAvailableYears() {
 }
 
 /**
- * Gibt verfügbare Daten zurück (nur für zugewiesene Schüler)
+ * Gibt verfügbare Daten zurück
  * @param {string} year - Optional: Jahr filtern
  * @returns {string[]} Liste von Daten
  */
 export function getAvailableDates(year = null) {
   const dates = new Set();
-  const assignedStudents = getAssignedStudents();
-  
-  assignedStudents.forEach((student) => {
+  teacherData.students.forEach((student) => {
     if (!year || getYearFromDate(student.examDate) === year) {
       dates.add(student.examDate);
     }
@@ -115,18 +112,16 @@ export function getAvailableDates(year = null) {
 }
 
 /**
- * Gibt verfügbare Themen zurück (nur für zugewiesene Schüler)
+ * Gibt verfügbare Themen zurück
  * @param {string} selectedDate - Optional: Datum filtern
  * @returns {string[]} Liste von Themen
  */
 export function getAvailableTopics(selectedDate = null) {
   const topics = new Set();
-  let filteredStudents = getAssignedStudents();
-  
+  let filteredStudents = teacherData.students;
   if (selectedDate) {
     filteredStudents = filteredStudents.filter((s) => s.examDate === selectedDate);
   }
-  
   filteredStudents.forEach((student) => {
     if (student.topic && student.topic.trim() !== "") {
       topics.add(student.topic);
@@ -136,7 +131,7 @@ export function getAvailableTopics(selectedDate = null) {
 }
 
 /**
- * Berechnet den Durchschnitt der Bewertungen (Fallback für Standard-Kategorien)
+ * Berechnet den Durchschnitt der Bewertungen
  * @param {Object} assessment - Bewertungsobjekt
  * @returns {string|null} Durchschnittsnote oder null
  */
@@ -144,42 +139,14 @@ export function calculateAverageGrade(assessment) {
   if (!assessment) return null;
   let sum = 0;
   let count = 0;
-  
-  DEFAULT_ASSESSMENT_CATEGORIES.forEach((category) => {
+  ASSESSMENT_CATEGORIES.forEach((category) => {
     if (assessment[category.id] && assessment[category.id] > 0) {
       sum += assessment[category.id];
       count++;
     }
   });
-  
   if (count === 0) return null;
   return (sum / count).toFixed(1);
-}
-
-/**
- * Berechnet den gewichteten Durchschnitt basierend auf Template-Kategorien
- * @param {Object} assessment - Bewertungsobjekt
- * @param {Object} template - Template mit Kategorien und Gewichtungen
- * @returns {string|null} Durchschnittsnote oder null
- */
-export function calculateWeightedAverageGrade(assessment, template) {
-  if (!assessment || !template || !template.categories) {
-    return calculateAverageGrade(assessment); // Fallback
-  }
-  
-  let sum = 0;
-  let totalWeight = 0;
-  
-  template.categories.forEach((category) => {
-    if (assessment[category.id] && assessment[category.id] > 0) {
-      const weight = category.weight || 1;
-      sum += assessment[category.id] * weight;
-      totalWeight += weight;
-    }
-  });
-  
-  if (totalWeight === 0) return null;
-  return (sum / totalWeight).toFixed(1);
 }
 
 /**
@@ -223,206 +190,4 @@ export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachers
     });
     teacherGrid.appendChild(card);
   });
-}
-
-/**
- * Erstellt HTML für Bewertungskriterien-Tags
- * @param {Array} categories - Array von Kategorie-Objekten
- * @returns {string} HTML-String für Kriterien-Tags
- */
-export function createCriteriaTagsHTML(categories) {
-  if (!categories || categories.length === 0) return "";
-  
-  return categories.map(cat => 
-    `<span class="criterion-tag">${cat.name}${cat.weight && cat.weight > 1 ? ` (×${cat.weight})` : ''}</span>`
-  ).join('');
-}
-
-/**
- * Erstellt HTML für Template-Auswahl-Optionen
- * @param {Array} templates - Array von Template-Objekten
- * @param {string} selectedId - ID des ausgewählten Templates
- * @returns {string} HTML-String für Select-Optionen
- */
-export function createTemplateOptionsHTML(templates, selectedId = null) {
-  if (!templates || templates.length === 0) return "";
-  
-  return templates.map(template => 
-    `<option value="${template.id}" ${template.id === selectedId ? 'selected' : ''}>
-      ${template.name}${template.isDefault ? ' (Standard)' : ''}
-     </option>`
-  ).join('');
-}
-
-/**
- * Erstellt HTML für Lehrer-Auswahl-Optionen
- * @param {Array} teachers - Array von Lehrer-Objekten
- * @param {string} currentTeacherCode - Code des aktuellen Lehrers
- * @param {string} selectedCode - Code des ausgewählten Lehrers
- * @returns {string} HTML-String für Select-Optionen
- */
-export function createTeacherOptionsHTML(teachers, currentTeacherCode, selectedCode = null) {
-  if (!teachers || teachers.length === 0) return "";
-  
-  let html = `<option value="${currentTeacherCode}" ${currentTeacherCode === selectedCode ? 'selected' : ''}>
-    Aktueller Lehrer (Sie)
-  </option>`;
-  
-  teachers.forEach(teacher => {
-    if (teacher.code !== currentTeacherCode) {
-      html += `<option value="${teacher.code}" ${teacher.code === selectedCode ? 'selected' : ''}>
-        ${teacher.name}
-       </option>`;
-    }
-  });
-  
-  return html;
-}
-
-/**
- * Validiert Eingabefelder
- * @param {Array} fields - Array von Objekten mit {element, name, required}
- * @returns {Object} {isValid: boolean, errors: Array}
- */
-export function validateFields(fields) {
-  const errors = [];
-  
-  fields.forEach(field => {
-    const value = field.element ? field.element.value.trim() : "";
-    
-    if (field.required && !value) {
-      errors.push(`${field.name} ist erforderlich.`);
-    }
-    
-    if (field.minLength && value.length < field.minLength) {
-      errors.push(`${field.name} muss mindestens ${field.minLength} Zeichen lang sein.`);
-    }
-    
-    if (field.maxLength && value.length > field.maxLength) {
-      errors.push(`${field.name} darf maximal ${field.maxLength} Zeichen lang sein.`);
-    }
-    
-    if (field.pattern && !field.pattern.test(value)) {
-      errors.push(`${field.name} hat ein ungültiges Format.`);
-    }
-  });
-  
-  return {
-    isValid: errors.length === 0,
-    errors: errors
-  };
-}
-
-/**
- * Zeigt Validierungsfehler als Benachrichtigung an
- * @param {Array} errors - Array von Fehlermeldungen
- */
-export function showValidationErrors(errors) {
-  if (errors && errors.length > 0) {
-    const message = errors.join("\n");
-    showNotification(message, "error");
-  }
-}
-
-/**
- * Debounce-Funktion für Performance-Optimierung
- * @param {Function} func - Funktion, die ausgeführt werden soll
- * @param {number} wait - Wartezeit in Millisekunden
- * @returns {Function} Debounced-Funktion
- */
-export function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-/**
- * Erstellt eine sichere HTML-Darstellung von Text (XSS-Schutz)
- * @param {string} text - Text, der escaped werden soll
- * @returns {string} HTML-sicherer Text
- */
-export function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-/**
- * Formatiert eine Zahl als Note (1.0, 1.5, etc.)
- * @param {number} grade - Numerische Note
- * @returns {string} Formatierte Note
- */
-export function formatGrade(grade) {
-  if (typeof grade !== 'number' || isNaN(grade)) return "-";
-  return grade.toFixed(1);
-}
-
-/**
- * Bestimmt CSS-Klasse basierend auf Note
- * @param {number} grade - Numerische Note
- * @returns {string} CSS-Klasse
- */
-export function getGradeClass(grade) {
-  if (typeof grade !== 'number' || isNaN(grade)) return "grade-none";
-  
-  const rounded = Math.round(grade);
-  return `grade-${Math.max(1, Math.min(6, rounded))}`;
-}
-
-/**
- * Prüft, ob ein Element im Viewport sichtbar ist
- * @param {HTMLElement} element - DOM-Element
- * @returns {boolean} Sichtbarkeit
- */
-export function isElementInViewport(element) {
-  if (!element) return false;
-  
-  const rect = element.getBoundingClientRect();
-  return (
-    rect.top >= 0 &&
-    rect.left >= 0 &&
-    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-  );
-}
-
-/**
- * Smooth Scroll zu einem Element
- * @param {HTMLElement} element - Ziel-Element
- * @param {Object} options - Scroll-Optionen
- */
-export function scrollToElement(element, options = {}) {
-  if (!element) return;
-  
-  const defaultOptions = {
-    behavior: 'smooth',
-    block: 'start',
-    inline: 'nearest'
-  };
-  
-  element.scrollIntoView({ ...defaultOptions, ...options });
-}
-
-/**
- * Erstellt eine Download-Datei
- * @param {string} filename - Dateiname
- * @param {string} content - Dateiinhalt
- * @param {string} mimeType - MIME-Type
- */
-export function downloadFile(filename, content, mimeType = 'text/plain') {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }

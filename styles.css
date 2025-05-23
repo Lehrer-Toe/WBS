@@ -1,648 +1,1099 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Zeig, was du kannst</title>
-  <link rel="icon" href="data:," />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="loader-container" id="mainLoader">
-    <span class="loader"></span>
-  </div>
+:root {
+  --primary-color: #34495e;
+  --primary-light: #5c7a99;
+  --primary-dark: #2c3e50;
+  --accent-color: #e67e22;
+  --secondary-color: #f7f9fc;
+  --text-color: #333;
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
+  --border-color: #e0e0e0;
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  --transition: all 0.3s ease;
+  --header-bg: #34495e;
+  --blue-accent: #3498db; /* Neue Farbe für blauen Rahmen */
+  --danger-bg: #fdf2f2; /* Neuer Hintergrund für Gefahrenbereiche */
+  --danger-border: #fecaca; /* Neuer Rand für Gefahrenbereiche */
+}
 
-  <!-- Normaler Login-Bereich -->
-  <div id="loginSection">
-    <header>
-      <h1>Zeig, was du kannst</h1>
-      <div class="version">v2.0</div>
-    </header>
-    
-    <div class="container animate-fade-in">
-      <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
-      
-      <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher cards werden dynamisch erzeugt -->
-      </div>
-      
-      <div class="modal" id="passwordModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Anmeldung</h3>
-            <button class="modal-close" id="closePasswordModal">&times;</button>
-          </div>
-          <p id="loginPrompt">Bitte geben Sie Ihr Passwort ein:</p>
-          <input type="password" id="passwordInput" placeholder="Passwort">
-          <div class="modal-footer">
-            <button class="btn-danger" id="cancelLogin">Abbrechen</button>
-            <button id="confirmLogin">Anmelden</button>
-          </div>
-        </div>
-      </div>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
 
-      <!-- Admin-Zugang -->
-      <div class="admin-access">
-        <button id="showAdminLoginBtn" class="btn-secondary">Administrator-Bereich</button>
-      </div>
-    </div>
-  </div>
+body {
+  font-family: 'Roboto', sans-serif;
+  background: #f4f4f4;
+  color: var(--text-color);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
 
-  <!-- Admin-Login-Bereich -->
-  <div id="adminLoginSection" style="display: none;">
-    <header>
-      <h1>Zeig, was du kannst - Admin</h1>
-      <div class="version">v2.0</div>
-    </header>
-    
-    <div class="container animate-fade-in">
-      <h2>Administrator-Anmeldung</h2>
-      
-      <div class="admin-login-form">
-        <div class="form-group">
-          <label for="adminUsername">Benutzername</label>
-          <input type="text" id="adminUsername" placeholder="Admin-Benutzername">
-        </div>
-        <div class="form-group">
-          <label for="adminPassword">Passwort</label>
-          <input type="password" id="adminPassword" placeholder="Admin-Passwort">
-        </div>
-        <div class="admin-buttons">
-          <button id="backToLoginBtn" class="btn-secondary">Zurück zur Anmeldung</button>
-          <button id="adminLoginBtn">Anmelden</button>
-        </div>
-      </div>
-    </div>
-  </div>
+header {
+  background: var(--header-bg);
+  color: white;
+  padding: 1.5rem;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+}
 
-  <!-- Admin-Panel -->
-  <div id="adminSection" style="display: none;">
-    <header>
-      <div class="teacher-info">
-        <div class="teacher-avatar">A</div>
-        <div class="teacher-name">Administrator</div>
-      </div>
-      <h1>Zeig, was du kannst - Admin</h1>
-      <button id="adminLogoutBtn" class="logout-btn">Abmelden</button>
-    </header>
-    
-    <div class="container">
-      <div class="tabs">
-        <div class="tab active" data-tab="teachers">Lehrer verwalten</div>
-        <div class="tab" data-tab="system">System-Info</div>
-      </div>
-      
-      <!-- Tab: Lehrer verwalten -->
-      <div class="tab-content active" id="teachers-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neuen Lehrer anlegen</h3>
-              <div class="form-group">
-                <label for="newTeacherName">Vollständiger Name</label>
-                <input type="text" id="newTeacherName" placeholder="z.B. Max Mustermann">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherCode">Kürzel</label>
-                <input type="text" id="newTeacherCode" placeholder="z.B. MUM" maxlength="5">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherPassword">Passwort</label>
-                <input type="password" id="newTeacherPassword" placeholder="Passwort festlegen">
-              </div>
-              <button id="addTeacherBtn">Lehrer hinzufügen</button>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Alle registrierten Lehrer</h2>
-            <div class="table-container">
-              <table class="teacher-admin-table" id="teachersAdminTable">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Kürzel</th>
-                    <th>Erstellt am</th>
-                    <th>Aktionen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colspan="4">Lade Lehrer...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: System-Info -->
-      <div class="tab-content" id="system-tab">
-        <h2>System-Informationen</h2>
-        
-        <div class="card">
-          <h3>Statistiken</h3>
-          <div id="systemStats">
-            <div class="stat-item">
-              <span class="stat-label">Registrierte Lehrer:</span>
-              <span class="stat-value" id="totalTeachers">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Firebase Status:</span>
-              <span class="stat-value" id="firebaseStatus">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Letzte Aktualisierung:</span>
-              <span class="stat-value" id="lastUpdate">-</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>System-Aktionen</h3>
-          <div class="system-actions">
-            <button id="refreshSystemBtn">System aktualisieren</button>
-            <button id="exportTeachersBtn" class="btn-secondary">Lehrer exportieren</button>
-          </div>
-        </div>
+header h1 {
+  color: white;
+  margin: 0;
+}
 
-        <!-- Datenlöschung -->
-        <div class="card danger-zone">
-          <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
-          <p class="warning-text">
-            <strong>Achtung:</strong> Diese Aktionen können nicht rückgängig gemacht werden!
-          </p>
-          
-          <div class="form-group">
-            <label for="adminDeleteVerificationCode">Bestätigungscode eingeben:</label>
-            <input type="text" id="adminDeleteVerificationCode" placeholder='z.B. "delete teachers" oder "delete everything"'>
-            <small class="help-text">
-              • Für Lehrer löschen: "delete teachers"<br>
-              • Für kompletten Reset: "delete everything"
-            </small>
-          </div>
-          
-          <div class="danger-actions">
-            <button id="deleteAllTeachersBtn" class="btn-danger">
-              🧑‍🏫 Alle Lehrer löschen
-            </button>
-            <button id="deleteAllDataBtn" class="btn-danger">
-              💥 Kompletter System-Reset
-            </button>
-          </div>
-          
-          <div class="danger-explanation">
-            <h4>Was passiert bei den Aktionen:</h4>
-            <ul>
-              <li><strong>Alle Lehrer löschen:</strong> Setzt alle Lehrer auf Standard zurück (KRE, RIF, TOE)</li>
-              <li><strong>Kompletter System-Reset:</strong> Löscht ALLE Lehrer UND alle Bewertungsdaten aller Lehrer</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+.container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--card-shadow);
+}
+
+@media (max-width: 768px) {
+  .container {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+  position: relative;
+}
+
+.tab.active {
+  color: var(--primary-color);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background-color: var(--accent-color);
+}
+
+.tab-content {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="number"],
+select {
+  padding: 0.75rem 1rem;
+  margin: 5px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+}
+
+input[type="date"] {
+  min-height: 50px;
+}
+
+input[type="number"] {
+  width: 80px;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
+}
+
+button {
+  background-color: var(--primary-color);
+  border: none;
+  color: white;
+  padding: 0.75rem 1rem;
+  margin: 5px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-weight: 500;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:hover {
+  background-color: var(--primary-light);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+.btn-danger {
+  background-color: var(--error-color);
+}
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+.teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.teacher-card {
+  background: white;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.teacher-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.teacher-card img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+  object-fit: cover;
+  background-color: #f0f0f0;
+}
+
+.teacher-card h3 {
+  margin: 0.5rem 0;
+  color: #333;
+}
+
+.notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  animation: fadeInOut 3s ease forwards;
+  color: white;
+}
+
+.notification.success {
+  background-color: var(--success-color);
+}
+
+.notification.warning {
+  background-color: var(--warning-color);
+}
+
+.notification.error {
+  background-color: var(--error-color);
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(20px); }
+}
+
+.version {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 992px) {
+  .main-layout {
+    flex-direction: row;
+  }
   
-  <!-- Normaler App-Bereich für Lehrer -->
-  <div id="appSection" style="display: none;">
-    <header>
-      <div class="teacher-info">
-        <div class="teacher-avatar" id="teacherAvatar">T</div>
-        <div class="teacher-name" id="teacherName">Töllner</div>
-      </div>
-      <h1>Zeig, was du kannst</h1>
-      <button id="logoutBtn" class="logout-btn">Abmelden</button>
-    </header>
-    
-    <div class="container">
-      <div class="tabs">
-        <div class="tab active" data-tab="students">Schüler anlegen</div>
-        <div class="tab" data-tab="templates">Bewertungsraster</div>
-        <div class="tab" data-tab="assessment">Bewertung</div>
-        <div class="tab" data-tab="overview">Übersicht</div>
-        <div class="tab" data-tab="settings">Einstellungen</div>
-      </div>
-      
-      <!-- Tab: Schüler anlegen -->
-      <div class="tab-content active" id="students-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Schüler anlegen</h3>
-              <div class="form-group">
-                <label for="newStudentName">Name des Schülers</label>
-                <input type="text" id="newStudentName" placeholder="Vor- und Nachname">
-              </div>
-              <div class="form-group">
-                <label for="newStudentTopic">Thema (optional)</label>
-                <input type="text" id="newStudentTopic" placeholder="Thema der Prüfung">
-              </div>
-              <div class="form-group">
-                <label for="examDate">Prüfungsdatum</label>
-                <input type="date" id="examDate">
-              </div>
-              <div class="form-group">
-                <label for="assignedTeacherSelect">Zugewiesener Lehrer</label>
-                <select id="assignedTeacherSelect">
-                  <option value="">Aktueller Lehrer (Sie)</option>
-                </select>
-                <small class="help-text">
-                  Wählen Sie aus, welcher Lehrer diesen Schüler bewerten soll
-                </small>
-              </div>
-              <div class="form-group">
-                <label for="templateSelect">Bewertungsraster</label>
-                <select id="templateSelect">
-                  <option value="">Standard-Raster</option>
-                </select>
-                <small class="help-text">
-                  Bewertungsraster bestimmt die Bewertungskriterien
-                </small>
-              </div>
-              <button id="addStudentBtn">Schüler hinzufügen</button>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Alle Schüler</h2>
-            <div class="filter-controls">
-              <div class="form-group">
-                <label for="studentViewFilter">Ansicht</label>
-                <select id="studentViewFilter">
-                  <option value="assigned">Mir zugewiesene Schüler</option>
-                  <option value="created">Von mir erstellte Schüler</option>
-                  <option value="all">Alle Schüler</option>
-                </select>
-              </div>
-            </div>
-            <div class="table-container">
-              <table class="student-table" id="studentsTable">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Datum</th>
-                    <th>Thema</th>
-                    <th>Zugewiesen an</th>
-                    <th>Erstellt von</th>
-                    <th>Aktionen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colspan="6">Keine Schüler vorhanden</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+  .sidebar {
+    width: 300px;
+    flex-shrink: 0;
+  }
+  
+  .content-area {
+    flex-grow: 1;
+  }
+}
 
-      <!-- Tab: Bewertungsraster -->
-      <div class="tab-content" id="templates-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neues Bewertungsraster</h3>
-              <div class="form-group">
-                <label for="newTemplateName">Name des Rasters</label>
-                <input type="text" id="newTemplateName" placeholder="z.B. Präsentation 2024">
-              </div>
-              <div class="form-group">
-                <label for="newTemplateDescription">Beschreibung</label>
-                <textarea id="newTemplateDescription" rows="3" placeholder="Kurze Beschreibung des Bewertungsrasters"></textarea>
-              </div>
-              <h4>Bewertungskriterien</h4>
-              <div id="templateCriteriaContainer">
-                <div class="criterion-row">
-                  <input type="text" placeholder="Kriterium" class="criterion-name">
-                  <input type="number" min="1" max="5" value="1" class="criterion-weight" title="Gewichtung">
-                  <button type="button" class="remove-criterion btn-danger">✕</button>
-                </div>
-              </div>
-              <button type="button" id="addCriterionBtn" class="btn-secondary">+ Kriterium hinzufügen</button>
-              <button id="saveTemplateBtn">Bewertungsraster speichern</button>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Bewertungsraster verwalten</h2>
-            <div class="templates-grid" id="templatesGrid">
-              <!-- Templates werden dynamisch geladen -->
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: Bewertung -->
-      <div class="tab-content" id="assessment-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Schüler filtern</h3>
-              <div class="form-group">
-                <label for="assessmentDateSelect">Prüfungsdatum</label>
-                <select id="assessmentDateSelect">
-                  <option value="">Alle Termine</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="assessmentTopicSelect">Thema</label>
-                <select id="assessmentTopicSelect">
-                  <option value="">Alle Themen</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="section">
-              <h3>Schüler</h3>
-              <ul class="student-list" id="assessmentStudentList">
-                <li>Bitte wählen Sie ein Datum oder Thema</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div class="content-area" id="assessmentContent">
-            <div class="welcome-card">
-              <h2>Willkommen bei der Bewertungsapp</h2>
-              <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Schüler aus der Liste auswählen.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: Übersicht -->
-      <div class="tab-content" id="overview-tab">
-        <h2>Übersicht aller Bewertungen</h2>
-        
-        <div class="selectors">
-          <div class="selector-group">
-            <label for="overviewYearSelect">Prüfungsjahr</label>
-            <select id="overviewYearSelect">
-              <option value="">Alle Jahre</option>
-            </select>
-          </div>
-          
-          <div class="selector-group">
-            <label for="overviewDateSelect">Prüfungstag</label>
-            <select id="overviewDateSelect">
-              <option value="">Alle Tage</option>
-            </select>
-          </div>
-          
-          <div class="selector-group">
-            <label for="overviewTopicSelect">Thema</label>
-            <select id="overviewTopicSelect">
-              <option value="">Alle Themen</option>
-            </select>
-          </div>
-          
-          <div>
-            <button id="printBtn" class="print-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                <rect x="6" y="14" width="12" height="8"></rect>
-              </svg>
-              Drucken
-            </button>
-          </div>
-        </div>
-        
-        <div class="table-container">
-          <table class="overview-table" id="overviewTable">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Datum</th>
-                <th>Thema</th>
-                <th>Zugewiesen an</th>
-                <th>Bewertungsraster</th>
-                <th>Bewertungen</th>
-                <th>Note</th>
-                <th>Aktionen</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colspan="8">Keine Schüler gefunden</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <!-- Tab: Einstellungen -->
-      <div class="tab-content" id="settings-tab">
-        <h2>Einstellungen</h2>
-        
-        <div class="selectors">
-          <div class="selector-group">
-            <label for="settingsYearSelect">Prüfungsjahr</label>
-            <select id="settingsYearSelect">
-              <option value="">Alle Jahre</option>
-            </select>
-          </div>
-          
-          <div class="selector-group">
-            <label for="settingsDateSelect">Prüfungstag</label>
-            <select id="settingsDateSelect">
-              <option value="">Alle Tage</option>
-            </select>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>Standard-Bewertungsraster</h3>
-          <div class="form-group">
-            <label for="defaultTemplateSelect">Standard-Raster für neue Schüler</label>
-            <select id="defaultTemplateSelect">
-              <option value="">WBS Standard</option>
-            </select>
-          </div>
-          <button id="saveSettingsBtn">Einstellungen speichern</button>
-        </div>
-        
-        <div class="card">
-          <h3>Ergebnisse exportieren</h3>
-          <p>Ergebnisse für den ausgewählten Zeitraum exportieren.</p>
-          <button id="exportDataBtn">Ergebnisse herunterladen</button>
-          <div style="margin-top: 10px;">
-            <label>
-              <input type="radio" name="exportFormat" id="exportTXT" checked> Als TXT exportieren
-            </label>
-          </div>
-          <div>
-            <label>
-              <input type="radio" name="exportFormat" id="exportJSON"> Als JSON exportieren
-            </label>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>Daten löschen</h3>
-          <p>Achtung: Diese Aktion kann nicht rückgängig gemacht werden.</p>
-          <div class="form-group">
-            <label for="deleteVerificationCode">Zur Bestätigung den Lehrerkürzel eingeben</label>
-            <input type="text" id="deleteVerificationCode" placeholder="z.B. KRE, RIF, TOE">
-          </div>
-          <button id="deleteDataBtn" class="btn-danger">Alle Daten löschen</button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Modals für Schüler-Verwaltung -->
-    <div class="modal" id="editStudentModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Schüler bearbeiten</h3>
-          <button class="modal-close" id="closeEditStudentModal">&times;</button>
-        </div>
-        <div class="form-group">
-          <label for="editStudentName">Name des Schülers</label>
-          <input type="text" id="editStudentName" placeholder="Vor- und Nachname">
-        </div>
-        <div class="form-group">
-          <label for="editStudentTopic">Thema (optional)</label>
-          <input type="text" id="editStudentTopic" placeholder="Thema der Prüfung">
-        </div>
-        <div class="form-group">
-          <label for="editExamDate">Prüfungsdatum</label>
-          <input type="date" id="editExamDate">
-        </div>
-        <div class="form-group">
-          <label for="editAssignedTeacher">Zugewiesener Lehrer</label>
-          <select id="editAssignedTeacher">
-            <option value="">Auswählen...</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="editTemplateSelect">Bewertungsraster</label>
-          <select id="editTemplateSelect">
-            <option value="">Standard-Raster</option>
-          </select>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-danger" id="deleteStudentBtn">Löschen</button>
-          <button id="saveStudentBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
+.sidebar {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+}
 
-    <!-- Template Edit Modal -->
-    <div class="modal" id="editTemplateModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Bewertungsraster bearbeiten</h3>
-          <button class="modal-close" id="closeEditTemplateModal">&times;</button>
-        </div>
-        <div class="form-group">
-          <label for="editTemplateName">Name des Rasters</label>
-          <input type="text" id="editTemplateName" placeholder="Name">
-        </div>
-        <div class="form-group">
-          <label for="editTemplateDescription">Beschreibung</label>
-          <textarea id="editTemplateDescription" rows="3" placeholder="Beschreibung"></textarea>
-        </div>
-        <h4>Bewertungskriterien</h4>
-        <div id="editTemplateCriteriaContainer">
-          <!-- Kriterien werden dynamisch geladen -->
-        </div>
-        <button type="button" id="addEditCriterionBtn" class="btn-secondary">+ Kriterium hinzufügen</button>
-        <div class="modal-footer">
-          <button class="btn-danger" id="deleteTemplateBtn">Löschen</button>
-          <button id="updateTemplateBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
-    
-    <div class="modal" id="editGradeModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Note bearbeiten</h3>
-          <button class="modal-close" id="closeEditGradeModal">&times;</button>
-        </div>
-        <div id="editGradeContent">
-          <div class="form-group">
-            <label for="editFinalGrade">Endnote</label>
-            <input type="number" id="editFinalGrade" min="1" max="6" step="0.5">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="saveGradeBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
-    
-    <div class="modal" id="confirmDeleteModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Schüler löschen</h3>
-          <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
-        </div>
-        <p>Soll dieser Schüler und alle zugehörigen Bewertungen gelöscht werden?</p>
-        <p id="deleteStudentName" style="font-weight: bold;"></p>
-        <div class="modal-footer">
-          <button id="cancelDeleteBtn">Abbrechen</button>
-          <button class="btn-danger" id="confirmDeleteBtn">Löschen</button>
-        </div>
-      </div>
-    </div>
-  </div>
+.content-area {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+}
 
-  <!-- Admin-Modals -->
-  <div class="modal" id="editTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer bearbeiten</h3>
-        <button class="modal-close" id="closeEditTeacherModal">&times;</button>
-      </div>
-      <div class="form-group">
-        <label for="editTeacherName">Vollständiger Name</label>
-        <input type="text" id="editTeacherName" placeholder="z.B. Max Mustermann">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherCode">Kürzel</label>
-        <input type="text" id="editTeacherCode" placeholder="z.B. MUM" maxlength="5">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherPassword">Passwort</label>
-        <input type="password" id="editTeacherPassword" placeholder="Neues Passwort">
-      </div>
-      <div class="modal-footer">
-        <button class="btn-danger" id="deleteTeacherBtn">Löschen</button>
-        <button id="saveTeacherBtn">Speichern</button>
-      </div>
-    </div>
-  </div>
+.student-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
 
-  <div class="modal" id="confirmDeleteTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer löschen</h3>
-        <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
-      </div>
-      <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
-      <p><strong>Achtung:</strong> Alle Bewertungsdaten dieses Lehrers bleiben erhalten, aber der Zugang wird gesperrt.</p>
-      <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
-      <div class="modal-footer">
-        <button id="cancelDeleteTeacherBtn">Abbrechen</button>
-        <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
-      </div>
-    </div>
-  </div>
+.student-item {
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  background: #f5f8fa;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: var(--transition);
+}
 
-  <!-- Firebase SDK einbinden -->
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+.student-item:hover {
+  background: #e9f0f7;
+}
 
-  <!-- Eigene JS-Module -->
-  <script type="module" src="js/main.js"></script>
-</body>
-</html>
+.student-item.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.student-name {
+  font-weight: 500;
+}
+
+.assessment-container {
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
+}
+
+.student-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.student-header h2 {
+  color: var(--primary-color);
+  margin-bottom: 5px;
+}
+
+.final-grade-display {
+  font-size: 3rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-color);
+  margin: 20px 0;
+}
+
+.final-grade-input {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+/* Bewertungskategorie: Box-Stil hinzufügen */
+.assessment-category {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+}
+
+/* Überschriften in den Bewertungs-Kategorien mittig zentrieren */
+.category-header {
+  text-align: center;
+  margin-bottom: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.category-header h3 {
+  margin: 0;
+  color: white;
+}
+
+.category-grade {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-dark);
+  margin: 10px 0;
+}
+
+.grade-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.grade-button {
+  min-width: 35px;
+  height: 35px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.grade-button:hover {
+  transform: scale(1.1);
+}
+
+/* Geändert: Blauer Rahmen für ausgewählte Note-Buttons */
+.grade-button.selected {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--blue-accent);
+}
+
+.grade-button.grade-0  { background-color: #95a5a6; }
+.grade-button.grade-1  { background-color: #27ae60; }
+.grade-button.grade-2  { background-color: #2ecc71; }
+.grade-button.grade-3  { background-color: #f1c40f; color: #333; }
+.grade-button.grade-4  { background-color: #e67e22; }
+.grade-button.grade-5  { background-color: #d35400; }
+.grade-button.grade-6  { background-color: #c0392b; }
+
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.student-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 10px 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.student-table td {
+  padding: 10px 15px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.student-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.student-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.overview-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.overview-table td {
+  padding: 8px 10px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.overview-table td:first-child {
+  text-align: left;
+}
+
+.overview-table td:last-child {
+  text-align: center;
+}
+
+.overview-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.overview-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.edit-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: auto;
+}
+
+.edit-btn:hover {
+  background-color: var(--primary-light);
+}
+
+.selectors {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.selector-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.selector-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--primary-dark);
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--card-shadow);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--primary-dark);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #777;
+  min-height: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 15px;
+}
+
+.loader-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid var(--primary-light);
+  border-bottom-color: var(--primary-color);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.teacher-info {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.teacher-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.teacher-name {
+  color: white;
+  font-weight: 500;
+}
+
+.logout-btn {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--primary-dark);
+}
+
+.date-display {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.average-grade {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 5px;
+  display: inline-block;
+}
+
+/* Höhe des Textfeldes angepasst */
+#studentInfoText {
+  width: 100%;
+  height: 100px; /* 4 Zeilen statt min-height: 300px */
+  box-sizing: border-box;
+  resize: vertical; /* Optional: ermöglicht Benutzer das Anpassen der Höhe */
+}
+
+/* Animation für gespeicherten Text */
+.save-flash {
+  animation: saveFlash 1s ease;
+}
+
+@keyframes saveFlash {
+  0% { background-color: rgba(52, 152, 219, 0.2); }
+  100% { background-color: transparent; }
+}
+
+/* Sticky-Durchschnitts-Anzeige */
+.sticky-average {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  font-weight: bold;
+  z-index: 100;
+  display: none; /* Standardmäßig ausgeblendet */
+}
+
+/* Druck-Button */
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #3498db;
+}
+
+.print-btn:hover {
+  background-color: #2980b9;
+}
+
+/* Für den Ausdruck */
+@media print {
+  header, .tabs, .selectors, button, .sidebar {
+    display: none !important;
+  }
+  
+  body, .container, .content-area {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  .table-container {
+    overflow: visible !important;
+  }
+  
+  table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+}
+
+/* Admin-Bereich CSS-Erweiterungen */
+
+/* Admin-Login Bereich */
+.admin-login-form {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.admin-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-buttons button {
+  flex: 1;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+
+.admin-access {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  margin-top: 2rem;
+}
+
+.admin-access button {
+  background-color: #6c757d;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+}
+
+/* Admin-Panel */
+.teacher-admin-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 12px 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.teacher-admin-table td {
+  padding: 12px 15px;
+  border-top: 1px solid #e0e0e0;
+  vertical-align: middle;
+}
+
+.teacher-admin-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.teacher-admin-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.teacher-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.teacher-actions button {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+}
+
+/* System-Info */
+.card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+#systemStats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+/* Admin-spezifische Formulare */
+.section {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.section h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  text-align: center;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+/* NEUE ADMIN-LÖSCH-STYLES */
+
+/* Gefahrenbereich - Rote Karte */
+.danger-zone {
+  background: var(--danger-bg);
+  border: 2px solid var(--danger-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.danger-zone h3 {
+  color: var(--error-color);
+  border-bottom: 2px solid var(--error-color);
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+}
+
+.warning-text {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  color: #991b1b;
+}
+
+.danger-actions {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.danger-actions .btn-danger {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.danger-actions .btn-danger:hover {
+  background-color: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.danger-explanation {
+  background: #fef3f2;
+  border: 1px solid #fed7d7;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.danger-explanation h4 {
+  color: var(--error-color);
+  margin-bottom: 10px;
+}
+
+.danger-explanation ul {
+  margin-left: 20px;
+  color: #7f1d1d;
+}
+
+.danger-explanation li {
+  margin-bottom: 8px;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.help-text br {
+  margin-bottom: 3px;
+}
+
+/* System-Aktionen */
+.system-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.system-actions button {
+  flex: 1;
+  min-width: 150px;
+}
+
+/* Responsive Admin-Layout */
+@media (max-width: 768px) {
+  .admin-buttons {
+    flex-direction: column;
+  }
+  
+  .teacher-actions {
+    flex-direction: column;
+  }
+  
+  .stat-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  #systemStats {
+    grid-template-columns: 1fr;
+  }
+  
+  .danger-actions {
+    flex-direction: column;
+  }
+  
+  .danger-actions .btn-danger {
+    min-width: auto;
+  }
+  
+  .system-actions {
+    flex-direction: column;
+  }
+}
+
+/* Admin-Status-Indikatoren */
+.status-online {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.status-offline {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.status-warning {
+  color: var(--warning-color);
+  font-weight: bold;
+}
+
+/* Lehrer-Code Hervorhebung */
+.teacher-code {
+  font-family: 'Courier New', monospace;
+  background-color: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Admin-Tabellen-Scrolling */
+.table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Animation für Admin-Bereiche */
+.admin-fade-in {
+  animation: adminFadeIn 0.4s ease forwards;
+}
+
+@keyframes adminFadeIn {
+  0% { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+/* Spezielle Hervorhebung für destruktive Aktionen */
+.btn-danger:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.3);
+}
+
+/* Erfolgs-/Fehler-Feedback für Admin-Aktionen */
+.action-feedback {
+  padding: 10px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.action-feedback.success {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.action-feedback.error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Zeig, was du kannst</title>
+  <title>Zeig was du kannst</title>
   <link rel="icon" href="data:," />
   <link
     href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
@@ -19,8 +19,8 @@
   <!-- Normaler Login-Bereich -->
   <div id="loginSection">
     <header>
-      <h1>Zeig, was du kannst</h1>
-      <div class="version">v2.0</div>
+      <h1>Zeig was du kannst</h1>
+      <div class="version">v1.7</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -55,8 +55,8 @@
   <!-- Admin-Login-Bereich -->
   <div id="adminLoginSection" style="display: none;">
     <header>
-      <h1>Zeig, was du kannst - Admin</h1>
-      <div class="version">v2.0</div>
+      <h1>Zeig was du kannst - Admin</h1>
+      <div class="version">v1.7</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -86,7 +86,7 @@
         <div class="teacher-avatar">A</div>
         <div class="teacher-name">Administrator</div>
       </div>
-      <h1>Zeig, was du kannst - Admin</h1>
+      <h1>WBS Bewertungssystem - Admin</h1>
       <button id="adminLogoutBtn" class="logout-btn">Abmelden</button>
     </header>
     
@@ -171,7 +171,7 @@
           </div>
         </div>
 
-        <!-- Datenlöschung -->
+        <!-- NEUE SEKTION: Datenlöschung -->
         <div class="card danger-zone">
           <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
           <p class="warning-text">
@@ -215,132 +215,25 @@
         <div class="teacher-avatar" id="teacherAvatar">T</div>
         <div class="teacher-name" id="teacherName">Töllner</div>
       </div>
-      <h1>Zeig, was du kannst</h1>
+      <h1>WBS Bewertungssystem</h1>
       <button id="logoutBtn" class="logout-btn">Abmelden</button>
     </header>
     
     <div class="container">
       <div class="tabs">
-        <div class="tab active" data-tab="dashboard">Dashboard</div>
-        <div class="tab" data-tab="students">Schüler anlegen</div>
-        <div class="tab" data-tab="templates">Bewertungsraster</div>
+        <div class="tab active" data-tab="students">Schüler anlegen</div>
         <div class="tab" data-tab="assessment">Bewertung</div>
         <div class="tab" data-tab="overview">Übersicht</div>
         <div class="tab" data-tab="settings">Einstellungen</div>
       </div>
       
-      <!-- Tab: Dashboard -->
-      <div class="tab-content active" id="dashboard-tab">
-        <h2>Dashboard - Überblick</h2>
-        
-        <!-- Statistik-Karten -->
-        <div class="dashboard-stats">
-          <div class="stat-card">
-            <div class="stat-icon">📊</div>
-            <div class="stat-content">
-              <div class="stat-number" id="totalAccessibleStudents">0</div>
-              <div class="stat-label">Schüler insgesamt</div>
-            </div>
-          </div>
-          
-          <div class="stat-card">
-            <div class="stat-icon">✏️</div>
-            <div class="stat-content">
-              <div class="stat-number" id="totalAssignedStudents">0</div>
-              <div class="stat-label">Zu bewerten</div>
-            </div>
-          </div>
-          
-          <div class="stat-card">
-            <div class="stat-icon">📅</div>
-            <div class="stat-content">
-              <div class="stat-number" id="studentsThisYear">0</div>
-              <div class="stat-label">Dieses Schuljahr</div>
-            </div>
-          </div>
-          
-          <div class="stat-card">
-            <div class="stat-icon">✅</div>
-            <div class="stat-content">
-              <div class="stat-number" id="completedAssessments">0</div>
-              <div class="stat-label">Abgeschlossen</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Bewertungsstatus -->
-        <div class="dashboard-section">
-          <h3>Bewertungsstatus</h3>
-          <div class="status-overview">
-            <div class="status-bar">
-              <div class="status-segment completed" id="statusCompleted" style="width: 0%"></div>
-              <div class="status-segment in-progress" id="statusInProgress" style="width: 0%"></div>
-              <div class="status-segment not-started" id="statusNotStarted" style="width: 0%"></div>
-            </div>
-            <div class="status-legend">
-              <div class="legend-item">
-                <span class="legend-color completed"></span>
-                <span class="legend-text">Abgeschlossen (<span id="completedCount">0</span>)</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color in-progress"></span>
-                <span class="legend-text">In Bearbeitung (<span id="inProgressCount">0</span>)</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-color not-started"></span>
-                <span class="legend-text">Nicht begonnen (<span id="notStartedCount">0</span>)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Aktuelle Prüfungen -->
-        <div class="dashboard-section">
-          <h3>Aktuelle Prüfungen - <span id="currentSchoolYear">2024/2025</span></h3>
-          <div class="form-group">
-            <label for="dashboardSchoolYearSelect">Schuljahr</label>
-            <select id="dashboardSchoolYearSelect">
-              <option value="">Alle Schuljahre</option>
-            </select>
-          </div>
-          
-          <div class="student-cards" id="dashboardStudentCards">
-            <!-- Student cards werden dynamisch generiert -->
-          </div>
-        </div>
-        
-        <!-- Schnellzugriff -->
-        <div class="dashboard-section">
-          <h3>Schnellzugriff</h3>
-          <div class="quick-actions">
-            <button class="quick-action-btn" data-tab="students">
-              <span class="action-icon">➕</span>
-              <span class="action-text">Schüler anlegen</span>
-            </button>
-            <button class="quick-action-btn" data-tab="templates">
-              <span class="action-icon">📝</span>
-              <span class="action-text">Bewertungsraster</span>
-            </button>
-            <button class="quick-action-btn" data-tab="assessment">
-              <span class="action-icon">⭐</span>
-              <span class="action-text">Bewerten</span>
-            </button>
-            <button class="quick-action-btn" data-tab="overview">
-              <span class="action-icon">📋</span>
-              <span class="action-text">Übersicht</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab: Schüler anlegen -->
-      <div class="tab-content" id="students-tab">
+      <div class="tab-content active" id="students-tab">
         <div class="main-layout">
           <div class="sidebar">
             <div class="section">
-              <h3>Schüler anlegen</h3>
+              <h3>Prüfling anlegen</h3>
               <div class="form-group">
-                <label for="newStudentName">Name des Schülers</label>
+                <label for="newStudentName">Name des Prüflings</label>
                 <input type="text" id="newStudentName" placeholder="Vor- und Nachname">
               </div>
               <div class="form-group">
@@ -351,57 +244,25 @@
                 <label for="examDate">Prüfungsdatum</label>
                 <input type="date" id="examDate">
               </div>
-              <div class="form-group">
-                <label for="assignedTeacherSelect">Zugewiesener Lehrer</label>
-                <select id="assignedTeacherSelect">
-                  <option value="">Aktueller Lehrer (Sie)</option>
-                </select>
-                <small class="help-text">
-                  Wählen Sie aus, welcher Lehrer diesen Schüler bewerten soll
-                </small>
-              </div>
-              <div class="form-group">
-                <label for="templateSelect">Bewertungsraster</label>
-                <select id="templateSelect">
-                  <option value="">Standard-Raster</option>
-                </select>
-                <small class="help-text">
-                  Bewertungsraster bestimmt die Bewertungskriterien
-                </small>
-              </div>
-              <button id="addStudentBtn">Schüler hinzufügen</button>
+              <button id="addStudentBtn">Prüfling hinzufügen</button>
             </div>
           </div>
           
           <div class="content-area">
-            <h2>Alle Schüler</h2>
-            <div class="filter-controls">
-              <div class="form-group">
-                <label for="studentViewFilter">Ansicht</label>
-                <select id="studentViewFilter">
-                  <option value="accessible">Alle zugänglichen Schüler</option>
-                  <option value="assigned">Mir zugewiesene Schüler</option>
-                  <option value="created">Von mir erstellte Schüler</option>
-                </select>
-              </div>
-            </div>
+            <h2>Alle Prüflinge</h2>
             <div class="table-container">
               <table class="student-table" id="studentsTable">
                 <thead>
                   <tr>
-                    <th>Status</th>
                     <th>Name</th>
                     <th>Datum</th>
                     <th>Thema</th>
-                    <th>Zugewiesen an</th>
-                    <th>Erstellt von</th>
-                    <th>Schuljahr</th>
                     <th>Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td colspan="8">Keine Schüler vorhanden</td>
+                    <td colspan="4">Keine Prüflinge vorhanden</td>
                   </tr>
                 </tbody>
               </table>
@@ -409,49 +270,12 @@
           </div>
         </div>
       </div>
-
-      <!-- Tab: Bewertungsraster -->
-      <div class="tab-content" id="templates-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neues Bewertungsraster</h3>
-              <div class="form-group">
-                <label for="newTemplateName">Name des Rasters</label>
-                <input type="text" id="newTemplateName" placeholder="z.B. Präsentation 2024">
-              </div>
-              <div class="form-group">
-                <label for="newTemplateDescription">Beschreibung</label>
-                <textarea id="newTemplateDescription" rows="3" placeholder="Kurze Beschreibung des Bewertungsrasters"></textarea>
-              </div>
-              <h4>Bewertungskriterien</h4>
-              <div id="templateCriteriaContainer">
-                <div class="criterion-row">
-                  <input type="text" placeholder="Kriterium" class="criterion-name">
-                  <input type="number" min="1" max="5" value="1" class="criterion-weight" title="Gewichtung">
-                  <button type="button" class="remove-criterion btn-danger">✕</button>
-                </div>
-              </div>
-              <button type="button" id="addCriterionBtn" class="btn-secondary">+ Kriterium hinzufügen</button>
-              <button id="saveTemplateBtn">Bewertungsraster speichern</button>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Bewertungsraster verwalten</h2>
-            <div class="templates-grid" id="templatesGrid">
-              <!-- Templates werden dynamisch geladen -->
-            </div>
-          </div>
-        </div>
-      </div>
       
-      <!-- Tab: Bewertung -->
       <div class="tab-content" id="assessment-tab">
         <div class="main-layout">
           <div class="sidebar">
             <div class="section">
-              <h3>Schüler filtern</h3>
+              <h3>Prüflinge filtern</h3>
               <div class="form-group">
                 <label for="assessmentDateSelect">Prüfungsdatum</label>
                 <select id="assessmentDateSelect">
@@ -464,35 +288,25 @@
                   <option value="">Alle Themen</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label for="assessmentStatusFilter">Status</label>
-                <select id="assessmentStatusFilter">
-                  <option value="">Alle Status</option>
-                  <option value="not_started">Nicht begonnen</option>
-                  <option value="in_progress">In Bearbeitung</option>
-                  <option value="completed">Abgeschlossen</option>
-                </select>
-              </div>
             </div>
             
             <div class="section">
-              <h3>Ihre Schüler</h3>
+              <h3>Prüflinge</h3>
               <ul class="student-list" id="assessmentStudentList">
-                <li>Bitte wählen Sie Filter aus</li>
+                <li>Bitte wählen Sie ein Datum oder Thema</li>
               </ul>
             </div>
           </div>
           
           <div class="content-area" id="assessmentContent">
             <div class="welcome-card">
-              <h2>Willkommen bei der Bewertungsapp</h2>
-              <p>Bitte wählen Sie Filter aus und anschließend einen Schüler aus der Liste.</p>
+              <h2>Willkommen bei der WBS Bewertungsapp</h2>
+              <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Prüfling aus der Liste auswählen.</p>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- Tab: Übersicht -->
       <div class="tab-content" id="overview-tab">
         <h2>Übersicht aller Bewertungen</h2>
         
@@ -518,16 +332,6 @@
             </select>
           </div>
           
-          <div class="selector-group">
-            <label for="overviewStatusSelect">Status</label>
-            <select id="overviewStatusSelect">
-              <option value="">Alle Status</option>
-              <option value="not_started">Nicht begonnen</option>
-              <option value="in_progress">In Bearbeitung</option>
-              <option value="completed">Abgeschlossen</option>
-            </select>
-          </div>
-          
           <div>
             <button id="printBtn" class="print-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -544,27 +348,30 @@
           <table class="overview-table" id="overviewTable">
             <thead>
               <tr>
-                <th>Status</th>
                 <th>Name</th>
                 <th>Datum</th>
                 <th>Thema</th>
-                <th>Zugewiesen an</th>
-                <th>Bewertungsraster</th>
-                <th>Bewertungen</th>
+                <th>Präsentation</th>
+                <th>Inhalt</th>
+                <th>Sprache</th>
+                <th>Eindruck</th>
+                <th>Prüfung</th>
+                <th>Reflexion</th>
+                <th>Fachwissen</th>
+                <th>Dokumentation</th>
                 <th>Note</th>
                 <th>Aktionen</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colspan="9">Keine Schüler gefunden</td>
+                <td colspan="13">Keine Prüflinge gefunden</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
       
-      <!-- Tab: Einstellungen -->
       <div class="tab-content" id="settings-tab">
         <h2>Einstellungen</h2>
         
@@ -582,17 +389,6 @@
               <option value="">Alle Tage</option>
             </select>
           </div>
-        </div>
-        
-        <div class="card">
-          <h3>Standard-Bewertungsraster</h3>
-          <div class="form-group">
-            <label for="defaultTemplateSelect">Standard-Raster für neue Schüler</label>
-            <select id="defaultTemplateSelect">
-              <option value="">WBS Standard</option>
-            </select>
-          </div>
-          <button id="saveSettingsBtn">Einstellungen speichern</button>
         </div>
         
         <div class="card">
@@ -623,15 +419,14 @@
       </div>
     </div>
     
-    <!-- Modals für Schüler-Verwaltung -->
     <div class="modal" id="editStudentModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Schüler bearbeiten</h3>
+          <h3>Prüfling bearbeiten</h3>
           <button class="modal-close" id="closeEditStudentModal">&times;</button>
         </div>
         <div class="form-group">
-          <label for="editStudentName">Name des Schülers</label>
+          <label for="editStudentName">Name des Prüflings</label>
           <input type="text" id="editStudentName" placeholder="Vor- und Nachname">
         </div>
         <div class="form-group">
@@ -642,51 +437,9 @@
           <label for="editExamDate">Prüfungsdatum</label>
           <input type="date" id="editExamDate">
         </div>
-        <div class="form-group">
-          <label for="editAssignedTeacher">Zugewiesener Lehrer</label>
-          <select id="editAssignedTeacher">
-            <option value="">Auswählen...</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="editTemplateSelect">Bewertungsraster</label>
-          <select id="editTemplateSelect">
-            <option value="">Standard-Raster</option>
-          </select>
-          <small class="help-text">
-            ⚠️ Nur der zugewiesene Lehrer kann das Bewertungsraster ändern
-          </small>
-        </div>
         <div class="modal-footer">
           <button class="btn-danger" id="deleteStudentBtn">Löschen</button>
           <button id="saveStudentBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Template Edit Modal -->
-    <div class="modal" id="editTemplateModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Bewertungsraster bearbeiten</h3>
-          <button class="modal-close" id="closeEditTemplateModal">&times;</button>
-        </div>
-        <div class="form-group">
-          <label for="editTemplateName">Name des Rasters</label>
-          <input type="text" id="editTemplateName" placeholder="Name">
-        </div>
-        <div class="form-group">
-          <label for="editTemplateDescription">Beschreibung</label>
-          <textarea id="editTemplateDescription" rows="3" placeholder="Beschreibung"></textarea>
-        </div>
-        <h4>Bewertungskriterien</h4>
-        <div id="editTemplateCriteriaContainer">
-          <!-- Kriterien werden dynamisch geladen -->
-        </div>
-        <button type="button" id="addEditCriterionBtn" class="btn-secondary">+ Kriterium hinzufügen</button>
-        <div class="modal-footer">
-          <button class="btn-danger" id="deleteTemplateBtn">Löschen</button>
-          <button id="updateTemplateBtn">Speichern</button>
         </div>
       </div>
     </div>
@@ -712,10 +465,10 @@
     <div class="modal" id="confirmDeleteModal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>Schüler löschen</h3>
+          <h3>Prüfling löschen</h3>
           <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
         </div>
-        <p>Soll dieser Schüler und alle zugehörigen Bewertungen gelöscht werden?</p>
+        <p>Soll dieser Prüfling und alle zugehörigen Bewertungen gelöscht werden?</p>
         <p id="deleteStudentName" style="font-weight: bold;"></p>
         <div class="modal-footer">
           <button id="cancelDeleteBtn">Abbrechen</button>
@@ -723,6 +476,8 @@
         </div>
       </div>
     </div>
+    
+    <!-- Sticky-Durchschnittsanzeige wird dynamisch erzeugt -->
   </div>
 
   <!-- Admin-Modals -->

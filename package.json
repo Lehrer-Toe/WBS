@@ -1,27 +1,7 @@
 {
-  "name": "zeig-was-du-kannst",
-  "version": "2.0.0",
-  "description": "Bewertungssystem für Schülerleistungen mit individuellen Bewertungsrastern",
-  "main": "js/main.js",
+  "name": "wbs-bewertungssystem",
+  "version": "1.6.0",
   "scripts": {
-    "build": "node build.js",
-    "dev": "python -m http.server 8000",
-    "start": "npm run build && npm run dev"
-  },
-  "keywords": [
-    "bewertung",
-    "schule",
-    "noten",
-    "firebase",
-    "javascript"
-  ],
-  "author": "WBS Team",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-repo/zeig-was-du-kannst.git"
-  },
-  "engines": {
-    "node": ">=16.0.0"
+    "build": "node build.js"
   }
 }

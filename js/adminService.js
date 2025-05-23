@@ -1,4 +1,4 @@
-// js/adminService.js - ÜBERARBEITET mit Schuljahr-Management
+// js/adminService.js
 
 import { db } from "./firebaseClient.js";
 import { ADMIN_CONFIG, DEFAULT_TEACHERS } from "./constants.js";
@@ -17,20 +17,12 @@ export let currentAdmin = {
 };
 
 /**
- * System-Einstellungen (NEU)
- */
-export let systemSettings = {
-  currentSchoolYear: getCurrentSchoolYear(),
-  nextSchoolYear: getNextSchoolYear(),
-  schoolYearHistory: []
-};
-
-/**
  * Lädt alle registrierten Lehrer aus Firebase
  */
 export async function loadAllTeachers() {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
+    // Fallback auf Standard-Lehrer
     allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
       ...teacher,
       createdAt: new Date().toISOString()
@@ -50,78 +42,33 @@ export async function loadAllTeachers() {
       return true;
     } else {
       console.log("Keine Lehrer-Daten gefunden, erstelle Standard-Lehrer...");
+      // Erste Initialisierung - erstelle Dokument mit Standard-Lehrern
       allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
         ...teacher,
         createdAt: new Date().toISOString()
       }))];
       
+      // Versuche zu speichern, aber ignoriere Fehler
       try {
         await saveAllTeachers();
       } catch (saveError) {
         console.warn("Konnte Standard-Lehrer nicht speichern:", saveError);
+        // Weiter machen - lokale Daten verwenden
       }
       return true;
     }
   } catch (error) {
     console.error("Fehler beim Laden der Lehrer:", error);
     
+    // Fallback: Verwende Standard-Lehrer aus constants.js
     console.log("Verwende Fallback-Lehrer...");
     allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
       ...teacher,
       createdAt: new Date().toISOString()
     }))];
     
+    // System funktioniert trotzdem, nur ohne persistente Lehrerdaten
     return true;
-  }
-}
-
-/**
- * NEU: Lädt System-Einstellungen
- */
-export async function loadSystemSettings() {
-  if (!db) {
-    console.error("Firestore ist nicht initialisiert!");
-    return false;
-  }
-
-  try {
-    const docRef = db.collection(ADMIN_CONFIG.collectionName).doc("system_settings");
-    const doc = await docRef.get();
-
-    if (doc.exists) {
-      const data = doc.data();
-      systemSettings = {
-        ...systemSettings,
-        ...data
-      };
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Laden der System-Einstellungen:", error);
-    return false;
-  }
-}
-
-/**
- * NEU: Speichert System-Einstellungen
- */
-export async function saveSystemSettings() {
-  if (!db) {
-    console.error("Firestore ist nicht initialisiert!");
-    return false;
-  }
-
-  try {
-    await db.collection(ADMIN_CONFIG.collectionName).doc("system_settings").set({
-      ...systemSettings,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    console.log("System-Einstellungen erfolgreich gespeichert");
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Speichern der System-Einstellungen:", error);
-    return false;
   }
 }
 
@@ -144,6 +91,7 @@ export async function saveAllTeachers() {
   } catch (error) {
     console.error("Fehler beim Speichern der Lehrer:", error);
     
+    // Spezifische Fehlermeldungen
     if (error.code === 'permission-denied') {
       console.error("Berechtigung verweigert. Bitte Firebase-Regeln prüfen.");
     } else if (error.code === 'unavailable') {
@@ -178,6 +126,7 @@ export function logoutAdmin() {
  * Neuen Lehrer hinzufügen
  */
 export async function addTeacher(name, code, password) {
+  // Prüfen, ob Kürzel bereits existiert
   const existing = allTeachers.find(t => t.code.toUpperCase() === code.toUpperCase());
   if (existing) {
     throw new Error(`Kürzel "${code}" ist bereits vergeben.`);
@@ -192,13 +141,16 @@ export async function addTeacher(name, code, password) {
 
   allTeachers.push(newTeacher);
   
+  // Versuche zu speichern
   try {
     const saved = await saveAllTeachers();
     if (!saved) {
+      // Rollback bei Fehler
       allTeachers.pop();
       throw new Error("Fehler beim Speichern des Lehrers.");
     }
   } catch (error) {
+    // Rollback bei Fehler
     allTeachers.pop();
     throw error;
   }
@@ -215,6 +167,7 @@ export async function updateTeacher(originalCode, name, code, password) {
     throw new Error("Lehrer nicht gefunden.");
   }
 
+  // Prüfen, ob neues Kürzel bereits von anderem Lehrer verwendet wird
   if (code.toUpperCase() !== originalCode) {
     const existing = allTeachers.find(t => t.code.toUpperCase() === code.toUpperCase());
     if (existing) {
@@ -235,10 +188,12 @@ export async function updateTeacher(originalCode, name, code, password) {
   try {
     const saved = await saveAllTeachers();
     if (!saved) {
+      // Rollback bei Fehler
       allTeachers[index] = oldTeacher;
       throw new Error("Fehler beim Speichern der Änderungen.");
     }
   } catch (error) {
+    // Rollback bei Fehler
     allTeachers[index] = oldTeacher;
     throw error;
   }
@@ -260,10 +215,12 @@ export async function deleteTeacher(code) {
   try {
     const saved = await saveAllTeachers();
     if (!saved) {
+      // Rollback bei Fehler
       allTeachers.splice(index, 0, deletedTeacher);
       throw new Error("Fehler beim Löschen des Lehrers.");
     }
   } catch (error) {
+    // Rollback bei Fehler
     allTeachers.splice(index, 0, deletedTeacher);
     throw error;
   }
@@ -272,18 +229,20 @@ export async function deleteTeacher(code) {
 }
 
 /**
- * Alle Lehrer löschen und auf Standard zurücksetzen
+ * NEUE FUNKTION: Alle Lehrer löschen und auf Standard zurücksetzen
  */
 export async function deleteAllTeachers() {
   try {
     console.log("Setze alle Lehrer auf Standard zurück...");
     
+    // Zurück zu Standard-Lehrern
     allTeachers = [...DEFAULT_TEACHERS.map(teacher => ({
       ...teacher,
       createdAt: new Date().toISOString(),
       resetAt: new Date().toISOString()
     }))];
     
+    // Speichern
     const saved = await saveAllTeachers();
     if (!saved) {
       throw new Error("Fehler beim Zurücksetzen der Lehrer.");
@@ -298,7 +257,7 @@ export async function deleteAllTeachers() {
 }
 
 /**
- * Alle Bewertungsdaten aller Lehrer löschen
+ * NEUE FUNKTION: Alle Bewertungsdaten aller Lehrer löschen
  */
 export async function deleteAllTeacherData() {
   if (!db) {
@@ -309,6 +268,7 @@ export async function deleteAllTeacherData() {
   try {
     console.log("Lösche alle Bewertungsdaten...");
     
+    // Hole alle Dokumente aus der wbs_data Collection
     const snapshot = await db.collection("wbs_data").get();
     
     if (snapshot.empty) {
@@ -316,6 +276,7 @@ export async function deleteAllTeacherData() {
       return true;
     }
     
+    // Batch-Delete für bessere Performance
     const batch = db.batch();
     let deleteCount = 0;
     
@@ -324,6 +285,7 @@ export async function deleteAllTeacherData() {
       deleteCount++;
     });
     
+    // Batch ausführen
     await batch.commit();
     
     console.log(`${deleteCount} Bewertungsdaten-Dokumente gelöscht`);
@@ -335,139 +297,55 @@ export async function deleteAllTeacherData() {
 }
 
 /**
- * NEU: Neues Schuljahr beginnen - exportiert alte Daten und löscht sie
+ * NEUE FUNKTION: Spezifische Lehrer-Bewertungsdaten löschen
  */
-export async function startNewSchoolYear() {
+export async function deleteTeacherData(teacherCode) {
   if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
     throw new Error("Datenbank nicht verfügbar");
   }
 
   try {
-    console.log("Beginne neues Schuljahr...");
+    console.log(`Lösche Bewertungsdaten für Lehrer: ${teacherCode}`);
     
-    // 1. Alle Daten für Export sammeln
-    const exportData = await collectAllDataForExport();
+    // Lösche das spezifische Dokument
+    await db.collection("wbs_data").doc(teacherCode).delete();
     
-    // 2. Alte Daten exportieren (Download-Link generieren)
-    const exportJson = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([exportJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Schuljahr_${systemSettings.currentSchoolYear}_Export_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    // 3. Schuljahr-Historie aktualisieren
-    systemSettings.schoolYearHistory.push({
-      schoolYear: systemSettings.currentSchoolYear,
-      endedAt: new Date().toISOString(),
-      dataExported: true
-    });
-    
-    // 4. Neues Schuljahr setzen
-    systemSettings.currentSchoolYear = systemSettings.nextSchoolYear;
-    systemSettings.nextSchoolYear = getNextSchoolYear();
-    
-    // 5. Alle Bewertungsdaten löschen
-    await deleteAllTeacherData();
-    
-    // 6. System-Einstellungen speichern
-    await saveSystemSettings();
-    
-    console.log(`Neues Schuljahr ${systemSettings.currentSchoolYear} erfolgreich gestartet`);
+    console.log(`Bewertungsdaten für ${teacherCode} gelöscht`);
     return true;
   } catch (error) {
-    console.error("Fehler beim Starten des neuen Schuljahres:", error);
+    console.error(`Fehler beim Löschen der Daten für ${teacherCode}:`, error);
     throw error;
   }
 }
 
 /**
- * NEU: Sammelt alle Daten für Export
- */
-export async function collectAllDataForExport() {
-  if (!db) {
-    throw new Error("Datenbank nicht verfügbar");
-  }
-
-  try {
-    const exportData = {
-      schoolYear: systemSettings.currentSchoolYear,
-      exportDate: new Date().toISOString(),
-      teachers: allTeachers.map(t => ({ name: t.name, code: t.code })), // Ohne Passwörter
-      teacherData: {}
-    };
-
-    const snapshot = await db.collection("wbs_data").get();
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      exportData.teacherData[doc.id] = {
-        teacher_name: data.teacher_name,
-        groups: data.data.groups || [],
-        assessments: data.data.assessments || {},
-        settings: data.data.settings || {}
-      };
-    });
-
-    return exportData;
-  } catch (error) {
-    console.error("Fehler beim Sammeln der Export-Daten:", error);
-    throw error;
-  }
-}
-
-/**
- * NEU: Schuljahr manuell setzen
- */
-export async function setCurrentSchoolYear(schoolYear) {
-  systemSettings.currentSchoolYear = schoolYear;
-  systemSettings.nextSchoolYear = getNextSchoolYear();
-  
-  try {
-    await saveSystemSettings();
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Setzen des Schuljahres:", error);
-    return false;
-  }
-}
-
-/**
- * System-Statistiken abrufen
+ * NEUE FUNKTION: System-Statistiken abrufen
  */
 export async function getSystemStats() {
   if (!db) {
     return {
       totalTeachers: allTeachers.length,
       totalStudentData: 0,
-      firebaseStatus: "Offline",
-      currentSchoolYear: systemSettings.currentSchoolYear,
-      nextSchoolYear: systemSettings.nextSchoolYear
+      firebaseStatus: "Offline"
     };
   }
 
   try {
+    // Zähle alle Bewertungsdokumente
     const snapshot = await db.collection("wbs_data").get();
     
     return {
       totalTeachers: allTeachers.length,
       totalStudentData: snapshot.size,
-      firebaseStatus: "Online",
-      currentSchoolYear: systemSettings.currentSchoolYear,
-      nextSchoolYear: systemSettings.nextSchoolYear
+      firebaseStatus: "Online"
     };
   } catch (error) {
     console.error("Fehler beim Abrufen der System-Statistiken:", error);
     return {
       totalTeachers: allTeachers.length,
       totalStudentData: 0,
-      firebaseStatus: "Error",
-      currentSchoolYear: systemSettings.currentSchoolYear,
-      nextSchoolYear: systemSettings.nextSchoolYear
+      firebaseStatus: "Error"
     };
   }
 }
@@ -480,22 +358,4 @@ export function validateTeacher(code, password) {
     t.code.toUpperCase() === code.toUpperCase() && 
     t.password === password
   );
-}
-
-/**
- * Hilfsfunktionen für Schuljahr-Berechnung
- */
-function getCurrentSchoolYear() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  
-  if (month >= 9) return `${year}/${year + 1}`;
-  else return `${year - 1}/${year}`;
-}
-
-function getNextSchoolYear() {
-  const current = systemSettings.currentSchoolYear || getCurrentSchoolYear();
-  const startYear = parseInt(current.split('/')[0]);
-  return `${startYear + 1}/${startYear + 2}`;
 }
