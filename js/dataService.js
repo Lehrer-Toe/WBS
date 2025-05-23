@@ -4,12 +4,12 @@ import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_ASSESSMENT_TEMPLATES } from "./c
 import { db } from "./firebaseClient.js";
 
 /**
- * Globale Datenstruktur, erweitert um Bewertungsraster und Lehrer-Zuordnungen
+ * Globale Datenstruktur, erweitert um Status-Tracking
  */
 export let teacherData = {
   students: [],
   assessments: {},
-  assessmentTemplates: [], // Eigene Bewertungsraster
+  assessmentTemplates: [],
   settings: {
     defaultTemplate: "wbs_standard"
   }
@@ -22,6 +22,15 @@ export let currentUser = {
   name: null,
   code: null,
   password: null
+};
+
+/**
+ * Bewertungsstatus-Konstanten
+ */
+export const ASSESSMENT_STATUS = {
+  NOT_STARTED: 'not_started',
+  IN_PROGRESS: 'in_progress', 
+  COMPLETED: 'completed'
 };
 
 /**
@@ -61,19 +70,34 @@ function migrateToNewStructure() {
       }
     });
 
-    // Info-Text und Template-Zuordnung
+    // Info-Text, Template-Zuordnung und Status
     if (!assessment.hasOwnProperty("infoText")) {
       assessment["infoText"] = "";
     }
     if (!assessment.hasOwnProperty("templateId")) {
       assessment["templateId"] = "wbs_standard";
     }
+    if (!assessment.hasOwnProperty("status")) {
+      assessment["status"] = determineAssessmentStatus(assessment);
+    }
+    if (!assessment.hasOwnProperty("lastModified")) {
+      assessment["lastModified"] = new Date().toISOString();
+    }
   }
 
-  // Migriere Schüler-Daten (assignedTeacher hinzufügen)
+  // Migriere Schüler-Daten
   teacherData.students.forEach(student => {
     if (!student.assignedTeacher) {
-      student.assignedTeacher = currentUser.code; // Standard: Aktueller Lehrer
+      student.assignedTeacher = currentUser.code;
+    }
+    if (!student.createdBy) {
+      student.createdBy = currentUser.code;
+    }
+    if (!student.templateId) {
+      student.templateId = "wbs_standard";
+    }
+    if (!student.schoolYear) {
+      student.schoolYear = getSchoolYearFromDate(student.examDate);
     }
   });
 
@@ -85,6 +109,41 @@ function migrateToNewStructure() {
   // Stelle sicher, dass Einstellungen existieren
   if (!teacherData.settings) {
     teacherData.settings = { defaultTemplate: "wbs_standard" };
+  }
+}
+
+/**
+ * Bestimmt den Bewertungsstatus basierend auf vorhandenen Daten
+ */
+function determineAssessmentStatus(assessment) {
+  if (!assessment) return ASSESSMENT_STATUS.NOT_STARTED;
+  
+  const hasGrades = Object.keys(assessment).some(key => 
+    key !== 'infoText' && key !== 'templateId' && key !== 'finalGrade' && 
+    key !== 'status' && key !== 'lastModified' && 
+    typeof assessment[key] === 'number' && assessment[key] > 0
+  );
+  
+  const hasFinalGrade = assessment.finalGrade && assessment.finalGrade > 0;
+  
+  if (hasFinalGrade) return ASSESSMENT_STATUS.COMPLETED;
+  if (hasGrades || (assessment.infoText && assessment.infoText.trim())) return ASSESSMENT_STATUS.IN_PROGRESS;
+  return ASSESSMENT_STATUS.NOT_STARTED;
+}
+
+/**
+ * Berechnet das Schuljahr aus einem Datum
+ */
+function getSchoolYearFromDate(dateString) {
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1; // JavaScript months are 0-indexed
+  
+  // Schuljahr läuft von September bis August
+  if (month >= 9) {
+    return `${year}/${year + 1}`;
+  } else {
+    return `${year - 1}/${year}`;
   }
 }
 
@@ -264,10 +323,8 @@ export function getAssessmentTemplate(templateId) {
  * Gibt alle verfügbaren Bewertungsraster zurück
  */
 export function getAllAssessmentTemplates() {
-  // Kombiniere eigene Templates mit Standard-Templates
   const allTemplates = [...teacherData.assessmentTemplates];
   
-  // Füge Standard-Templates hinzu, die noch nicht vorhanden sind
   DEFAULT_ASSESSMENT_TEMPLATES.forEach(defaultTemplate => {
     const exists = allTemplates.some(t => t.id === defaultTemplate.id);
     if (!exists) {
@@ -276,7 +333,6 @@ export function getAllAssessmentTemplates() {
   });
   
   return allTemplates.sort((a, b) => {
-    // Standard-Templates zuerst, dann alphabetisch
     if (a.isDefault && !b.isDefault) return -1;
     if (!a.isDefault && b.isDefault) return 1;
     return a.name.localeCompare(b.name);
@@ -284,7 +340,7 @@ export function getAllAssessmentTemplates() {
 }
 
 /**
- * Gibt Schüler zurück, die dem aktuellen Lehrer zugeordnet sind
+ * ERWEITERT: Gibt Schüler zurück, die dem aktuellen Lehrer zugeordnet sind (zum Bewerten)
  */
 export function getAssignedStudents() {
   return teacherData.students.filter(student => 
@@ -293,17 +349,132 @@ export function getAssignedStudents() {
 }
 
 /**
- * Gibt alle Schüler zurück (für Übersichts-Zwecke)
+ * ERWEITERT: Gibt Schüler zurück, die der aktuelle Lehrer erstellt hat (Übersicht)
+ */
+export function getCreatedStudents() {
+  return teacherData.students.filter(student => 
+    student.createdBy === currentUser.code
+  );
+}
+
+/**
+ * ERWEITERT: Gibt alle Schüler zurück, auf die der aktuelle Lehrer Zugriff hat
+ */
+export function getAccessibleStudents() {
+  return teacherData.students.filter(student => 
+    student.assignedTeacher === currentUser.code || student.createdBy === currentUser.code
+  );
+}
+
+/**
+ * NEU: Gibt Dashboard-Statistiken zurück
+ */
+export function getDashboardStats() {
+  const accessibleStudents = getAccessibleStudents();
+  const assignedStudents = getAssignedStudents();
+  const createdStudents = getCreatedStudents();
+  
+  // Bewertungsstatus für zugewiesene Schüler
+  const assessmentStats = {
+    notStarted: 0,
+    inProgress: 0,
+    completed: 0
+  };
+  
+  assignedStudents.forEach(student => {
+    const assessment = teacherData.assessments[student.id];
+    const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
+    
+    switch (status) {
+      case ASSESSMENT_STATUS.NOT_STARTED:
+        assessmentStats.notStarted++;
+        break;
+      case ASSESSMENT_STATUS.IN_PROGRESS:
+        assessmentStats.inProgress++;
+        break;
+      case ASSESSMENT_STATUS.COMPLETED:
+        assessmentStats.completed++;
+        break;
+    }
+  });
+  
+  // Schuljahr-Statistiken
+  const currentSchoolYear = getCurrentSchoolYear();
+  const studentsThisYear = accessibleStudents.filter(student => 
+    student.schoolYear === currentSchoolYear
+  );
+  
+  return {
+    totalAccessible: accessibleStudents.length,
+    totalAssigned: assignedStudents.length,
+    totalCreated: createdStudents.length,
+    studentsThisYear: studentsThisYear.length,
+    assessmentStats,
+    currentSchoolYear
+  };
+}
+
+/**
+ * NEU: Gibt das aktuelle Schuljahr zurück
+ */
+export function getCurrentSchoolYear() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  
+  if (month >= 9) {
+    return `${year}/${year + 1}`;
+  } else {
+    return `${year - 1}/${year}`;
+  }
+}
+
+/**
+ * NEU: Gibt Schüler nach Schuljahr zurück
+ */
+export function getStudentsBySchoolYear(schoolYear = null) {
+  const accessibleStudents = getAccessibleStudents();
+  
+  if (!schoolYear) {
+    return accessibleStudents;
+  }
+  
+  return accessibleStudents.filter(student => student.schoolYear === schoolYear);
+}
+
+/**
+ * NEU: Gibt alle verfügbaren Schuljahre zurück
+ */
+export function getAvailableSchoolYears() {
+  const years = new Set();
+  const accessibleStudents = getAccessibleStudents();
+  
+  accessibleStudents.forEach(student => {
+    if (student.schoolYear) {
+      years.add(student.schoolYear);
+    }
+  });
+  
+  // Aktuelles Schuljahr immer hinzufügen
+  years.add(getCurrentSchoolYear());
+  
+  return Array.from(years).sort().reverse();
+}
+
+/**
+ * Gibt alle Schüler zurück (für Admin-Zwecke)
  */
 export function getAllStudents() {
   return teacherData.students;
 }
 
 /**
- * Erstellt einen neuen Schüler mit Lehrer-Zuordnung
+ * ERWEITERT: Erstellt einen neuen Schüler mit Status-Tracking
  */
 export function createStudent(name, examDate, topic, assignedTeacher, templateId = null) {
   const newId = generateId();
+  const schoolYear = getSchoolYearFromDate(examDate);
+  
   const newStudent = {
     id: newId,
     name: name.trim(),
@@ -312,27 +483,62 @@ export function createStudent(name, examDate, topic, assignedTeacher, templateId
     assignedTeacher: assignedTeacher || currentUser.code,
     templateId: templateId || teacherData.settings.defaultTemplate,
     createdBy: currentUser.code,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    schoolYear: schoolYear
   };
 
   teacherData.students.push(newStudent);
   
-  // Initialisiere Bewertung mit ausgewähltem Template
+  // Initialisiere Bewertung mit Status
   const template = getAssessmentTemplate(newStudent.templateId);
   teacherData.assessments[newId] = {
     templateId: newStudent.templateId,
     infoText: "",
-    finalGrade: 2.0
+    finalGrade: null,
+    status: ASSESSMENT_STATUS.NOT_STARTED,
+    lastModified: new Date().toISOString()
   };
 
   // Initialisiere alle Kategorien des Templates
   if (template && template.categories) {
     template.categories.forEach(category => {
-      teacherData.assessments[newId][category.id] = 2;
+      teacherData.assessments[newId][category.id] = 0; // 0 = nicht bewertet
     });
   }
 
   return newStudent;
+}
+
+/**
+ * ERWEITERT: Aktualisiert den Bewertungsstatus
+ */
+export function updateAssessmentStatus(studentId) {
+  const assessment = teacherData.assessments[studentId];
+  if (!assessment) return;
+  
+  const oldStatus = assessment.status;
+  const newStatus = determineAssessmentStatus(assessment);
+  
+  if (oldStatus !== newStatus) {
+    assessment.status = newStatus;
+    assessment.lastModified = new Date().toISOString();
+  }
+  
+  return newStatus;
+}
+
+/**
+ * NEU: Prüft, ob der aktuelle Lehrer bewerten darf
+ */
+export function canAssessStudent(student) {
+  return student.assignedTeacher === currentUser.code;
+}
+
+/**
+ * NEU: Prüft, ob der aktuelle Lehrer Zugriff auf den Schüler hat
+ */
+export function hasAccessToStudent(student) {
+  return student.assignedTeacher === currentUser.code || student.createdBy === currentUser.code;
 }
 
 /**
