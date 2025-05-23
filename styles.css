@@ -2140,3 +2140,211 @@ table {
   border: 1px solid #f5c6cb;
   color: #721c24;
 }
+/* Hinzufügen zu styles.css */
+
+/* === Dashboard-Karten Drag & Drop === */
+.student-cards.reorder-mode .group-card {
+  cursor: move;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+
+.student-cards.reorder-mode .group-card::before {
+  content: '≡';
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 1.5rem;
+  color: var(--primary-color);
+  opacity: 0.7;
+}
+
+.student-cards.reorder-mode .group-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.student-cards.reorder-mode .group-card.over {
+  border: 2px dashed var(--primary-color);
+}
+
+/* Anpassung für Edit-Button (nur Icon statt Text) */
+.edit-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: auto;
+  font-size: 1rem;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.edit-btn:hover {
+  background-color: var(--primary-light);
+  transform: scale(1.1);
+}
+
+/* Anpassungen für das Dashboard */
+.dashboard-controls {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.dashboard-controls .form-group {
+  margin-bottom: 0;
+  min-width: 140px;
+}
+
+/* Quick Overview Modal */
+.quick-overview-modal {
+  max-width: 800px;
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.quick-overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 15px;
+}
+
+.sort-options {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sort-options label {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.sort-options select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.quick-overview-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.quick-overview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  margin-bottom: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid transparent;
+}
+
+.quick-overview-item.not_started {
+  border-left-color: var(--status-not-started);
+}
+
+.quick-overview-item.in_progress {
+  border-left-color: var(--status-in-progress);
+}
+
+.quick-overview-item.completed {
+  border-left-color: var(--status-completed);
+}
+
+.student-info h4 {
+  margin: 0 0 8px 0;
+  color: var(--primary-dark);
+}
+
+.student-info p {
+  margin: 4px 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.student-status {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.final-grade {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  padding: 4px 10px;
+  background: white;
+  border-radius: 6px;
+  border: 2px solid var(--border-color);
+}
+
+/* Anpassungen für den Schuljahr-Tab im Admin-Bereich */
+.schoolyear-info {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.schoolyear-actions {
+  background: #fef3f2;
+  border: 2px solid #fed7d7;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.action-info {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.action-info h4 {
+  color: var(--primary-dark);
+  margin-bottom: 10px;
+}
+
+.action-info ul {
+  margin-left: 20px;
+}
+
+.action-info li {
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+}
+
+/* Status Indicators */
+.status-online {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.status-offline {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.status-warning {
+  color: var(--warning-color);
+  font-weight: bold;
+}
