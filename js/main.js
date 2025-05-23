@@ -1,67 +1,35 @@
-// js/main.js
+// js/main.js - KOMPLETT ÜBERARBEITET für Gruppen-System
 
 import { initDatabase, ensureCollection } from "./firebaseClient.js";
 import {
-  teacherData,
-  currentUser,
-  loadTeacherData,
-  saveTeacherData,
-  createAssessmentTemplate,
-  updateAssessmentTemplate,
-  deleteAssessmentTemplate,
-  getAssessmentTemplate,
-  getAllAssessmentTemplates,
-  getAssignedStudents,
-  getCreatedStudents,
-  getAccessibleStudents,
-  getAllStudents,
-  createStudent,
-  getDashboardStats,
-  getCurrentSchoolYear,
-  getStudentsBySchoolYear,
-  getAvailableSchoolYears,
-  updateAssessmentStatus,
-  canAssessStudent,
-  hasAccessToStudent,
-  ASSESSMENT_STATUS
+  teacherData, currentUser, loadTeacherData, saveTeacherData,
+  createGroup, addStudentToGroup, getResponsibleGroups, getAssignedStudents, getAccessibleStudents,
+  getDashboardStats, getCurrentSchoolYear, getSortedGroups, setPreferredSorting, setThemeSortOrder,
+  updateAssessmentStatus, canAssessStudent, hasAccessToStudent, canEditGroup, ASSESSMENT_STATUS,
+  createAssessmentTemplate, updateAssessmentTemplate, deleteAssessmentTemplate,
+  getAssessmentTemplate, getAllAssessmentTemplates
 } from "./dataService.js";
 import {
-  showLoader,
-  hideLoader,
-  showNotification,
-  formatDate,
-  getAvailableDates,
-  getAvailableTopics,
-  getAvailableYears,
-  calculateAverageGrade,
-  calculateWeightedAverageGrade,
-  initTeacherGrid
+  showLoader, hideLoader, showNotification, formatDate, calculateWeightedAverageGrade, initTeacherGrid
 } from "./uiService.js";
 import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS, APP_CONFIG } from "./constants.js";
 import {
-  loadAllTeachers,
-  saveAllTeachers,
-  loginAdmin,
-  logoutAdmin,
-  addTeacher,
-  updateTeacher,
-  deleteTeacher,
-  validateTeacher,
-  currentAdmin,
-  allTeachers,
-  deleteAllTeachers,
-  deleteAllTeacherData
+  loadAllTeachers, saveAllTeachers, loginAdmin, logoutAdmin, addTeacher, updateTeacher, deleteTeacher,
+  validateTeacher, currentAdmin, allTeachers, deleteAllTeachers, deleteAllTeacherData,
+  loadSystemSettings, saveSystemSettings, startNewSchoolYear, setCurrentSchoolYear, getSystemStats, systemSettings
 } from "./adminService.js";
 
 // Globale Zustände
+let selectedGroup = null;
 let selectedStudent = null;
-let studentToDelete = null;
+let groupToDelete = null;
 let selectedGradeStudent = null;
 let infoTextSaveTimer = null;
+let lastSelectedTheme = null;
 let lastSelectedDate = null;
-let lastSelectedTopic = null;
 let currentSelectedStudentId = null;
 let stickyAverageElement = null;
+let dashboardSortOrder = 'theme';
 
 // Admin-spezifische globale Variablen
 let selectedTeacher = null;
@@ -76,7 +44,7 @@ let editingTemplate = null;
 let dashboardStats = null;
 let dashboardUpdateTimer = null;
 
-// DOM-Elemente
+// DOM-Elemente - Basis
 const loginSection = document.getElementById("loginSection");
 const appSection = document.getElementById("appSection");
 const teacherGrid = document.getElementById("teacherGrid");
@@ -100,168 +68,32 @@ const adminLoginBtn = document.getElementById("adminLoginBtn");
 const adminSection = document.getElementById("adminSection");
 const adminLogoutBtn = document.getElementById("adminLogoutBtn");
 
-// Admin-Panel Elemente
-const newTeacherName = document.getElementById("newTeacherName");
-const newTeacherCode = document.getElementById("newTeacherCode");
-const newTeacherPassword = document.getElementById("newTeacherPassword");
-const addTeacherBtn = document.getElementById("addTeacherBtn");
-const teachersAdminTable = document.getElementById("teachersAdminTable");
-const totalTeachers = document.getElementById("totalTeachers");
-const firebaseStatus = document.getElementById("firebaseStatus");
-const lastUpdate = document.getElementById("lastUpdate");
-const refreshSystemBtn = document.getElementById("refreshSystemBtn");
-const exportTeachersBtn = document.getElementById("exportTeachersBtn");
-
-// Admin-Lösch-Elemente
-const deleteAllTeachersBtn = document.getElementById("deleteAllTeachersBtn");
-const deleteAllDataBtn = document.getElementById("deleteAllDataBtn");
-const adminDeleteVerificationCode = document.getElementById("adminDeleteVerificationCode");
-
-// Edit Teacher Modal
-const editTeacherModal = document.getElementById("editTeacherModal");
-const closeEditTeacherModal = document.getElementById("closeEditTeacherModal");
-const editTeacherName = document.getElementById("editTeacherName");
-const editTeacherCode = document.getElementById("editTeacherCode");
-const editTeacherPassword = document.getElementById("editTeacherPassword");
-const saveTeacherBtn = document.getElementById("saveTeacherBtn");
-const deleteTeacherBtn = document.getElementById("deleteTeacherBtn");
-
-// Confirm Delete Teacher Modal
-const confirmDeleteTeacherModal = document.getElementById("confirmDeleteTeacherModal");
-const closeConfirmDeleteTeacherModal = document.getElementById("closeConfirmDeleteTeacherModal");
-const deleteTeacherName = document.getElementById("deleteTeacherName");
-const cancelDeleteTeacherBtn = document.getElementById("cancelDeleteTeacherBtn");
-const confirmDeleteTeacherBtn = document.getElementById("confirmDeleteTeacherBtn");
-
-// Dashboard-Elemente
-const totalAccessibleStudents = document.getElementById("totalAccessibleStudents");
-const totalAssignedStudents = document.getElementById("totalAssignedStudents");
-const studentsThisYear = document.getElementById("studentsThisYear");
-const completedAssessments = document.getElementById("completedAssessments");
-const statusCompleted = document.getElementById("statusCompleted");
-const statusInProgress = document.getElementById("statusInProgress");
-const statusNotStarted = document.getElementById("statusNotStarted");
-const completedCount = document.getElementById("completedCount");
-const inProgressCount = document.getElementById("inProgressCount");
-const notStartedCount = document.getElementById("notStartedCount");
-const currentSchoolYear = document.getElementById("currentSchoolYear");
-const dashboardSchoolYearSelect = document.getElementById("dashboardSchoolYearSelect");
-const dashboardStudentCards = document.getElementById("dashboardStudentCards");
-
-// Schüler-Elemente
-const newStudentName = document.getElementById("newStudentName");
-const newStudentTopic = document.getElementById("newStudentTopic");
-const examDate = document.getElementById("examDate");
-const assignedTeacherSelect = document.getElementById("assignedTeacherSelect");
-const templateSelect = document.getElementById("templateSelect");
-const addStudentBtn = document.getElementById("addStudentBtn");
-const studentsTable = document.getElementById("studentsTable");
-const studentViewFilter = document.getElementById("studentViewFilter");
-
-// Template-Elemente
-const newTemplateName = document.getElementById("newTemplateName");
-const newTemplateDescription = document.getElementById("newTemplateDescription");
-const templateCriteriaContainer = document.getElementById("templateCriteriaContainer");
-const addCriterionBtn = document.getElementById("addCriterionBtn");
-const saveTemplateBtn = document.getElementById("saveTemplateBtn");
-const templatesGrid = document.getElementById("templatesGrid");
-
-// Edit Template Modal
-const editTemplateModal = document.getElementById("editTemplateModal");
-const closeEditTemplateModal = document.getElementById("closeEditTemplateModal");
-const editTemplateName = document.getElementById("editTemplateName");
-const editTemplateDescription = document.getElementById("editTemplateDescription");
-const editTemplateCriteriaContainer = document.getElementById("editTemplateCriteriaContainer");
-const addEditCriterionBtn = document.getElementById("addEditCriterionBtn");
-const updateTemplateBtn = document.getElementById("updateTemplateBtn");
-const deleteTemplateBtn = document.getElementById("deleteTemplateBtn");
-
-// Bewertungs-Elemente
-const assessmentDateSelect = document.getElementById("assessmentDateSelect");
-const assessmentTopicSelect = document.getElementById("assessmentTopicSelect");
-const assessmentStatusFilter = document.getElementById("assessmentStatusFilter");
-const assessmentStudentList = document.getElementById("assessmentStudentList");
-const assessmentContent = document.getElementById("assessmentContent");
-
-// Übersichts-Elemente
-const overviewYearSelect = document.getElementById("overviewYearSelect");
-const overviewDateSelect = document.getElementById("overviewDateSelect");
-const overviewTopicSelect = document.getElementById("overviewTopicSelect");
-const overviewStatusSelect = document.getElementById("overviewStatusSelect");
-const overviewTable = document.getElementById("overviewTable");
-const printBtn = document.getElementById("printBtn");
-
-// Einstellungs-Elemente
-const settingsYearSelect = document.getElementById("settingsYearSelect");
-const settingsDateSelect = document.getElementById("settingsDateSelect");
-const defaultTemplateSelect = document.getElementById("defaultTemplateSelect");
-const saveSettingsBtn = document.getElementById("saveSettingsBtn");
-const exportDataBtn = document.getElementById("exportDataBtn");
-const deleteVerificationCode = document.getElementById("deleteVerificationCode");
-const deleteDataBtn = document.getElementById("deleteDataBtn");
-
-// Modal-Elemente
-const editStudentModal = document.getElementById("editStudentModal");
-const closeEditStudentModal = document.getElementById("closeEditStudentModal");
-const editStudentName = document.getElementById("editStudentName");
-const editStudentTopic = document.getElementById("editStudentTopic");
-const editExamDate = document.getElementById("editExamDate");
-const editAssignedTeacher = document.getElementById("editAssignedTeacher");
-const editTemplateSelect = document.getElementById("editTemplateSelect");
-const saveStudentBtn = document.getElementById("saveStudentBtn");
-const deleteStudentBtn = document.getElementById("deleteStudentBtn");
-
-const editGradeModal = document.getElementById("editGradeModal");
-const closeEditGradeModal = document.getElementById("closeEditGradeModal");
-const editFinalGrade = document.getElementById("editFinalGrade");
-const saveGradeBtn = document.getElementById("saveGradeBtn");
-
-const confirmDeleteModal = document.getElementById("confirmDeleteModal");
-const closeConfirmDeleteModal = document.getElementById("closeConfirmDeleteModal");
-const deleteStudentName = document.getElementById("deleteStudentName");
-const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
-const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
-
+// Tabs
 const tabs = document.querySelectorAll(".tab");
 const tabContents = document.querySelectorAll(".tab-content");
 
+// Standard-Datum
 const today = new Date();
-const defaultDate =
-  today.getFullYear() +
-  "-" +
-  String(today.getMonth() + 1).padStart(2, "0") +
-  "-" +
-  String(today.getDate()).padStart(2, "0");
+const defaultDate = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
 
-// Start
+// === HAUPT-INITIALISIERUNG ===
+
 document.addEventListener("DOMContentLoaded", async () => {
   console.log(`${APP_CONFIG.name} wird initialisiert...`);
   showLoader();
   try {
-    // 1. Firebase initialisieren
     await initDatabase();
     await ensureCollection();
     
-    // 2. Lehrer aus Firebase laden
     console.log("Lade Lehrer-Daten...");
     await loadAllTeachers();
+    await loadSystemSettings();
     
-    // 3. Globale Variable setzen für uiService
     window.allTeachers = allTeachers;
     console.log("Verfügbare Lehrer:", allTeachers.length);
     
-    // 4. UI mit geladenen Lehrern initialisieren
     initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    
-    // 5. Event-Listener einrichten
     setupEventListeners();
-    
-    // 6. Standard-Datum setzen
-    if (examDate) {
-      examDate.value = defaultDate;
-    }
-    
-    // 7. Sticky-Element erstellen
     createStickyAverageElement();
     
     console.log("Initialisierung abgeschlossen!");
@@ -273,7 +105,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// Erstellt das Element für die schwebende Durchschnittsanzeige
 function createStickyAverageElement() {
   stickyAverageElement = document.createElement("div");
   stickyAverageElement.className = "sticky-average";
@@ -281,10 +112,13 @@ function createStickyAverageElement() {
   document.body.appendChild(stickyAverageElement);
 
   window.addEventListener("scroll", () => {
+    const assessmentContent = document.getElementById("assessmentContent");
     if (!assessmentContent) return;
-    if (!assessmentContent.querySelector(".final-grade-display")) return;
     
-    const rect = assessmentContent.querySelector(".final-grade-display").getBoundingClientRect();
+    const finalGradeDisplay = assessmentContent.querySelector(".final-grade-display");
+    if (!finalGradeDisplay) return;
+    
+    const rect = finalGradeDisplay.getBoundingClientRect();
     if (rect.top < 0) {
       stickyAverageElement.style.display = "block";
     } else {
@@ -293,7 +127,6 @@ function createStickyAverageElement() {
   });
 }
 
-// Zeigt den Passwortdialog
 function showPasswordModal(teacher) {
   loginPrompt.textContent = `Bitte das Passwort für ${teacher.name} eingeben:`;
   passwordInput.value = "";
@@ -304,27 +137,22 @@ function showPasswordModal(teacher) {
   currentUser.password = teacher.password;
 }
 
-// Initialisiert alle nötigen Event-Listener
+// === EVENT-LISTENER SETUP ===
+
 function setupEventListeners() {
   // Basis-Event-Listener
   if (closePasswordModal) {
-    closePasswordModal.addEventListener("click", () => {
-      passwordModal.style.display = "none";
-    });
+    closePasswordModal.addEventListener("click", () => passwordModal.style.display = "none");
   }
   if (cancelLogin) {
-    cancelLogin.addEventListener("click", () => {
-      passwordModal.style.display = "none";
-    });
+    cancelLogin.addEventListener("click", () => passwordModal.style.display = "none");
   }
   if (confirmLogin) {
     confirmLogin.addEventListener("click", login);
   }
   if (passwordInput) {
     passwordInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        login();
-      }
+      if (e.key === "Enter") login();
     });
   }
   if (logoutBtn) {
@@ -339,30 +167,98 @@ function setupEventListeners() {
     });
   });
 
-  // Quick Actions
-  document.querySelectorAll(".quick-action-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const targetTab = btn.dataset.tab;
-      if (targetTab) {
-        switchTab(targetTab);
-      }
-    });
-  });
+  setupDashboardEventListeners();
+  setupGroupEventListeners();
+  setupTemplateEventListeners();
+  setupAssessmentEventListeners();
+  setupOverviewEventListeners();
+  setupSettingsEventListeners();
+  setupModalEventListeners();
+  setupAdminEventListeners();
+}
 
-  // Dashboard-Event-Listener
+// Dashboard Event-Listener
+function setupDashboardEventListeners() {
+  const dashboardSchoolYearSelect = document.getElementById("dashboardSchoolYearSelect");
+  const dashboardSortSelect = document.getElementById("dashboardSortSelect");
+  const dashboardViewToggle = document.getElementById("dashboardViewToggle");
+  
   if (dashboardSchoolYearSelect) {
     dashboardSchoolYearSelect.addEventListener("change", updateDashboardContent);
   }
-
-  // Schüler-Event-Listener
-  if (addStudentBtn) {
-    addStudentBtn.addEventListener("click", addNewStudent);
+  
+  if (dashboardSortSelect) {
+    dashboardSortSelect.addEventListener("change", (e) => {
+      dashboardSortOrder = e.target.value;
+      setPreferredSorting(dashboardSortOrder);
+      updateDashboardContent();
+    });
   }
-  if (studentViewFilter) {
-    studentViewFilter.addEventListener("change", updateStudentsTab);
+  
+  if (dashboardViewToggle) {
+    dashboardViewToggle.addEventListener("click", toggleDashboardView);
   }
 
-  // Template-Event-Listener
+  // Dashboard-Statistik-Karten anklickbar machen
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.stat-card')) {
+      const statCard = e.target.closest('.stat-card');
+      const cardType = statCard.dataset.type;
+      if (cardType) showQuickOverview(cardType);
+    }
+  });
+}
+
+// Gruppen Event-Listener
+function setupGroupEventListeners() {
+  const newGroupTheme = document.getElementById("newGroupTheme");
+  const newGroupDate = document.getElementById("newGroupDate");
+  const addGroupBtn = document.getElementById("addGroupBtn");
+  const groupViewFilter = document.getElementById("groupViewFilter");
+
+  if (addGroupBtn) {
+    addGroupBtn.addEventListener("click", addNewGroup);
+  }
+  
+  if (groupViewFilter) {
+    groupViewFilter.addEventListener("change", updateGroupsTab);
+  }
+
+  if (newGroupDate) {
+    newGroupDate.value = defaultDate;
+  }
+}
+
+// Assessment Event-Listener
+function setupAssessmentEventListeners() {
+  const assessmentThemeSelect = document.getElementById("assessmentThemeSelect");
+  const assessmentDateSelect = document.getElementById("assessmentDateSelect");
+  const assessmentStatusFilter = document.getElementById("assessmentStatusFilter");
+  
+  if (assessmentThemeSelect) {
+    assessmentThemeSelect.addEventListener("change", () => {
+      lastSelectedTheme = assessmentThemeSelect.value;
+      populateAssessmentDateSelect();
+      updateAssessmentStudentList();
+    });
+  }
+  if (assessmentDateSelect) {
+    assessmentDateSelect.addEventListener("change", () => {
+      lastSelectedDate = assessmentDateSelect.value;
+      updateAssessmentStudentList();
+    });
+  }
+  if (assessmentStatusFilter) {
+    assessmentStatusFilter.addEventListener("change", updateAssessmentStudentList);
+  }
+}
+
+// Template Event-Listener
+function setupTemplateEventListeners() {
+  const addCriterionBtn = document.getElementById("addCriterionBtn");
+  const saveTemplateBtn = document.getElementById("saveTemplateBtn");
+  const addEditCriterionBtn = document.getElementById("addEditCriterionBtn");
+  
   if (addCriterionBtn) {
     addCriterionBtn.addEventListener("click", addCriterionRow);
   }
@@ -370,40 +266,30 @@ function setupEventListeners() {
     saveTemplateBtn.addEventListener("click", saveNewTemplate);
   }
   if (addEditCriterionBtn) {
-    addEditCriterionBtn.addEventListener("click", () => addCriterionRow(editTemplateCriteriaContainer));
+    addEditCriterionBtn.addEventListener("click", () => addCriterionRow(document.getElementById("editTemplateCriteriaContainer")));
   }
+}
 
-  // Bewertungs-Event-Listener
-  if (assessmentDateSelect) {
-    assessmentDateSelect.addEventListener("change", () => {
-      lastSelectedDate = assessmentDateSelect.value;
-      populateAssessmentTopicSelect();
-      updateAssessmentStudentList();
-    });
-  }
-  if (assessmentTopicSelect) {
-    assessmentTopicSelect.addEventListener("change", () => {
-      lastSelectedTopic = assessmentTopicSelect.value;
-      updateAssessmentStudentList();
-    });
-  }
-  if (assessmentStatusFilter) {
-    assessmentStatusFilter.addEventListener("change", updateAssessmentStudentList);
-  }
-
-  // Übersichts-Event-Listener
+// Overview Event-Listener
+function setupOverviewEventListeners() {
+  const overviewYearSelect = document.getElementById("overviewYearSelect");
+  const overviewThemeSelect = document.getElementById("overviewThemeSelect");
+  const overviewDateSelect = document.getElementById("overviewDateSelect");
+  const overviewStatusSelect = document.getElementById("overviewStatusSelect");
+  const printBtn = document.getElementById("printBtn");
+  
   if (overviewYearSelect) {
     overviewYearSelect.addEventListener("change", () => {
+      populateOverviewThemeSelect();
       populateOverviewDateSelect();
-      populateOverviewTopicSelect();
       updateOverviewContent();
     });
   }
+  if (overviewThemeSelect) {
+    overviewThemeSelect.addEventListener("change", updateOverviewContent);
+  }
   if (overviewDateSelect) {
     overviewDateSelect.addEventListener("change", updateOverviewContent);
-  }
-  if (overviewTopicSelect) {
-    overviewTopicSelect.addEventListener("change", updateOverviewContent);
   }
   if (overviewStatusSelect) {
     overviewStatusSelect.addEventListener("change", updateOverviewContent);
@@ -411,8 +297,16 @@ function setupEventListeners() {
   if (printBtn) {
     printBtn.addEventListener("click", printOverviewData);
   }
+}
 
-  // Einstellungs-Event-Listener
+// Settings Event-Listener
+function setupSettingsEventListeners() {
+  const settingsYearSelect = document.getElementById("settingsYearSelect");
+  const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  const saveSortingBtn = document.getElementById("saveSortingBtn");
+  const exportDataBtn = document.getElementById("exportDataBtn");
+  const deleteDataBtn = document.getElementById("deleteDataBtn");
+  
   if (settingsYearSelect) {
     settingsYearSelect.addEventListener("change", () => {
       populateSettingsDateSelect();
@@ -421,110 +315,69 @@ function setupEventListeners() {
   if (saveSettingsBtn) {
     saveSettingsBtn.addEventListener("click", saveAppSettings);
   }
+  if (saveSortingBtn) {
+    saveSortingBtn.addEventListener("click", saveSortingSettings);
+  }
   if (exportDataBtn) {
     exportDataBtn.addEventListener("click", exportData);
   }
   if (deleteDataBtn) {
     deleteDataBtn.addEventListener("click", confirmDeleteAllData);
   }
-
-  // Modal-Event-Listener
-  setupModalEventListeners();
-  
-  // Admin-Event-Listener
-  setupAdminEventListeners();
 }
 
-// Tab-Wechsel-Logik
-function switchTab(tabId) {
-  tabs.forEach((t) => t.classList.remove("active"));
-  tabContents.forEach((c) => c.classList.remove("active"));
-  
-  const targetTab = document.querySelector(`[data-tab="${tabId}"]`);
-  const targetContent = document.getElementById(`${tabId}-tab`);
-  
-  if (targetTab && targetContent) {
-    targetTab.classList.add("active");
-    targetContent.classList.add("active");
-    
-    switch (tabId) {
-      case "dashboard":
-        updateDashboard();
-        break;
-      case "students":
-        updateStudentsTab();
-        break;
-      case "templates":
-        updateTemplatesTab();
-        break;
-      case "assessment":
-        updateAssessmentTab();
-        break;
-      case "overview":
-        updateOverviewTab();
-        break;
-      case "settings":
-        updateSettingsTab();
-        break;
-    }
-  }
-}
-
-// Modal-Event-Listener Setup
+// Modal Event-Listener
 function setupModalEventListeners() {
-  // Edit Student Modal
-  if (closeEditStudentModal) {
-    closeEditStudentModal.addEventListener("click", () => {
-      editStudentModal.style.display = "none";
+  // Edit Group Modal
+  const editGroupModal = document.getElementById("editGroupModal");
+  const closeEditGroupModal = document.getElementById("closeEditGroupModal");
+  const saveGroupBtn = document.getElementById("saveGroupBtn");
+  const deleteGroupBtn = document.getElementById("deleteGroupBtn");
+  
+  if (closeEditGroupModal) {
+    closeEditGroupModal.addEventListener("click", () => {
+      editGroupModal.style.display = "none";
     });
   }
-  if (saveStudentBtn) {
-    saveStudentBtn.addEventListener("click", saveEditedStudent);
+  if (saveGroupBtn) {
+    saveGroupBtn.addEventListener("click", saveEditedGroup);
   }
-  if (deleteStudentBtn) {
-    deleteStudentBtn.addEventListener("click", showDeleteConfirmation);
+  if (deleteGroupBtn) {
+    deleteGroupBtn.addEventListener("click", showDeleteGroupConfirmation);
   }
-
-  // Edit Template Modal
-  if (closeEditTemplateModal) {
-    closeEditTemplateModal.addEventListener("click", () => {
-      editTemplateModal.style.display = "none";
+  
+  // Confirm Delete Group Modal
+  const confirmDeleteGroupModal = document.getElementById("confirmDeleteGroupModal");
+  const closeConfirmDeleteGroupModal = document.getElementById("closeConfirmDeleteGroupModal");
+  const cancelDeleteGroupBtn = document.getElementById("cancelDeleteGroupBtn");
+  const confirmDeleteGroupBtn = document.getElementById("confirmDeleteGroupBtn");
+  
+  if (closeConfirmDeleteGroupModal) {
+    closeConfirmDeleteGroupModal.addEventListener("click", () => {
+      confirmDeleteGroupModal.style.display = "none";
     });
   }
-  if (updateTemplateBtn) {
-    updateTemplateBtn.addEventListener("click", saveEditedTemplate);
-  }
-  if (deleteTemplateBtn) {
-    deleteTemplateBtn.addEventListener("click", confirmDeleteTemplate);
-  }
-
-  // Edit Grade Modal
-  if (closeEditGradeModal) {
-    closeEditGradeModal.addEventListener("click", () => {
-      editGradeModal.style.display = "none";
+  if (cancelDeleteGroupBtn) {
+    cancelDeleteGroupBtn.addEventListener("click", () => {
+      confirmDeleteGroupModal.style.display = "none";
     });
   }
-  if (saveGradeBtn) {
-    saveGradeBtn.addEventListener("click", saveEditedGrade);
+  if (confirmDeleteGroupBtn) {
+    confirmDeleteGroupBtn.addEventListener("click", deleteGroup);
   }
-
-  // Confirm Delete Modal
-  if (closeConfirmDeleteModal) {
-    closeConfirmDeleteModal.addEventListener("click", () => {
-      confirmDeleteModal.style.display = "none";
+  
+  // Quick Overview Modal
+  const quickOverviewModal = document.getElementById("quickOverviewModal");
+  const closeQuickOverviewModal = document.getElementById("closeQuickOverviewModal");
+  
+  if (closeQuickOverviewModal) {
+    closeQuickOverviewModal.addEventListener("click", () => {
+      quickOverviewModal.style.display = "none";
     });
-  }
-  if (cancelDeleteBtn) {
-    cancelDeleteBtn.addEventListener("click", () => {
-      confirmDeleteModal.style.display = "none";
-    });
-  }
-  if (confirmDeleteBtn) {
-    confirmDeleteBtn.addEventListener("click", deleteStudent);
   }
 }
 
-// Admin-Event-Listener Setup
+// Admin Event-Listener
 function setupAdminEventListeners() {
   // Admin Login anzeigen
   if (showAdminLoginBtn) {
@@ -550,9 +403,7 @@ function setupAdminEventListeners() {
   }
   if (adminPassword) {
     adminPassword.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        performAdminLogin();
-      }
+      if (e.key === "Enter") performAdminLogin();
     });
   }
 
@@ -575,59 +426,56 @@ function setupAdminEventListeners() {
       
       if (tabId === "teachers") {
         updateTeachersAdminTab();
+      } else if (tabId === "schoolyear") {
+        updateSchoolYearTab();
       } else if (tabId === "system") {
         updateSystemInfoTab();
       }
     });
   });
 
-  // Weitere Admin-Event-Listener
-  if (addTeacherBtn) {
-    addTeacherBtn.addEventListener("click", addNewTeacher);
-  }
-  if (refreshSystemBtn) {
-    refreshSystemBtn.addEventListener("click", refreshSystemInfo);
-  }
-  if (exportTeachersBtn) {
-    exportTeachersBtn.addEventListener("click", exportAllTeachers);
-  }
-  if (deleteAllTeachersBtn) {
-    deleteAllTeachersBtn.addEventListener("click", confirmDeleteAllTeachers);
-  }
-  if (deleteAllDataBtn) {
-    deleteAllDataBtn.addEventListener("click", confirmDeleteAllSystemData);
-  }
+  // Admin-Funktionen
+  const addTeacherBtn = document.getElementById("addTeacherBtn");
+  const refreshSystemBtn = document.getElementById("refreshSystemBtn");
+  const exportTeachersBtn = document.getElementById("exportTeachersBtn");
+  const deleteAllTeachersBtn = document.getElementById("deleteAllTeachersBtn");
+  const deleteAllDataBtn = document.getElementById("deleteAllDataBtn");
+  const setSchoolYearBtn = document.getElementById("setSchoolYearBtn");
+  const startNewSchoolYearBtn = document.getElementById("startNewSchoolYearBtn");
+  
+  if (addTeacherBtn) addTeacherBtn.addEventListener("click", addNewTeacher);
+  if (refreshSystemBtn) refreshSystemBtn.addEventListener("click", refreshSystemInfo);
+  if (exportTeachersBtn) exportTeachersBtn.addEventListener("click", exportAllTeachers);
+  if (deleteAllTeachersBtn) deleteAllTeachersBtn.addEventListener("click", confirmDeleteAllTeachers);
+  if (deleteAllDataBtn) deleteAllDataBtn.addEventListener("click", confirmDeleteAllSystemData);
+  if (setSchoolYearBtn) setSchoolYearBtn.addEventListener("click", setSchoolYearManually);
+  if (startNewSchoolYearBtn) startNewSchoolYearBtn.addEventListener("click", confirmStartNewSchoolYear);
+}
 
-  // Edit Teacher Modal
-  if (closeEditTeacherModal) {
-    closeEditTeacherModal.addEventListener("click", () => {
-      editTeacherModal.style.display = "none";
-    });
-  }
-  if (saveTeacherBtn) {
-    saveTeacherBtn.addEventListener("click", saveEditedTeacher);
-  }
-  if (deleteTeacherBtn) {
-    deleteTeacherBtn.addEventListener("click", showDeleteTeacherConfirmation);
-  }
+// === TAB-WECHSEL & LOGIN ===
 
-  // Confirm Delete Teacher Modal
-  if (closeConfirmDeleteTeacherModal) {
-    closeConfirmDeleteTeacherModal.addEventListener("click", () => {
-      confirmDeleteTeacherModal.style.display = "none";
-    });
-  }
-  if (cancelDeleteTeacherBtn) {
-    cancelDeleteTeacherBtn.addEventListener("click", () => {
-      confirmDeleteTeacherModal.style.display = "none";
-    });
-  }
-  if (confirmDeleteTeacherBtn) {
-    confirmDeleteTeacherBtn.addEventListener("click", confirmDeleteTeacher);
+function switchTab(tabId) {
+  tabs.forEach((t) => t.classList.remove("active"));
+  tabContents.forEach((c) => c.classList.remove("active"));
+  
+  const targetTab = document.querySelector(`[data-tab="${tabId}"]`);
+  const targetContent = document.getElementById(`${tabId}-tab`);
+  
+  if (targetTab && targetContent) {
+    targetTab.classList.add("active");
+    targetContent.classList.add("active");
+    
+    switch (tabId) {
+      case "dashboard": updateDashboard(); break;
+      case "groups": updateGroupsTab(); break;
+      case "templates": updateTemplatesTab(); break;
+      case "assessment": updateAssessmentTab(); break;
+      case "overview": updateOverviewTab(); break;
+      case "settings": updateSettingsTab(); break;
+    }
   }
 }
 
-// Führt den Login aus
 async function login() {
   if (passwordInput.value === currentUser.password) {
     passwordModal.style.display = "none";
@@ -638,12 +486,9 @@ async function login() {
     teacherAvatar.textContent = currentUser.code.charAt(0);
     teacherName.textContent = currentUser.name;
     
-    // Initialisiere alle Tabs
     updateDashboard();
     populateTeacherSelects();
     populateTemplateSelects();
-    
-    // Dashboard-Timer starten
     startDashboardTimer();
     
     hideLoader();
@@ -653,7 +498,6 @@ async function login() {
   }
 }
 
-// Logout
 function logout() {
   if (infoTextSaveTimer) {
     clearInterval(infoTextSaveTimer);
@@ -667,7 +511,7 @@ function logout() {
   currentUser.name = null;
   currentUser.code = null;
   currentUser.password = null;
-  teacherData.students = [];
+  teacherData.groups = [];
   teacherData.assessments = {};
   teacherData.assessmentTemplates = [];
   loginSection.style.display = "block";
@@ -675,9 +519,7 @@ function logout() {
   showNotification("Abmeldung erfolgreich.");
 }
 
-// Dashboard-Timer
 function startDashboardTimer() {
-  // Aktualisiere Dashboard alle 5 Minuten
   dashboardUpdateTimer = setInterval(() => {
     if (document.querySelector('.tab[data-tab="dashboard"]').classList.contains('active')) {
       updateDashboard();
@@ -698,21 +540,21 @@ function updateDashboard() {
 function updateDashboardStats() {
   if (!dashboardStats) return;
   
-  if (totalAccessibleStudents) {
-    totalAccessibleStudents.textContent = dashboardStats.totalAccessible;
-  }
-  if (totalAssignedStudents) {
-    totalAssignedStudents.textContent = dashboardStats.totalAssigned;
-  }
-  if (studentsThisYear) {
-    studentsThisYear.textContent = dashboardStats.studentsThisYear;
-  }
-  if (completedAssessments) {
-    completedAssessments.textContent = dashboardStats.assessmentStats.completed;
-  }
-  if (currentSchoolYear) {
-    currentSchoolYear.textContent = dashboardStats.currentSchoolYear;
-  }
+  const elements = {
+    totalAccessibleStudents: document.getElementById("totalAccessibleStudents"),
+    totalAssignedStudents: document.getElementById("totalAssignedStudents"),
+    totalGroups: document.getElementById("totalGroups"),
+    studentsThisYear: document.getElementById("studentsThisYear"),
+    completedAssessments: document.getElementById("completedAssessments"),
+    currentSchoolYear: document.getElementById("currentSchoolYear")
+  };
+  
+  if (elements.totalAccessibleStudents) elements.totalAccessibleStudents.textContent = dashboardStats.totalAccessible;
+  if (elements.totalAssignedStudents) elements.totalAssignedStudents.textContent = dashboardStats.totalAssigned;
+  if (elements.totalGroups) elements.totalGroups.textContent = dashboardStats.totalGroups;
+  if (elements.studentsThisYear) elements.studentsThisYear.textContent = dashboardStats.studentsThisYear;
+  if (elements.completedAssessments) elements.completedAssessments.textContent = dashboardStats.assessmentStats.completed;
+  if (elements.currentSchoolYear) elements.currentSchoolYear.textContent = dashboardStats.currentSchoolYear;
 }
 
 function updateDashboardStatusBar() {
@@ -721,34 +563,48 @@ function updateDashboardStatusBar() {
   const { assessmentStats } = dashboardStats;
   const total = assessmentStats.completed + assessmentStats.inProgress + assessmentStats.notStarted;
   
+  const elements = {
+    statusCompleted: document.getElementById("statusCompleted"),
+    statusInProgress: document.getElementById("statusInProgress"),
+    statusNotStarted: document.getElementById("statusNotStarted"),
+    completedCount: document.getElementById("completedCount"),
+    inProgressCount: document.getElementById("inProgressCount"),
+    notStartedCount: document.getElementById("notStartedCount")
+  };
+  
   if (total === 0) {
-    if (statusCompleted) statusCompleted.style.width = "0%";
-    if (statusInProgress) statusInProgress.style.width = "0%";
-    if (statusNotStarted) statusNotStarted.style.width = "100%";
+    if (elements.statusCompleted) elements.statusCompleted.style.width = "0%";
+    if (elements.statusInProgress) elements.statusInProgress.style.width = "0%";
+    if (elements.statusNotStarted) elements.statusNotStarted.style.width = "100%";
   } else {
     const completedPercent = (assessmentStats.completed / total) * 100;
     const inProgressPercent = (assessmentStats.inProgress / total) * 100;
     const notStartedPercent = (assessmentStats.notStarted / total) * 100;
     
-    if (statusCompleted) statusCompleted.style.width = `${completedPercent}%`;
-    if (statusInProgress) statusInProgress.style.width = `${inProgressPercent}%`;
-    if (statusNotStarted) statusNotStarted.style.width = `${notStartedPercent}%`;
+    if (elements.statusCompleted) elements.statusCompleted.style.width = `${completedPercent}%`;
+    if (elements.statusInProgress) elements.statusInProgress.style.width = `${inProgressPercent}%`;
+    if (elements.statusNotStarted) elements.statusNotStarted.style.width = `${notStartedPercent}%`;
   }
   
-  if (completedCount) completedCount.textContent = assessmentStats.completed;
-  if (inProgressCount) inProgressCount.textContent = assessmentStats.inProgress;
-  if (notStartedCount) notStartedCount.textContent = assessmentStats.notStarted;
+  if (elements.completedCount) elements.completedCount.textContent = assessmentStats.completed;
+  if (elements.inProgressCount) elements.inProgressCount.textContent = assessmentStats.inProgress;
+  if (elements.notStartedCount) elements.notStartedCount.textContent = assessmentStats.notStarted;
 }
 
 function updateDashboardSchoolYearSelect() {
+  const dashboardSchoolYearSelect = document.getElementById("dashboardSchoolYearSelect");
   if (!dashboardSchoolYearSelect) return;
   
-  const schoolYears = getAvailableSchoolYears();
   const currentValue = dashboardSchoolYearSelect.value;
-  
   dashboardSchoolYearSelect.innerHTML = '<option value="">Alle Schuljahre</option>';
   
-  schoolYears.forEach(year => {
+  const schoolYears = new Set();
+  teacherData.groups.forEach(group => {
+    if (group.schoolYear) schoolYears.add(group.schoolYear);
+  });
+  schoolYears.add(getCurrentSchoolYear());
+  
+  Array.from(schoolYears).sort().reverse().forEach(year => {
     const option = document.createElement("option");
     option.value = year;
     option.textContent = year;
@@ -764,485 +620,1025 @@ function updateDashboardSchoolYearSelect() {
 }
 
 function updateDashboardContent() {
+  const dashboardStudentCards = document.getElementById("dashboardStudentCards");
   if (!dashboardStudentCards) return;
   
+  const dashboardSchoolYearSelect = document.getElementById("dashboardSchoolYearSelect");
   const selectedYear = dashboardSchoolYearSelect ? dashboardSchoolYearSelect.value : "";
-  const students = selectedYear ? getStudentsBySchoolYear(selectedYear) : getAccessibleStudents();
+  
+  let groups = getResponsibleGroups();
+  if (selectedYear) {
+    groups = groups.filter(group => group.schoolYear === selectedYear);
+  }
+  
+  const sortedGroups = getSortedGroups(groups);
   
   dashboardStudentCards.innerHTML = "";
   
-  if (students.length === 0) {
+  if (sortedGroups.length === 0) {
     dashboardStudentCards.innerHTML = `
       <div class="welcome-card" style="grid-column: 1 / -1;">
-        <h3>Keine Schüler gefunden</h3>
-        <p>Für das gewählte Schuljahr sind keine Schüler vorhanden.</p>
+        <h3>Keine Gruppen gefunden</h3>
+        <p>Für das gewählte Schuljahr sind keine Gruppen vorhanden.</p>
       </div>
     `;
     return;
   }
   
-  // Sortiere nach Bewertungsstatus und dann nach Datum
-  const sortedStudents = students.sort((a, b) => {
-    const statusA = teacherData.assessments[a.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
-    const statusB = teacherData.assessments[b.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
-    
-    // Priorisiere nicht begonnene, dann in Bearbeitung, dann abgeschlossene
-    const statusOrder = {
-      [ASSESSMENT_STATUS.NOT_STARTED]: 0,
-      [ASSESSMENT_STATUS.IN_PROGRESS]: 1,
-      [ASSESSMENT_STATUS.COMPLETED]: 2
-    };
-    
-    const statusComp = statusOrder[statusA] - statusOrder[statusB];
-    if (statusComp !== 0) return statusComp;
-    
-    return new Date(b.examDate) - new Date(a.examDate);
-  });
-  
-  sortedStudents.forEach(student => {
-    const assessment = teacherData.assessments[student.id] || {};
-    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
-    const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
-    const canAssess = canAssessStudent(student);
-    
-    const card = document.createElement("div");
-    card.className = `student-card ${status}`;
-    card.innerHTML = `
-      <div class="student-card-header">
-        <h3 class="student-card-name">${student.name}</h3>
-        <div class="status-indicator ${status}">
-          <div class="status-dot ${status}"></div>
-          ${getStatusText(status)}
-        </div>
-      </div>
-      <div class="student-card-info">
-        <p><strong>Datum:</strong> ${formatDate(student.examDate)}</p>
-        ${student.topic ? `<p><strong>Thema:</strong> ${student.topic}</p>` : ""}
-        <p><strong>Zugewiesen an:</strong> ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</p>
-        ${assessment.finalGrade ? `<p><strong>Note:</strong> ${assessment.finalGrade}</p>` : ""}
-      </div>
-      <div class="student-card-footer">
-        <div class="student-card-actions">
-          ${canAssess ? `
-            <button class="btn-primary assess-btn" data-student-id="${student.id}">
-              Bewerten
-            </button>
-          ` : `
-            <button class="btn-secondary view-btn" data-student-id="${student.id}">
-              Ansehen
-            </button>
-          `}
-          <button class="btn-secondary edit-btn" data-student-id="${student.id}">
-            ✏️ Bearbeiten
-          </button>
-        </div>
-      </div>
-    `;
-    
-    // Event-Listener für Karten-Aktionen
-    const assessBtn = card.querySelector(".assess-btn");
-    const viewBtn = card.querySelector(".view-btn");
-    const editBtn = card.querySelector(".edit-btn");
-    
-    if (assessBtn) {
-      assessBtn.addEventListener("click", () => {
-        switchTab("assessment");
-        // Setze Filter für diesen Schüler
-        setTimeout(() => {
-          if (assessmentDateSelect) assessmentDateSelect.value = student.examDate;
-          updateAssessmentStudentList();
-          setTimeout(() => {
-            const studentItem = document.querySelector(`.student-item[data-id="${student.id}"]`);
-            if (studentItem) studentItem.click();
-          }, 100);
-        }, 100);
-      });
-    }
-    
-    if (viewBtn) {
-      viewBtn.addEventListener("click", () => {
-        switchTab("overview");
-        // Filter auf diesen Schüler setzen
-        setTimeout(() => {
-          if (overviewDateSelect) overviewDateSelect.value = student.examDate;
-          updateOverviewContent();
-        }, 100);
-      });
-    }
-    
-    if (editBtn) {
-      editBtn.addEventListener("click", () => {
-        showEditStudentModal(student);
-      });
-    }
-    
+  sortedGroups.forEach(group => {
+    const card = createGroupCard(group);
     dashboardStudentCards.appendChild(card);
   });
 }
 
-function getStatusText(status) {
-  switch (status) {
-    case ASSESSMENT_STATUS.NOT_STARTED:
-      return "Nicht begonnen";
-    case ASSESSMENT_STATUS.IN_PROGRESS:
-      return "In Bearbeitung";
-    case ASSESSMENT_STATUS.COMPLETED:
-      return "Abgeschlossen";
-    default:
-      return "Unbekannt";
-  }
-}
-
-// Populiert Lehrer-Auswahlfelder
-function populateTeacherSelects() {
-  const selects = [assignedTeacherSelect, editAssignedTeacher];
+function createGroupCard(group) {
+  const card = document.createElement("div");
+  card.className = "group-card";
   
-  selects.forEach(select => {
-    if (!select) return;
-    
-    // Aktuelle Auswahl merken
-    const currentValue = select.value;
-    
-    // Optionen löschen (außer der ersten)
-    while (select.children.length > 1) {
-      select.removeChild(select.lastChild);
-    }
-    
-    // Erste Option aktualisieren
-    if (select.children[0]) {
-      select.children[0].textContent = `Aktueller Lehrer (${currentUser.name})`;
-      select.children[0].value = currentUser.code;
-    }
-    
-    // Alle anderen Lehrer hinzufügen
-    allTeachers.forEach(teacher => {
-      if (teacher.code !== currentUser.code) {
-        const option = document.createElement("option");
-        option.value = teacher.code;
-        option.textContent = teacher.name;
-        select.appendChild(option);
-      }
-    });
-    
-    // Auswahl wiederherstellen
-    if (currentValue) {
-      select.value = currentValue;
-    }
+  const studentsWithStatus = group.students.map(student => {
+    const assessment = teacherData.assessments[student.id] || {};
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    return { ...student, status };
   });
-}
-
-// Populiert Template-Auswahlfelder
-function populateTemplateSelects() {
-  const selects = [templateSelect, editTemplateSelect, defaultTemplateSelect];
   
-  selects.forEach(select => {
-    if (!select) return;
-    
-    const currentValue = select.value;
-    
-    // Optionen löschen (außer der ersten)
-    while (select.children.length > 1) {
-      select.removeChild(select.lastChild);
-    }
-    
-    // Alle Templates hinzufügen
-    const templates = getAllAssessmentTemplates();
-    templates.forEach(template => {
-      const option = document.createElement("option");
-      option.value = template.id;
-      option.textContent = template.name + (template.isDefault ? " (Standard)" : "");
-      select.appendChild(option);
+  const completedStudents = studentsWithStatus.filter(s => s.status === ASSESSMENT_STATUS.COMPLETED).length;
+  const totalStudents = group.students.length;
+  
+  card.innerHTML = `
+    <div class="group-card-header">
+      <h3 class="group-card-title">${group.theme}</h3>
+      <div class="group-progress">
+        <span class="progress-text">${completedStudents}/${totalStudents}</span>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${totalStudents > 0 ? (completedStudents/totalStudents)*100 : 0}%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card-info">
+      <p><strong>Schuljahr:</strong> ${group.schoolYear}</p>
+      <p><strong>Schüler:</strong> ${group.students.map(s => s.name).join(', ')}</p>
+      ${group.examDate ? `<p><strong>Prüfungsdatum:</strong> ${formatDate(group.examDate)}</p>` : ''}
+    </div>
+    <div class="group-card-footer">
+      <button class="edit-btn" data-group-id="${group.id}" title="Gruppe bearbeiten">✏️</button>
+    </div>
+  `;
+  
+  const editBtn = card.querySelector(".edit-btn");
+  if (editBtn) {
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showEditGroupModal(group);
     });
-    
-    // Auswahl wiederherstellen
-    if (currentValue) {
-      select.value = currentValue;
-    } else if (teacherData.settings && teacherData.settings.defaultTemplate) {
-      select.value = teacherData.settings.defaultTemplate;
-    }
-  });
-}
-
-// Speichert App-Einstellungen
-async function saveAppSettings() {
-  if (!teacherData.settings) {
-    teacherData.settings = {};
   }
   
-  teacherData.settings.defaultTemplate = defaultTemplateSelect.value;
-  
-  showLoader();
-  const saved = await saveTeacherData();
-  hideLoader();
-  
-  if (saved) {
-    showNotification("Einstellungen gespeichert.");
-  }
+  return card;
 }
 
-// === SCHÜLER-VERWALTUNG ===
-
-// Aktualisiert den "Schüler anlegen"-Tab
-function updateStudentsTab() {
-  if (!studentsTable) return;
+function showQuickOverview(cardType) {
+  const quickOverviewModal = document.getElementById("quickOverviewModal");
+  const quickOverviewContent = document.getElementById("quickOverviewContent");
   
-  const tbody = studentsTable.querySelector("tbody");
-  tbody.innerHTML = "";
+  if (!quickOverviewModal || !quickOverviewContent) return;
   
-  let studentsToShow = [];
-  const filter = studentViewFilter ? studentViewFilter.value : "accessible";
+  let students = [];
+  let title = "";
   
-  switch (filter) {
+  switch (cardType) {
     case "accessible":
-      studentsToShow = getAccessibleStudents();
+      students = getAccessibleStudents();
+      title = "Alle zugänglichen Schüler";
       break;
     case "assigned":
-      studentsToShow = getAssignedStudents();
+      students = getAssignedStudents();
+      title = "Mir zugewiesene Schüler";
       break;
-    case "created":
-      studentsToShow = getCreatedStudents();
+    case "groups":
+      const groups = getResponsibleGroups();
+      quickOverviewContent.innerHTML = `
+        <div class="quick-overview-header">
+          <h3>Meine Gruppen</h3>
+        </div>
+        <div class="groups-overview-list">
+          ${groups.map(group => `
+            <div class="group-overview-item">
+              <h4>${group.theme}</h4>
+              <p><strong>Schüler:</strong> ${group.students.length}/4</p>
+              <p><strong>Schuljahr:</strong> ${group.schoolYear}</p>
+              ${group.examDate ? `<p><strong>Datum:</strong> ${formatDate(group.examDate)}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+      quickOverviewModal.style.display = "flex";
+      return;
+    case "thisyear":
+      students = getAccessibleStudents().filter(s => s.schoolYear === getCurrentSchoolYear());
+      title = "Schüler dieses Schuljahr";
+      break;
+    case "completed":
+      students = getAssignedStudents().filter(s => {
+        const assessment = teacherData.assessments[s.id];
+        return assessment && assessment.status === ASSESSMENT_STATUS.COMPLETED;
+      });
+      title = "Abgeschlossene Bewertungen";
       break;
   }
   
-  if (studentsToShow.length === 0) {
+  quickOverviewContent.innerHTML = `
+    <div class="quick-overview-header">
+      <h3>${title}</h3>
+      <div class="sort-options">
+        <label>Sortieren nach:</label>
+        <select id="quickOverviewSort">
+          <option value="theme">Thema</option>
+          <option value="alphabetical">Alphabetisch</option>
+          <option value="date">Datum</option>
+          <option value="status">Status</option>
+        </select>
+      </div>
+    </div>
+    <div class="quick-overview-list" id="quickOverviewList"></div>
+  `;
+  
+  const sortSelect = quickOverviewContent.querySelector("#quickOverviewSort");
+  const updateList = () => {
+    const sortBy = sortSelect.value;
+    const sortedStudents = sortStudentsBy(students, sortBy);
+    renderQuickOverviewList(sortedStudents);
+  };
+  
+  sortSelect.addEventListener("change", updateList);
+  updateList();
+  
+  quickOverviewModal.style.display = "flex";
+}
+
+function sortStudentsBy(students, sortBy) {
+  const sorted = [...students];
+  
+  switch (sortBy) {
+    case "theme":
+      sorted.sort((a, b) => a.theme.localeCompare(b.theme));
+      break;
+    case "alphabetical":
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case "date":
+      sorted.sort((a, b) => {
+        if (!a.examDate && !b.examDate) return 0;
+        if (!a.examDate) return 1;
+        if (!b.examDate) return -1;
+        return new Date(b.examDate) - new Date(a.examDate);
+      });
+      break;
+    case "status":
+      sorted.sort((a, b) => {
+        const statusA = teacherData.assessments[a.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
+        const statusB = teacherData.assessments[b.id]?.status || ASSESSMENT_STATUS.NOT_STARTED;
+        const statusOrder = {
+          [ASSESSMENT_STATUS.NOT_STARTED]: 0,
+          [ASSESSMENT_STATUS.IN_PROGRESS]: 1,
+          [ASSESSMENT_STATUS.COMPLETED]: 2
+        };
+        return statusOrder[statusA] - statusOrder[statusB];
+      });
+      break;
+  }
+  
+  return sorted;
+}
+
+function renderQuickOverviewList(students) {
+  const quickOverviewList = document.getElementById("quickOverviewList");
+  if (!quickOverviewList) return;
+  
+  if (students.length === 0) {
+    quickOverviewList.innerHTML = '<p class="no-data">Keine Schüler gefunden</p>';
+    return;
+  }
+  
+  quickOverviewList.innerHTML = students.map(student => {
+    const assessment = teacherData.assessments[student.id] || {};
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
+    
+    return `
+      <div class="quick-overview-item ${status}">
+        <div class="student-info">
+          <h4>${student.name}</h4>
+          <p><strong>Thema:</strong> ${student.theme}</p>
+          <p><strong>Zugewiesen an:</strong> ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</p>
+          ${student.examDate ? `<p><strong>Datum:</strong> ${formatDate(student.examDate)}</p>` : ''}
+        </div>
+        <div class="student-status">
+          <div class="status-indicator ${status}">
+            <div class="status-dot ${status}"></div>
+            ${getStatusText(status)}
+          </div>
+          ${assessment.finalGrade ? `<div class="final-grade">${assessment.finalGrade}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function getStatusText(status) {
+  switch (status) {
+    case ASSESSMENT_STATUS.NOT_STARTED: return "Nicht begonnen";
+    case ASSESSMENT_STATUS.IN_PROGRESS: return "In Bearbeitung";
+    case ASSESSMENT_STATUS.COMPLETED: return "Abgeschlossen";
+    default: return "Unbekannt";
+  }
+}
+
+function toggleDashboardView() {
+  // Implementierung für Reihenfolge anpassen
+  showNotification("Funktion wird bald verfügbar sein.", "info");
+}
+
+// === GRUPPEN-VERWALTUNG ===
+
+function updateGroupsTab() {
+  const groupsTable = document.getElementById("groupsTable");
+  if (!groupsTable) return;
+  
+  const tbody = groupsTable.querySelector("tbody");
+  tbody.innerHTML = "";
+  
+  let groupsToShow = [];
+  const groupViewFilter = document.getElementById("groupViewFilter");
+  const filter = groupViewFilter ? groupViewFilter.value : "responsible";
+  
+  switch (filter) {
+    case "responsible":
+      groupsToShow = getResponsibleGroups();
+      break;
+    case "accessible":
+      groupsToShow = teacherData.groups.filter(group => 
+        group.responsibleTeacher === currentUser.code || 
+        group.createdBy === currentUser.code ||
+        group.students.some(s => s.assignedTeacher === currentUser.code)
+      );
+      break;
+  }
+  
+  if (groupsToShow.length === 0) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="8">Keine Schüler vorhanden</td>';
+    tr.innerHTML = '<td colspan="8">Keine Gruppen vorhanden</td>';
     tbody.appendChild(tr);
     return;
   }
   
-  const sorted = [...studentsToShow].sort(
-    (a, b) => new Date(b.examDate) - new Date(a.examDate)
-  );
+  const sortedGroups = getSortedGroups(groupsToShow);
   
-  sorted.forEach((student) => {
+  sortedGroups.forEach((group) => {
     const tr = document.createElement("tr");
-    const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
-    const createdByTeacher = allTeachers.find(t => t.code === student.createdBy);
-    const assessment = teacherData.assessments[student.id] || {};
-    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    const responsibleTeacher = allTeachers.find(t => t.code === group.responsibleTeacher);
+    const createdByTeacher = allTeachers.find(t => t.code === group.createdBy);
+    
+    const studentsWithStatus = group.students.map(student => {
+      const assessment = teacherData.assessments[student.id] || {};
+      return assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    });
+    
+    const completedCount = studentsWithStatus.filter(s => s === ASSESSMENT_STATUS.COMPLETED).length;
+    const inProgressCount = studentsWithStatus.filter(s => s === ASSESSMENT_STATUS.IN_PROGRESS).length;
+    const totalCount = group.students.length;
+    
+    let groupStatus = "not-started";
+    if (completedCount === totalCount && totalCount > 0) {
+      groupStatus = "completed";
+    } else if (completedCount > 0 || inProgressCount > 0) {
+      groupStatus = "in-progress";
+    }
     
     tr.innerHTML = `
       <td class="status-cell">
-        <div class="status-indicator ${status}">
-          <div class="status-dot ${status}"></div>
-          ${getStatusText(status)}
+        <div class="status-indicator ${groupStatus}">
+          <div class="status-dot ${groupStatus}"></div>
+          ${getGroupStatusText(groupStatus)}
         </div>
       </td>
-      <td>${student.name}</td>
-      <td>${formatDate(student.examDate)}</td>
-      <td>${student.topic || "-"}</td>
-      <td class="assigned-teacher-col">${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</td>
-      <td class="created-by-col">${createdByTeacher ? createdByTeacher.name : student.createdBy}</td>
-      <td>${student.schoolYear || "-"}</td>
+      <td><strong>${group.theme}</strong></td>
+      <td>${group.examDate ? formatDate(group.examDate) : "-"}</td>
       <td>
-        <button class="edit-btn" data-id="${student.id}">✏️</button>
+        <div class="students-in-group">
+          ${group.students.map(s => `
+            <span class="student-chip" title="Zugewiesen an: ${allTeachers.find(t => t.code === s.assignedTeacher)?.name || s.assignedTeacher}">
+              ${s.name}
+            </span>
+          `).join('')}
+        </div>
+      </td>
+      <td class="assigned-teacher-col">${responsibleTeacher ? responsibleTeacher.name : group.responsibleTeacher}</td>
+      <td class="created-by-col">${createdByTeacher ? createdByTeacher.name : group.createdBy}</td>
+      <td>${group.schoolYear || "-"}</td>
+      <td>
+        ${canEditGroup(group) ? `
+          <button class="edit-btn" data-id="${group.id}" title="Gruppe bearbeiten">✏️</button>
+        ` : `
+          <span style="color: #999;" title="Keine Berechtigung">🔒</span>
+        `}
       </td>
     `;
-    tr.querySelector(".edit-btn").addEventListener("click", () => {
-      showEditStudentModal(student);
-    });
+    
+    const editBtn = tr.querySelector(".edit-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        showEditGroupModal(group);
+      });
+    }
+    
     tbody.appendChild(tr);
   });
 }
 
-// Neuen Schüler hinzufügen
-async function addNewStudent() {
-  const name = newStudentName.value.trim();
-  const date = examDate.value;
-  const topic = newStudentTopic ? newStudentTopic.value.trim() : "";
-  const assignedTeacher = assignedTeacherSelect.value || currentUser.code;
-  const templateId = templateSelect.value || teacherData.settings.defaultTemplate;
-  
-  lastSelectedDate = date;
-  if (topic) {
-    lastSelectedTopic = topic;
+function getGroupStatusText(status) {
+  switch (status) {
+    case "completed": return "Abgeschlossen";
+    case "in-progress": return "In Bearbeitung";
+    case "not-started": return "Nicht begonnen";
+    default: return "Unbekannt";
   }
+}
+
+async function addNewGroup() {
+  const newGroupTheme = document.getElementById("newGroupTheme");
+  const newGroupDate = document.getElementById("newGroupDate");
   
-  if (!name) {
-    showNotification("Bitte einen Namen eingeben.", "warning");
-    return;
-  }
+  const theme = newGroupTheme ? newGroupTheme.value.trim() : "";
+  const date = newGroupDate ? newGroupDate.value : "";
   
-  const existing = teacherData.students.find(
-    (s) => s.name.toLowerCase() === name.toLowerCase() && s.examDate === date
-  );
-  
-  if (existing) {
-    showNotification(`Schüler "${name}" existiert bereits für dieses Datum.`, "warning");
+  if (!theme) {
+    showNotification("Bitte ein Thema eingeben.", "warning");
     return;
   }
   
   showLoader();
   
   try {
-    const newStudent = createStudent(name, date, topic, assignedTeacher, templateId);
+    const newGroup = createGroup(theme, currentUser.code);
+    if (date) {
+      newGroup.examDate = date;
+    }
+    
     const saved = await saveTeacherData();
     
     if (saved) {
-      newStudentName.value = "";
-      if (newStudentTopic) newStudentTopic.value = "";
-      examDate.value = lastSelectedDate;
-      assignedTeacherSelect.value = "";
-      templateSelect.value = "";
+      if (newGroupTheme) newGroupTheme.value = "";
+      if (newGroupDate) newGroupDate.value = defaultDate;
       
-      updateStudentsTab();
-      updateDashboard(); // Dashboard aktualisieren
-      populateAssessmentDateSelect();
-      populateAssessmentTopicSelect();
-      populateOverviewTopicSelect();
-      showNotification(`Schüler "${name}" wurde hinzugefügt.`);
+      updateGroupsTab();
+      updateDashboard();
+      showNotification(`Gruppe "${theme}" wurde erstellt.`);
     }
   } catch (error) {
-    console.error("Fehler beim Erstellen des Schülers:", error);
-    showNotification("Fehler beim Erstellen des Schülers.", "error");
+    console.error("Fehler beim Erstellen der Gruppe:", error);
+    showNotification("Fehler beim Erstellen der Gruppe.", "error");
   } finally {
     hideLoader();
   }
 }
 
-// Zeigt das Modal zum Bearbeiten eines Schülers
-function showEditStudentModal(student) {
-  editStudentName.value = student.name;
-  editExamDate.value = student.examDate;
-  if (editStudentTopic) {
-    editStudentTopic.value = student.topic || "";
+function showEditGroupModal(group) {
+  const editGroupModal = document.getElementById("editGroupModal");
+  const editGroupTheme = document.getElementById("editGroupTheme");
+  const editGroupDate = document.getElementById("editGroupDate");
+  const editGroupResponsibleTeacher = document.getElementById("editGroupResponsibleTeacher");
+  const editGroupStudentsContainer = document.getElementById("editGroupStudentsContainer");
+  
+  if (!editGroupModal) return;
+  
+  selectedGroup = group;
+  
+  if (editGroupTheme) editGroupTheme.value = group.theme;
+  if (editGroupDate) editGroupDate.value = group.examDate || "";
+  if (editGroupResponsibleTeacher) editGroupResponsibleTeacher.value = group.responsibleTeacher;
+  
+  if (editGroupStudentsContainer) {
+    editGroupStudentsContainer.innerHTML = "";
+    
+    group.students.forEach((student, index) => {
+      const studentRow = document.createElement("div");
+      studentRow.className = "student-row";
+      
+      studentRow.innerHTML = `
+        <div class="student-row-info">
+          <input type="text" class="student-name-input" value="${student.name}" data-student-id="${student.id}">
+          <select class="student-teacher-select" data-student-id="${student.id}">
+            ${allTeachers.map(teacher => 
+              `<option value="${teacher.code}" ${teacher.code === student.assignedTeacher ? 'selected' : ''}>
+                ${teacher.name}
+              </option>`
+            ).join('')}
+          </select>
+          <input type="date" class="student-assessment-date" value="${student.assessmentDate || ''}" data-student-id="${student.id}">
+        </div>
+        <div class="student-row-actions">
+          <button type="button" class="btn-danger remove-student-btn" data-student-id="${student.id}">✕</button>
+        </div>
+      `;
+      
+      editGroupStudentsContainer.appendChild(studentRow);
+    });
+    
+    if (group.students.length < 4) {
+      const addStudentRow = document.createElement("div");
+      addStudentRow.className = "add-student-row";
+      addStudentRow.innerHTML = `
+        <input type="text" id="newStudentInGroupName" placeholder="Neuer Schüler" maxlength="50">
+        <select id="newStudentInGroupTeacher">
+          ${allTeachers.map(teacher => 
+            `<option value="${teacher.code}" ${teacher.code === currentUser.code ? 'selected' : ''}>
+              ${teacher.name}
+            </option>`
+          ).join('')}
+        </select>
+        <button type="button" id="addStudentToGroupBtn" class="btn-secondary">+ Hinzufügen</button>
+      `;
+      editGroupStudentsContainer.appendChild(addStudentRow);
+      
+      const addStudentBtn = addStudentRow.querySelector("#addStudentToGroupBtn");
+      if (addStudentBtn) {
+        addStudentBtn.addEventListener("click", () => {
+          const nameInput = addStudentRow.querySelector("#newStudentInGroupName");
+          const teacherSelect = addStudentRow.querySelector("#newStudentInGroupTeacher");
+          
+          if (nameInput && teacherSelect && nameInput.value.trim()) {
+            addStudentToCurrentGroup(nameInput.value.trim(), teacherSelect.value);
+          }
+        });
+      }
+    }
+    
+    editGroupStudentsContainer.querySelectorAll(".remove-student-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const studentId = e.target.dataset.studentId;
+        if (confirm("Schüler aus Gruppe entfernen?")) {
+          removeStudentFromGroup(studentId);
+        }
+      });
+    });
   }
-  if (editAssignedTeacher) {
-    editAssignedTeacher.value = student.assignedTeacher || "";
-  }
-  if (editTemplateSelect) {
-    editTemplateSelect.value = student.templateId || "";
-    // Template-Select nur für zugewiesenen Lehrer aktivieren
-    editTemplateSelect.disabled = !canAssessStudent(student);
-  }
-  selectedStudent = student;
-  editStudentModal.style.display = "flex";
+  
+  editGroupModal.style.display = "flex";
 }
 
-// Speichert Änderungen am Schüler
-async function saveEditedStudent() {
-  if (!selectedStudent) return;
+async function addStudentToCurrentGroup(studentName, assignedTeacher) {
+  if (!selectedGroup) return;
   
-  const name = editStudentName.value.trim();
-  const date = editExamDate.value;
-  const topic = editStudentTopic ? editStudentTopic.value.trim() : "";
-  const assignedTeacher = editAssignedTeacher ? editAssignedTeacher.value : selectedStudent.assignedTeacher;
-  let templateId = selectedStudent.templateId;
-  
-  // Template nur ändern, wenn der Benutzer berechtigt ist
-  if (canAssessStudent(selectedStudent) && editTemplateSelect && !editTemplateSelect.disabled) {
-    templateId = editTemplateSelect.value || selectedStudent.templateId;
+  try {
+    const newStudent = addStudentToGroup(selectedGroup.id, studentName, assignedTeacher);
+    const saved = await saveTeacherData();
+    
+    if (saved) {
+      showNotification(`Schüler "${studentName}" zur Gruppe hinzugefügt.`);
+      showEditGroupModal(selectedGroup);
+      updateGroupsTab();
+      updateDashboard();
+    }
+  } catch (error) {
+    showNotification(error.message, "error");
   }
+}
+
+async function removeStudentFromGroup(studentId) {
+  if (!selectedGroup) return;
   
-  if (date !== selectedStudent.examDate) {
-    lastSelectedDate = date;
+  try {
+    selectedGroup.students = selectedGroup.students.filter(s => s.id !== studentId);
+    delete teacherData.assessments[studentId];
+    
+    const saved = await saveTeacherData();
+    
+    if (saved) {
+      showNotification("Schüler aus Gruppe entfernt.");
+      showEditGroupModal(selectedGroup);
+      updateGroupsTab();
+      updateDashboard();
+    }
+  } catch (error) {
+    showNotification("Fehler beim Entfernen des Schülers.", "error");
   }
-  if (topic && topic !== selectedStudent.topic) {
-    lastSelectedTopic = topic;
-  }
+}
+
+async function saveEditedGroup() {
+  if (!selectedGroup) return;
   
-  if (!name) {
-    showNotification("Bitte einen Namen eingeben.", "warning");
-    return;
-  }
+  const editGroupTheme = document.getElementById("editGroupTheme");
+  const editGroupDate = document.getElementById("editGroupDate");
+  const editGroupResponsibleTeacher = document.getElementById("editGroupResponsibleTeacher");
   
-  const existing = teacherData.students.find(
-    (s) =>
-      s.id !== selectedStudent.id &&
-      s.name.toLowerCase() === name.toLowerCase() &&
-      s.examDate === date
-  );
+  const theme = editGroupTheme ? editGroupTheme.value.trim() : selectedGroup.theme;
+  const date = editGroupDate ? editGroupDate.value : selectedGroup.examDate;
+  const responsibleTeacher = editGroupResponsibleTeacher ? editGroupResponsibleTeacher.value : selectedGroup.responsibleTeacher;
   
-  if (existing) {
-    showNotification(`Schüler "${name}" existiert bereits für dieses Datum.`, "warning");
+  if (!theme) {
+    showNotification("Bitte ein Thema eingeben.", "warning");
     return;
   }
   
   showLoader();
   
-  selectedStudent.name = name;
-  selectedStudent.examDate = date;
-  selectedStudent.topic = topic;
-  selectedStudent.assignedTeacher = assignedTeacher;
-  selectedStudent.schoolYear = selectedStudent.schoolYear || getCurrentSchoolYear();
+  selectedGroup.theme = theme;
+  selectedGroup.examDate = date || null;
+  selectedGroup.responsibleTeacher = responsibleTeacher;
   
-  // Template-Wechsel behandeln
-  if (templateId !== selectedStudent.templateId) {
-    selectedStudent.templateId = templateId;
-    // Bewertung neu initialisieren
-    const template = getAssessmentTemplate(templateId);
-    const assessment = teacherData.assessments[selectedStudent.id];
+  const studentRows = document.querySelectorAll(".student-row");
+  studentRows.forEach(row => {
+    const nameInput = row.querySelector(".student-name-input");
+    const teacherSelect = row.querySelector(".student-teacher-select");
+    const dateInput = row.querySelector(".student-assessment-date");
     
-    if (template && assessment) {
-      // Alte Bewertungen löschen, aber Info-Text und Endnote behalten
-      const savedInfo = assessment.infoText || "";
-      const savedGrade = assessment.finalGrade;
+    if (nameInput && teacherSelect) {
+      const studentId = nameInput.dataset.studentId;
+      const student = selectedGroup.students.find(s => s.id === studentId);
       
-      teacherData.assessments[selectedStudent.id] = {
-        templateId: templateId,
-        infoText: savedInfo,
-        finalGrade: savedGrade,
-        status: ASSESSMENT_STATUS.NOT_STARTED,
-        lastModified: new Date().toISOString()
-      };
-      
-      // Neue Kategorien initialisieren
-      template.categories.forEach(category => {
-        teacherData.assessments[selectedStudent.id][category.id] = 0;
+      if (student) {
+        student.name = nameInput.value.trim();
+        student.assignedTeacher = teacherSelect.value;
+        student.assessmentDate = dateInput ? dateInput.value : null;
+      }
+    }
+  });
+  
+  const saved = await saveTeacherData();
+  hideLoader();
+  
+  if (saved) {
+    updateGroupsTab();
+    updateDashboard();
+    showNotification(`Gruppe "${theme}" wurde aktualisiert.`);
+    const editGroupModal = document.getElementById("editGroupModal");
+    if (editGroupModal) editGroupModal.style.display = "none";
+  }
+}
+
+function showDeleteGroupConfirmation() {
+  groupToDelete = selectedGroup;
+  const deleteGroupName = document.getElementById("deleteGroupName");
+  if (deleteGroupName) deleteGroupName.textContent = groupToDelete.theme;
+  
+  const editGroupModal = document.getElementById("editGroupModal");
+  const confirmDeleteGroupModal = document.getElementById("confirmDeleteGroupModal");
+  
+  if (editGroupModal) editGroupModal.style.display = "none";
+  if (confirmDeleteGroupModal) confirmDeleteGroupModal.style.display = "flex";
+}
+
+async function deleteGroup() {
+  if (!groupToDelete) return;
+  
+  showLoader();
+  
+  groupToDelete.students.forEach(student => {
+    delete teacherData.assessments[student.id];
+  });
+  
+  teacherData.groups = teacherData.groups.filter(g => g.id !== groupToDelete.id);
+  
+  const saved = await saveTeacherData();
+  hideLoader();
+  
+  if (saved) {
+    updateGroupsTab();
+    updateDashboard();
+    showNotification(`Gruppe "${groupToDelete.theme}" wurde gelöscht.`);
+    
+    const confirmDeleteGroupModal = document.getElementById("confirmDeleteGroupModal");
+    if (confirmDeleteGroupModal) confirmDeleteGroupModal.style.display = "none";
+    
+    groupToDelete = null;
+  }
+}
+
+// === BEWERTUNGS-TAB ===
+
+function updateAssessmentTab() {
+  populateAssessmentThemeSelect();
+  populateAssessmentDateSelect();
+  updateAssessmentStudentList();
+}
+
+function populateAssessmentThemeSelect() {
+  const assessmentThemeSelect = document.getElementById("assessmentThemeSelect");
+  if (!assessmentThemeSelect) return;
+  
+  const themes = new Set();
+  const assignedStudents = getAssignedStudents();
+  
+  assignedStudents.forEach(student => {
+    if (student.theme) themes.add(student.theme);
+  });
+  
+  assessmentThemeSelect.innerHTML = '<option value="">Alle Themen</option>';
+  
+  let defaultTheme = null;
+  if (lastSelectedTheme && themes.has(lastSelectedTheme)) {
+    defaultTheme = lastSelectedTheme;
+  }
+  
+  Array.from(themes).sort().forEach(theme => {
+    const option = document.createElement("option");
+    option.value = theme;
+    option.textContent = theme;
+    if (theme === defaultTheme) {
+      option.selected = true;
+    }
+    assessmentThemeSelect.appendChild(option);
+  });
+  
+  if (assessmentThemeSelect.value) {
+    lastSelectedTheme = assessmentThemeSelect.value;
+  }
+}
+
+function populateAssessmentDateSelect() {
+  const assessmentDateSelect = document.getElementById("assessmentDateSelect");
+  if (!assessmentDateSelect) return;
+  
+  const selectedTheme = document.getElementById("assessmentThemeSelect")?.value;
+  const dates = new Set();
+  let filteredStudents = getAssignedStudents();
+  
+  if (selectedTheme) {
+    filteredStudents = filteredStudents.filter(s => s.theme === selectedTheme);
+  }
+  
+  filteredStudents.forEach(student => {
+    if (student.assessmentDate) dates.add(student.assessmentDate);
+    if (student.examDate) dates.add(student.examDate);
+  });
+  
+  assessmentDateSelect.innerHTML = '<option value="">Alle Termine</option>';
+  
+  if (dates.size === 0) return;
+  
+  let defaultDate = null;
+  if (lastSelectedDate && dates.has(lastSelectedDate)) {
+    defaultDate = lastSelectedDate;
+  }
+  
+  Array.from(dates).sort().reverse().forEach(date => {
+    const option = document.createElement("option");
+    option.value = date;
+    option.textContent = formatDate(date);
+    if (date === defaultDate) {
+      option.selected = true;
+    }
+    assessmentDateSelect.appendChild(option);
+  });
+  
+  if (assessmentDateSelect.value) {
+    lastSelectedDate = assessmentDateSelect.value;
+  }
+}
+
+function updateAssessmentStudentList() {
+  const assessmentStudentList = document.getElementById("assessmentStudentList");
+  const assessmentContent = document.getElementById("assessmentContent");
+  
+  if (!assessmentStudentList || !assessmentContent) return;
+  
+  const selectedTheme = document.getElementById("assessmentThemeSelect")?.value;
+  const selectedDate = document.getElementById("assessmentDateSelect")?.value;
+  const selectedStatus = document.getElementById("assessmentStatusFilter")?.value;
+  
+  assessmentStudentList.innerHTML = "";
+  
+  if (!selectedTheme && !selectedDate && !selectedStatus) {
+    assessmentStudentList.innerHTML = "<li>Bitte Filter auswählen</li>";
+    assessmentContent.innerHTML = `
+      <div class="welcome-card">
+        <h2>Willkommen bei der Bewertungsapp</h2>
+        <p>Bitte wählen Sie Filter aus und anschließend einen Schüler aus der Liste.</p>
+      </div>
+    `;
+    currentSelectedStudentId = null;
+    return;
+  }
+  
+  let filtered = getAssignedStudents();
+  
+  if (selectedTheme) {
+    filtered = filtered.filter(s => s.theme === selectedTheme);
+  }
+  if (selectedDate) {
+    filtered = filtered.filter(s => s.assessmentDate === selectedDate || s.examDate === selectedDate);
+  }
+  if (selectedStatus) {
+    filtered = filtered.filter(s => {
+      const assessment = teacherData.assessments[s.id];
+      const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
+      return status === selectedStatus;
+    });
+  }
+  
+  if (filtered.length === 0) {
+    assessmentStudentList.innerHTML = "<li>Keine Schüler gefunden</li>";
+    assessmentContent.innerHTML = `
+      <div class="welcome-card">
+        <h2>Keine Schüler</h2>
+        <p>Für diese Auswahl gibt es keine Ihnen zugewiesenen Schüler.</p>
+      </div>
+    `;
+    currentSelectedStudentId = null;
+    return;
+  }
+  
+  filtered.sort((a, b) => {
+    const dateComp = new Date(b.examDate || b.assessmentDate) - new Date(a.examDate || a.assessmentDate);
+    if (dateComp !== 0) return dateComp;
+    return a.name.localeCompare(b.name);
+  });
+  
+  filtered.forEach((student) => {
+    const li = document.createElement("li");
+    li.className = "student-item";
+    li.dataset.id = student.id;
+    const assessment = teacherData.assessments[student.id] || {};
+    const finalGrade = assessment.finalGrade || "-";
+    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
+    
+    li.classList.add(status);
+    
+    li.innerHTML = `
+      <div class="student-name">
+        ${student.name} (${student.theme})
+        <div class="student-meta">${getStatusText(status)}</div>
+      </div>
+      <div class="average-grade grade-${Math.round(finalGrade)}">${finalGrade}</div>
+    `;
+    
+    li.addEventListener("click", () => {
+      document.querySelectorAll(".student-item").forEach((item) => {
+        item.classList.remove("active");
       });
+      li.classList.add("active");
+      currentSelectedStudentId = student.id;
+      showAssessmentForm(student);
+    });
+    
+    assessmentStudentList.appendChild(li);
+  });
+  
+  let studentToSelect = null;
+  
+  if (currentSelectedStudentId) {
+    studentToSelect = document.querySelector(`.student-item[data-id="${currentSelectedStudentId}"]`);
+  }
+  
+  if (!studentToSelect && filtered.length > 0) {
+    studentToSelect = document.querySelector(".student-item");
+  }
+  
+  if (studentToSelect) {
+    studentToSelect.click();
+  }
+}
+
+function showAssessmentForm(student) {
+  selectedStudent = student;
+  const assessment = teacherData.assessments[student.id] || {};
+  const template = getAssessmentTemplate(student.templateId);
+  
+  if (!template) {
+    const assessmentContent = document.getElementById("assessmentContent");
+    assessmentContent.innerHTML = `
+      <div class="welcome-card">
+        <h2>Fehler</h2>
+        <p>Bewertungsraster für diesen Schüler nicht gefunden.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  const avgGrade = calculateWeightedAverageGrade(assessment, template);
+  const finalGrade = assessment.finalGrade || avgGrade || "-";
+  
+  let html = `
+    <div class="assessment-container">
+      <div class="student-header">
+        <h2>${student.name}</h2>
+        <p>Thema: ${student.theme}</p>
+        ${student.examDate ? `<p>Prüfungsdatum: ${formatDate(student.examDate)}</p>` : ""}
+        ${student.assessmentDate ? `<p>Bewertungsdatum: ${formatDate(student.assessmentDate)}</p>` : ""}
+        <p>Bewertungsraster: <strong>${template.name}</strong></p>
+      </div>
       
-      // Status neu berechnen
-      updateAssessmentStatus(selectedStudent.id);
+      <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
+      
+      <div class="final-grade-input">
+        <label for="finalGrade">Endnote:</label>
+        <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
+        <button id="saveFinalGradeBtn">Speichern</button>
+        <button id="useAverageBtn">Durchschnitt übernehmen</button>
+      </div>
+  `;
+  
+  template.categories.forEach((category) => {
+    const grade = assessment[category.id] || 0;
+    html += `
+      <div class="assessment-category">
+        <div class="category-header">
+          <h3>${category.name}${category.weight > 1 ? ` (Gewichtung: ${category.weight})` : ''}</h3>
+        </div>
+        <div class="category-grade">${grade > 0 ? grade.toFixed(1) : "-"}</div>
+        <div class="grade-buttons" data-category="${category.id}">
+    `;
+    
+    for (let i = 1; i <= 6; i++) {
+      for (let decimal of [0, 0.5]) {
+        const currentGrade = i + decimal;
+        if (currentGrade <= 6) {
+          const isSelected = (grade === currentGrade);
+          html += `
+            <button class="grade-button grade-${Math.floor(currentGrade)}${isSelected ? ' selected' : ''}" 
+                    data-grade="${currentGrade}">
+              ${currentGrade.toFixed(1)}
+            </button>
+          `;
+        }
+      }
+    }
+    
+    const isZeroSelected = (grade === 0);
+    html += `
+          <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  const infoText = assessment.infoText || "";
+  html += `
+      <div class="info-text-container">
+        <h3>Informationen zum Schüler</h3>
+        <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
+      </div>
+    </div>
+  `;
+  
+  const assessmentContent = document.getElementById("assessmentContent");
+  assessmentContent.innerHTML = html;
+  
+  if (stickyAverageElement) {
+    stickyAverageElement.textContent = `Ø ${avgGrade || "0.0"}`;
+  }
+  
+  document.querySelectorAll(".grade-buttons .grade-button").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const categoryId = btn.parentElement.dataset.category;
+      const gradeValue = parseFloat(btn.dataset.grade);
+      const buttons = btn.parentElement.querySelectorAll("button");
+      buttons.forEach((b) => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      
+      const gradeDisplay = btn.parentElement.previousElementSibling;
+      gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
+      
+      if (!teacherData.assessments[student.id]) {
+        teacherData.assessments[student.id] = { 
+          templateId: student.templateId,
+          status: ASSESSMENT_STATUS.NOT_STARTED,
+          lastModified: new Date().toISOString()
+        };
+      }
+      teacherData.assessments[student.id][categoryId] = gradeValue;
+      
+      const newAvg = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
+      const avgDisplay = document.querySelector(".final-grade-display");
+      avgDisplay.textContent = `Ø ${newAvg || "0.0"}`;
+      
+      if (stickyAverageElement) {
+        stickyAverageElement.textContent = `Ø ${newAvg || "0.0"}`;
+      }
+      
+      if (!teacherData.assessments[student.id].finalGrade) {
+        teacherData.assessments[student.id].finalGrade = parseFloat(newAvg);
+        const fgInput = document.getElementById("finalGrade");
+        if (fgInput) fgInput.value = newAvg;
+      }
+      
+      const newStatus = updateAssessmentStatus(student.id);
+      
+      const listItem = document.querySelector(`.student-item[data-id="${student.id}"]`);
+      if (listItem) {
+        listItem.classList.remove(ASSESSMENT_STATUS.NOT_STARTED, ASSESSMENT_STATUS.IN_PROGRESS, ASSESSMENT_STATUS.COMPLETED);
+        listItem.classList.add(newStatus);
+        
+        const metaElement = listItem.querySelector(".student-meta");
+        if (metaElement) {
+          metaElement.textContent = getStatusText(newStatus);
+        }
+      }
+      
+      try {
+        await saveTeacherData();
+        updateStudentGradeInList(student.id, teacherData.assessments[student.id].finalGrade);
+        updateDashboard();
+      } catch (error) {
+        console.error("Fehler beim Speichern:", error);
+        showNotification("Fehler beim Speichern.", "error");
+      }
+    });
+  });
+  
+  const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
+  if (saveFinalGradeBtn) {
+    saveFinalGradeBtn.addEventListener("click", async () => {
+      const inputVal = parseFloat(document.getElementById("finalGrade").value);
+      if (isNaN(inputVal) || inputVal < 1 || inputVal > 6) {
+        showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
+        return;
+      }
+      teacherData.assessments[student.id].finalGrade = inputVal;
+      
+      updateAssessmentStatus(student.id);
+      
+      try {
+        await saveTeacherData();
+        updateStudentGradeInList(student.id, inputVal);
+        updateDashboard();
+        showNotification("Endnote gespeichert.");
+      } catch (error) {
+        console.error(error);
+        showNotification("Fehler beim Speichern.", "error");
+      }
+    });
+  }
+  
+  const useAverageBtn = document.getElementById("useAverageBtn");
+  if (useAverageBtn) {
+    useAverageBtn.addEventListener("click", async () => {
+      const avgGrade = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
+      if (!avgGrade) {
+        showNotification("Es ist kein Durchschnitt vorhanden.", "warning");
+        return;
+      }
+      document.getElementById("finalGrade").value = avgGrade;
+      teacherData.assessments[student.id].finalGrade = parseFloat(avgGrade);
+      
+      updateAssessmentStatus(student.id);
+      
+      try {
+        await saveTeacherData();
+        updateStudentGradeInList(student.id, parseFloat(avgGrade));
+        updateDashboard();
+        showNotification("Durchschnitt als Endnote übernommen.");
+      } catch (error) {
+        console.error(error);
+        showNotification("Fehler beim Speichern.", "error");
+      }
+    });
+  }
+  
+  const infoTextArea = document.getElementById("studentInfoText");
+  if (infoTextArea) {
+    infoTextArea.addEventListener("input", () => {
+      infoTextArea.dataset.changed = "true";
+    });
+    setupInfoTextAutoSave(student.id);
+  }
+}
+
+function updateStudentGradeInList(studentId, finalGrade) {
+  const studentItem = document.querySelector(`.student-item[data-id="${studentId}"]`);
+  if (studentItem) {
+    const gradeElement = studentItem.querySelector(".average-grade");
+    if (gradeElement) {
+      gradeElement.textContent = finalGrade;
+      gradeElement.className = `average-grade grade-${Math.round(finalGrade)}`;
     }
   }
-  
-  const saved = await saveTeacherData();
-  hideLoader();
-  
-  if (saved) {
-    updateStudentsTab();
-    updateDashboard(); // Dashboard aktualisieren
-    populateAssessmentDateSelect();
-    populateAssessmentTopicSelect();
-    populateOverviewTopicSelect();
-    showNotification(`Schüler "${name}" wurde aktualisiert.`);
-    editStudentModal.style.display = "none";
-  }
 }
 
-// Bestätigung zum Löschen
-function showDeleteConfirmation() {
-  studentToDelete = selectedStudent;
-  deleteStudentName.textContent = studentToDelete.name;
-  editStudentModal.style.display = "none";
-  confirmDeleteModal.style.display = "flex";
-}
-
-// Löscht einen Schüler
-async function deleteStudent() {
-  if (!studentToDelete) return;
-  showLoader();
-  teacherData.students = teacherData.students.filter((s) => s.id !== studentToDelete.id);
-  delete teacherData.assessments[studentToDelete.id];
-  const saved = await saveTeacherData();
-  hideLoader();
-  if (saved) {
-    updateStudentsTab();
-    updateDashboard(); // Dashboard aktualisieren
-    populateAssessmentDateSelect();
-    populateAssessmentTopicSelect();
-    updateOverviewTab();
-    showNotification(`Schüler "${studentToDelete.name}" wurde gelöscht.`);
-    confirmDeleteModal.style.display = "none";
-    studentToDelete = null;
-  }
+function setupInfoTextAutoSave(studentId) {
+  if (infoTextSaveTimer) clearInterval(infoTextSaveTimer);
+  infoTextSaveTimer = setInterval(async () => {
+    const area = document.getElementById("studentInfoText");
+    if (area && area.dataset.changed === "true") {
+      teacherData.assessments[studentId].infoText = area.value;
+      
+      updateAssessmentStatus(studentId);
+      
+      await saveTeacherData();
+      area.dataset.changed = "false";
+      
+      showNotification("Informationstext automatisch gespeichert.");
+      area.classList.add("save-flash");
+      setTimeout(() => {
+        area.classList.remove("save-flash");
+      }, 1000);
+    }
+  }, 60000);
 }
 
 // === TEMPLATE-VERWALTUNG ===
 
-// Aktualisiert den Templates-Tab
 function updateTemplatesTab() {
+  const templatesGrid = document.getElementById("templatesGrid");
   if (!templatesGrid) return;
   
   templatesGrid.innerHTML = "";
@@ -1298,12 +1694,10 @@ function updateTemplatesTab() {
     templatesGrid.appendChild(card);
   });
   
-  // Template-Selects aktualisieren
   populateTemplateSelects();
 }
 
-// Fügt eine neue Kriterium-Zeile hinzu
-function addCriterionRow(container = templateCriteriaContainer) {
+function addCriterionRow(container = document.getElementById("templateCriteriaContainer")) {
   if (!container) return;
   
   const row = document.createElement("div");
@@ -1321,7 +1715,6 @@ function addCriterionRow(container = templateCriteriaContainer) {
   container.appendChild(row);
 }
 
-// Sammelt Kriterien aus einem Container
 function collectCriteria(container) {
   const rows = container.querySelectorAll(".criterion-row");
   const criteria = [];
@@ -1338,8 +1731,11 @@ function collectCriteria(container) {
   return criteria;
 }
 
-// Speichert ein neues Template
 async function saveNewTemplate() {
+  const newTemplateName = document.getElementById("newTemplateName");
+  const newTemplateDescription = document.getElementById("newTemplateDescription");
+  const templateCriteriaContainer = document.getElementById("templateCriteriaContainer");
+  
   const name = newTemplateName.value.trim();
   const description = newTemplateDescription.value.trim();
   const criteria = collectCriteria(templateCriteriaContainer);
@@ -1363,12 +1759,11 @@ async function saveNewTemplate() {
     if (saved) {
       newTemplateName.value = "";
       newTemplateDescription.value = "";
-      // Alle Kriterium-Zeilen löschen außer der ersten
+      
       const rows = templateCriteriaContainer.querySelectorAll(".criterion-row");
       for (let i = 1; i < rows.length; i++) {
         rows[i].remove();
       }
-      // Erste Zeile leeren
       if (rows[0]) {
         rows[0].querySelector(".criterion-name").value = "";
         rows[0].querySelector(".criterion-weight").value = "1";
@@ -1384,13 +1779,18 @@ async function saveNewTemplate() {
   }
 }
 
-// Zeigt das Edit-Template Modal
 function showEditTemplateModal(template) {
+  const editTemplateModal = document.getElementById("editTemplateModal");
+  const editTemplateName = document.getElementById("editTemplateName");
+  const editTemplateDescription = document.getElementById("editTemplateDescription");
+  const editTemplateCriteriaContainer = document.getElementById("editTemplateCriteriaContainer");
+  
+  if (!editTemplateModal) return;
+  
   editingTemplate = template;
   editTemplateName.value = template.name;
   editTemplateDescription.value = template.description;
   
-  // Kriterien laden
   editTemplateCriteriaContainer.innerHTML = "";
   template.categories.forEach(category => {
     const row = document.createElement("div");
@@ -1411,8 +1811,11 @@ function showEditTemplateModal(template) {
   editTemplateModal.style.display = "flex";
 }
 
-// Speichert bearbeitetes Template
 async function saveEditedTemplate() {
+  const editTemplateName = document.getElementById("editTemplateName");
+  const editTemplateDescription = document.getElementById("editTemplateDescription");
+  const editTemplateCriteriaContainer = document.getElementById("editTemplateCriteriaContainer");
+  
   if (!editingTemplate) return;
   
   const name = editTemplateName.value.trim();
@@ -1438,7 +1841,8 @@ async function saveEditedTemplate() {
     if (saved) {
       updateTemplatesTab();
       showNotification(`Bewertungsraster "${name}" wurde aktualisiert.`);
-      editTemplateModal.style.display = "none";
+      const editTemplateModal = document.getElementById("editTemplateModal");
+      if (editTemplateModal) editTemplateModal.style.display = "none";
       editingTemplate = null;
     }
   } catch (error) {
@@ -1448,7 +1852,6 @@ async function saveEditedTemplate() {
   }
 }
 
-// Bestätigt das Löschen eines Templates
 function confirmDeleteTemplate(template = editingTemplate) {
   if (!template) return;
   
@@ -1459,7 +1862,6 @@ function confirmDeleteTemplate(template = editingTemplate) {
   performDeleteTemplate(template);
 }
 
-// Löscht ein Template
 async function performDeleteTemplate(template) {
   showLoader();
   
@@ -1470,6 +1872,7 @@ async function performDeleteTemplate(template) {
     if (saved) {
       updateTemplatesTab();
       showNotification(`Bewertungsraster "${template.name}" wurde gelöscht.`);
+      const editTemplateModal = document.getElementById("editTemplateModal");
       if (editTemplateModal && editTemplateModal.style.display === "flex") {
         editTemplateModal.style.display = "none";
       }
@@ -1482,436 +1885,33 @@ async function performDeleteTemplate(template) {
   }
 }
 
-// === BEWERTUNGS-TAB ===
-
-function updateAssessmentTab() {
-  populateAssessmentDateSelect();
-  populateAssessmentTopicSelect();
-  updateAssessmentStudentList();
-}
-
-function populateAssessmentDateSelect() {
-  if (!assessmentDateSelect) return;
-  const dates = getAvailableDates();
-  assessmentDateSelect.innerHTML = '<option value="">Alle Termine</option>';
-  if (dates.length === 0) return;
-  
-  let defaultVal = null;
-  if (lastSelectedDate && dates.includes(lastSelectedDate)) {
-    defaultVal = lastSelectedDate;
-  } else if (dates.includes(defaultDate)) {
-    defaultVal = defaultDate;
-  } else if (dates.length > 0) {
-    defaultVal = dates[0];
-  }
-  
-  dates.forEach((date) => {
-    const option = document.createElement("option");
-    option.value = date;
-    option.textContent = formatDate(date);
-    if (date === defaultVal) {
-      option.selected = true;
-    }
-    assessmentDateSelect.appendChild(option);
-  });
-  
-  if (assessmentDateSelect.value) {
-    lastSelectedDate = assessmentDateSelect.value;
-  }
-}
-
-function populateAssessmentTopicSelect() {
-  if (!assessmentTopicSelect) return;
-  const selectedDate = assessmentDateSelect.value;
-  const topics = getAvailableTopics(selectedDate);
-  assessmentTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
-  if (topics.length === 0) return;
-  
-  let defaultTopic = null;
-  if (lastSelectedTopic && topics.includes(lastSelectedTopic)) {
-    defaultTopic = lastSelectedTopic;
-  }
-  
-  topics.forEach((topic) => {
-    const option = document.createElement("option");
-    option.value = topic;
-    option.textContent = topic;
-    if (topic === defaultTopic) {
-      option.selected = true;
-    }
-    assessmentTopicSelect.appendChild(option);
-  });
-  
-  if (assessmentTopicSelect.value) {
-    lastSelectedTopic = assessmentTopicSelect.value;
-  }
-}
-
-function updateAssessmentStudentList() {
-  if (!assessmentStudentList || !assessmentContent) return;
-  const selectedDate = assessmentDateSelect.value;
-  const selectedTopic = assessmentTopicSelect ? assessmentTopicSelect.value : "";
-  const selectedStatus = assessmentStatusFilter ? assessmentStatusFilter.value : "";
-  
-  assessmentStudentList.innerHTML = "";
-  
-  if (!selectedDate && !selectedTopic && !selectedStatus) {
-    assessmentStudentList.innerHTML = "<li>Bitte Filter auswählen</li>";
-    assessmentContent.innerHTML = `
-      <div class="welcome-card">
-        <h2>Willkommen bei der Bewertungsapp</h2>
-        <p>Bitte wählen Sie Filter aus und anschließend einen Schüler aus der Liste.</p>
-      </div>
-    `;
-    currentSelectedStudentId = null;
-    return;
-  }
-  
-  // Nur zugewiesene Schüler anzeigen (zum Bewerten)
-  let filtered = getAssignedStudents();
-  
-  if (selectedDate) {
-    filtered = filtered.filter((s) => s.examDate === selectedDate);
-  }
-  if (selectedTopic) {
-    filtered = filtered.filter((s) => s.topic === selectedTopic);
-  }
-  if (selectedStatus) {
-    filtered = filtered.filter((s) => {
-      const assessment = teacherData.assessments[s.id];
-      const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
-      return status === selectedStatus;
-    });
-  }
-  
-  if (filtered.length === 0) {
-    assessmentStudentList.innerHTML = "<li>Keine Schüler gefunden</li>";
-    assessmentContent.innerHTML = `
-      <div class="welcome-card">
-        <h2>Keine Schüler</h2>
-        <p>Für diese Auswahl gibt es keine Ihnen zugewiesenen Schüler.</p>
-      </div>
-    `;
-    currentSelectedStudentId = null;
-    return;
-  }
-  
-  filtered.sort((a, b) => {
-    const dateComp = new Date(b.examDate) - new Date(a.examDate);
-    if (dateComp !== 0) return dateComp;
-    return a.name.localeCompare(b.name);
-  });
-  
-  filtered.forEach((student) => {
-    const li = document.createElement("li");
-    li.className = "student-item";
-    li.dataset.id = student.id;
-    const assessment = teacherData.assessments[student.id] || {};
-    const finalGrade = assessment.finalGrade || "-";
-    const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
-    
-    // Statusklasse hinzufügen
-    li.classList.add(status);
-    
-    li.innerHTML = `
-      <div class="student-name">
-        ${student.name}${student.topic ? ` (${student.topic})` : ""}
-        <div class="student-meta">${getStatusText(status)}</div>
-      </div>
-      <div class="average-grade grade-${Math.round(finalGrade)}">${finalGrade}</div>
-    `;
-    
-    li.addEventListener("click", () => {
-      document.querySelectorAll(".student-item").forEach((item) => {
-        item.classList.remove("active");
-      });
-      li.classList.add("active");
-      currentSelectedStudentId = student.id;
-      showAssessmentForm(student);
-    });
-    
-    assessmentStudentList.appendChild(li);
-  });
-  
-  // Schüler auswählen
-  let studentToSelect = null;
-  
-  if (currentSelectedStudentId) {
-    studentToSelect = document.querySelector(`.student-item[data-id="${currentSelectedStudentId}"]`);
-  }
-  
-  if (!studentToSelect && filtered.length > 0) {
-    studentToSelect = document.querySelector(".student-item");
-  }
-  
-  if (studentToSelect) {
-    studentToSelect.click();
-  }
-}
-
-function updateStudentGradeInList(studentId, finalGrade) {
-  const studentItem = document.querySelector(`.student-item[data-id="${studentId}"]`);
-  if (studentItem) {
-    const gradeElement = studentItem.querySelector(".average-grade");
-    if (gradeElement) {
-      gradeElement.textContent = finalGrade;
-      gradeElement.className = `average-grade grade-${Math.round(finalGrade)}`;
-    }
-  }
-}
-
-function showAssessmentForm(student) {
-  selectedStudent = student;
-  const assessment = teacherData.assessments[student.id] || {};
-  const template = getAssessmentTemplate(student.templateId);
-  
-  if (!template) {
-    assessmentContent.innerHTML = `
-      <div class="welcome-card">
-        <h2>Fehler</h2>
-        <p>Bewertungsraster für diesen Schüler nicht gefunden.</p>
-      </div>
-    `;
-    return;
-  }
-  
-  const avgGrade = calculateWeightedAverageGrade(assessment, template);
-  const finalGrade = assessment.finalGrade || avgGrade || "-";
-  
-  let html = `
-    <div class="assessment-container">
-      <div class="student-header">
-        <h2>${student.name}</h2>
-        <p>Prüfungsdatum: ${formatDate(student.examDate)}</p>
-        ${student.topic ? `<p>Thema: ${student.topic}</p>` : ""}
-        <p>Bewertungsraster: <strong>${template.name}</strong></p>
-      </div>
-      
-      <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
-      
-      <div class="final-grade-input">
-        <label for="finalGrade">Endnote:</label>
-        <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
-        <button id="saveFinalGradeBtn">Speichern</button>
-        <button id="useAverageBtn">Durchschnitt übernehmen</button>
-      </div>
-  `;
-  
-  // Template-Kategorien
-  template.categories.forEach((category) => {
-    const grade = assessment[category.id] || 0;
-    html += `
-      <div class="assessment-category">
-        <div class="category-header">
-          <h3>${category.name}${category.weight > 1 ? ` (Gewichtung: ${category.weight})` : ''}</h3>
-        </div>
-        <div class="category-grade">${grade > 0 ? grade.toFixed(1) : "-"}</div>
-        <div class="grade-buttons" data-category="${category.id}">
-    `;
-    
-    for (let i = 1; i <= 6; i++) {
-      for (let decimal of [0, 0.5]) {
-        const currentGrade = i + decimal;
-        if (currentGrade <= 6) {
-          const isSelected = (grade === currentGrade);
-          html += `
-            <button class="grade-button grade-${Math.floor(currentGrade)}${isSelected ? ' selected' : ''}" 
-                    data-grade="${currentGrade}">
-              ${currentGrade.toFixed(1)}
-            </button>
-          `;
-        }
-      }
-    }
-    
-    const isZeroSelected = (grade === 0);
-    html += `
-          <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
-        </div>
-      </div>
-    `;
-  });
-  
-  // Info-Text-Container am Ende hinzufügen
-  const infoText = assessment.infoText || "";
-  html += `
-      <div class="info-text-container">
-        <h3>Informationen zum Schüler</h3>
-        <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
-      </div>
-    </div>
-  `;
-  
-  assessmentContent.innerHTML = html;
-  
-  // Sticky-Anzeige aktualisieren
-  if (stickyAverageElement) {
-    stickyAverageElement.textContent = `Ø ${avgGrade || "0.0"}`;
-  }
-  
-  // Event-Listener für die Note-Buttons
-  document.querySelectorAll(".grade-buttons .grade-button").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const categoryId = btn.parentElement.dataset.category;
-      const gradeValue = parseFloat(btn.dataset.grade);
-      const buttons = btn.parentElement.querySelectorAll("button");
-      buttons.forEach((b) => b.classList.remove("selected"));
-      btn.classList.add("selected");
-      
-      const gradeDisplay = btn.parentElement.previousElementSibling;
-      gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
-      
-      if (!teacherData.assessments[student.id]) {
-        teacherData.assessments[student.id] = { 
-          templateId: student.templateId,
-          status: ASSESSMENT_STATUS.NOT_STARTED,
-          lastModified: new Date().toISOString()
-        };
-      }
-      teacherData.assessments[student.id][categoryId] = gradeValue;
-      
-      const newAvg = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
-      const avgDisplay = document.querySelector(".final-grade-display");
-      avgDisplay.textContent = `Ø ${newAvg || "0.0"}`;
-      
-      // Sticky-Anzeige aktualisieren
-      if (stickyAverageElement) {
-        stickyAverageElement.textContent = `Ø ${newAvg || "0.0"}`;
-      }
-      
-      if (!teacherData.assessments[student.id].finalGrade) {
-        teacherData.assessments[student.id].finalGrade = parseFloat(newAvg);
-        const fgInput = document.getElementById("finalGrade");
-        if (fgInput) fgInput.value = newAvg;
-      }
-      
-      // Status aktualisieren
-      const newStatus = updateAssessmentStatus(student.id);
-      
-      // UI-Element in der Liste aktualisieren
-      const listItem = document.querySelector(`.student-item[data-id="${student.id}"]`);
-      if (listItem) {
-        // Alte Status-Klassen entfernen
-        listItem.classList.remove(ASSESSMENT_STATUS.NOT_STARTED, ASSESSMENT_STATUS.IN_PROGRESS, ASSESSMENT_STATUS.COMPLETED);
-        // Neue Status-Klasse hinzufügen
-        listItem.classList.add(newStatus);
-        
-        // Status-Text aktualisieren
-        const metaElement = listItem.querySelector(".student-meta");
-        if (metaElement) {
-          metaElement.textContent = getStatusText(newStatus);
-        }
-      }
-      
-      try {
-        await saveTeacherData();
-        updateStudentGradeInList(student.id, teacherData.assessments[student.id].finalGrade);
-        updateDashboard(); // Dashboard aktualisieren
-      } catch (error) {
-        console.error("Fehler beim Speichern:", error);
-        showNotification("Fehler beim Speichern.", "error");
-      }
-    });
-  });
-  
-  // Event-Listener für weitere Aktionen
-  const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
-  if (saveFinalGradeBtn) {
-    saveFinalGradeBtn.addEventListener("click", async () => {
-      const inputVal = parseFloat(document.getElementById("finalGrade").value);
-      if (isNaN(inputVal) || inputVal < 1 || inputVal > 6) {
-        showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
-        return;
-      }
-      teacherData.assessments[student.id].finalGrade = inputVal;
-      
-      // Status aktualisieren
-      updateAssessmentStatus(student.id);
-      
-      try {
-        await saveTeacherData();
-        updateStudentGradeInList(student.id, inputVal);
-        updateDashboard(); // Dashboard aktualisieren
-        showNotification("Endnote gespeichert.");
-      } catch (error) {
-        console.error(error);
-        showNotification("Fehler beim Speichern.", "error");
-      }
-    });
-  }
-  
-  const useAverageBtn = document.getElementById("useAverageBtn");
-  if (useAverageBtn) {
-    useAverageBtn.addEventListener("click", async () => {
-      const avgGrade = calculateWeightedAverageGrade(teacherData.assessments[student.id], template);
-      if (!avgGrade) {
-        showNotification("Es ist kein Durchschnitt vorhanden.", "warning");
-        return;
-      }
-      document.getElementById("finalGrade").value = avgGrade;
-      teacherData.assessments[student.id].finalGrade = parseFloat(avgGrade);
-      
-      // Status aktualisieren
-      updateAssessmentStatus(student.id);
-      
-      try {
-        await saveTeacherData();
-        updateStudentGradeInList(student.id, parseFloat(avgGrade));
-        updateDashboard(); // Dashboard aktualisieren
-        showNotification("Durchschnitt als Endnote übernommen.");
-      } catch (error) {
-        console.error(error);
-        showNotification("Fehler beim Speichern.", "error");
-      }
-    });
-  }
-  
-  const infoTextArea = document.getElementById("studentInfoText");
-  if (infoTextArea) {
-    infoTextArea.addEventListener("input", () => {
-      infoTextArea.dataset.changed = "true";
-    });
-    setupInfoTextAutoSave(student.id);
-  }
-}
-
-function setupInfoTextAutoSave(studentId) {
-  if (infoTextSaveTimer) clearInterval(infoTextSaveTimer);
-  infoTextSaveTimer = setInterval(async () => {
-    const area = document.getElementById("studentInfoText");
-    if (area && area.dataset.changed === "true") {
-      teacherData.assessments[studentId].infoText = area.value;
-      
-      // Status aktualisieren
-      updateAssessmentStatus(studentId);
-      
-      await saveTeacherData();
-      area.dataset.changed = "false";
-      
-      showNotification("Informationstext automatisch gespeichert.");
-      area.classList.add("save-flash");
-      setTimeout(() => {
-        area.classList.remove("save-flash");
-      }, 1000);
-    }
-  }, 60000);
-}
-
 // === ÜBERSICHTS-TAB ===
 
 function updateOverviewTab() {
   populateOverviewYearSelect();
+  populateOverviewThemeSelect();
   populateOverviewDateSelect();
-  populateOverviewTopicSelect();
   updateOverviewContent();
 }
 
 function populateOverviewYearSelect() {
+  const overviewYearSelect = document.getElementById("overviewYearSelect");
   if (!overviewYearSelect) return;
-  const years = getAvailableYears();
+  
+  const years = new Set();
+  const accessibleStudents = getAccessibleStudents();
+  
+  accessibleStudents.forEach(student => {
+    if (student.examDate) {
+      years.add(student.examDate.split("-")[0]);
+    }
+    if (student.assessmentDate) {
+      years.add(student.assessmentDate.split("-")[0]);
+    }
+  });
   
   overviewYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
-  years.forEach((year) => {
+  Array.from(years).sort().reverse().forEach(year => {
     const opt = document.createElement("option");
     opt.value = year;
     opt.textContent = year;
@@ -1919,12 +1919,61 @@ function populateOverviewYearSelect() {
   });
 }
 
+function populateOverviewThemeSelect() {
+  const overviewThemeSelect = document.getElementById("overviewThemeSelect");
+  if (!overviewThemeSelect) return;
+  
+  overviewThemeSelect.innerHTML = '<option value="">Alle Themen</option>';
+  let filtered = getAccessibleStudents();
+  const year = document.getElementById("overviewYearSelect")?.value;
+  
+  if (year) {
+    filtered = filtered.filter(s => 
+      (s.examDate && s.examDate.startsWith(year)) || 
+      (s.assessmentDate && s.assessmentDate.startsWith(year))
+    );
+  }
+  
+  const themes = new Set();
+  filtered.forEach(s => {
+    if (s.theme) themes.add(s.theme);
+  });
+  
+  Array.from(themes).sort().forEach(theme => {
+    const opt = document.createElement("option");
+    opt.value = theme;
+    opt.textContent = theme;
+    overviewThemeSelect.appendChild(opt);
+  });
+}
+
 function populateOverviewDateSelect() {
+  const overviewDateSelect = document.getElementById("overviewDateSelect");
   if (!overviewDateSelect) return;
-  const year = overviewYearSelect.value;
-  const dates = getAvailableDates(year);
+  
+  const year = document.getElementById("overviewYearSelect")?.value;
+  const theme = document.getElementById("overviewThemeSelect")?.value;
+  
   overviewDateSelect.innerHTML = '<option value="">Alle Tage</option>';
-  dates.forEach((date) => {
+  let filtered = getAccessibleStudents();
+  
+  if (year) {
+    filtered = filtered.filter(s => 
+      (s.examDate && s.examDate.startsWith(year)) || 
+      (s.assessmentDate && s.assessmentDate.startsWith(year))
+    );
+  }
+  if (theme) {
+    filtered = filtered.filter(s => s.theme === theme);
+  }
+  
+  const dates = new Set();
+  filtered.forEach(s => {
+    if (s.examDate) dates.add(s.examDate);
+    if (s.assessmentDate) dates.add(s.assessmentDate);
+  });
+  
+  Array.from(dates).sort().reverse().forEach(date => {
     const opt = document.createElement("option");
     opt.value = date;
     opt.textContent = formatDate(date);
@@ -1932,53 +1981,33 @@ function populateOverviewDateSelect() {
   });
 }
 
-function populateOverviewTopicSelect() {
-  if (!overviewTopicSelect) return;
-  overviewTopicSelect.innerHTML = '<option value="">Alle Themen</option>';
-  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
-  const year = overviewYearSelect.value;
-  if (year) {
-    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
-  }
-  const d = overviewDateSelect.value;
-  if (d) {
-    filtered = filtered.filter((s) => s.examDate === d);
-  }
-  const topics = new Set();
-  filtered.forEach((s) => {
-    if (s.topic) topics.add(s.topic);
-  });
-  Array.from(topics)
-    .sort()
-    .forEach((topic) => {
-      const opt = document.createElement("option");
-      opt.value = topic;
-      opt.textContent = topic;
-      overviewTopicSelect.appendChild(opt);
-    });
-}
-
 function updateOverviewContent() {
+  const overviewTable = document.getElementById("overviewTable");
   if (!overviewTable) return;
+  
   const tbody = overviewTable.querySelector("tbody");
   tbody.innerHTML = "";
   
-  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
-  const year = overviewYearSelect.value;
+  let filtered = getAccessibleStudents();
+  const year = document.getElementById("overviewYearSelect")?.value;
+  const theme = document.getElementById("overviewThemeSelect")?.value;
+  const date = document.getElementById("overviewDateSelect")?.value;
+  const statusFilter = document.getElementById("overviewStatusSelect")?.value;
+  
   if (year) {
-    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
+    filtered = filtered.filter(s => 
+      (s.examDate && s.examDate.startsWith(year)) || 
+      (s.assessmentDate && s.assessmentDate.startsWith(year))
+    );
   }
-  const d = overviewDateSelect.value;
-  if (d) {
-    filtered = filtered.filter((s) => s.examDate === d);
+  if (theme) {
+    filtered = filtered.filter(s => s.theme === theme);
   }
-  const t = overviewTopicSelect.value;
-  if (t) {
-    filtered = filtered.filter((s) => s.topic === t);
+  if (date) {
+    filtered = filtered.filter(s => s.examDate === date || s.assessmentDate === date);
   }
-  const statusFilter = overviewStatusSelect ? overviewStatusSelect.value : "";
   if (statusFilter) {
-    filtered = filtered.filter((s) => {
+    filtered = filtered.filter(s => {
       const assessment = teacherData.assessments[s.id];
       const status = assessment ? assessment.status : ASSESSMENT_STATUS.NOT_STARTED;
       return status === statusFilter;
@@ -1992,7 +2021,7 @@ function updateOverviewContent() {
     return;
   }
   
-  filtered.sort((a, b) => new Date(b.examDate) - new Date(a.examDate));
+  filtered.sort((a, b) => new Date(b.examDate || b.assessmentDate) - new Date(a.examDate || a.assessmentDate));
   
   filtered.forEach((student) => {
     const assessment = teacherData.assessments[student.id] || {};
@@ -2000,7 +2029,6 @@ function updateOverviewContent() {
     const assignedTeacher = allTeachers.find(t => t.code === student.assignedTeacher);
     const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
     
-    // Bewertungen dynamisch anzeigen
     let ratingsHtml = "";
     if (template && template.categories) {
       const ratings = template.categories.map(cat => 
@@ -2018,17 +2046,17 @@ function updateOverviewContent() {
         </div>
       </td>
       <td>${student.name}</td>
-      <td>${formatDate(student.examDate)}</td>
-      <td>${student.topic || "-"}</td>
+      <td><strong>${student.theme}</strong></td>
+      <td>${formatDate(student.examDate || student.assessmentDate)}</td>
       <td class="assigned-teacher-col">${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}</td>
       <td class="template-name-col">${template ? template.name : "Unbekannt"}</td>
       <td title="${ratingsHtml}" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${ratingsHtml || "-"}</td>
       <td><strong>${assessment.finalGrade !== undefined ? assessment.finalGrade : "-"}</strong></td>
       <td>
         ${canAssessStudent(student) ? `
-          <button class="edit-btn" data-id="${student.id}">✏️</button>
+          <button class="edit-btn" data-id="${student.id}" title="Note bearbeiten">✏️</button>
         ` : `
-          <span style="color: #999;">Nur ansehen</span>
+          <span style="color: #999;" title="Nur ansehen">👁️</span>
         `}
       </td>
     `;
@@ -2044,44 +2072,50 @@ function updateOverviewContent() {
   });
 }
 
-function printOverviewData() {
-  window.print();
-}
-
 function openEditGradeModal(student) {
   selectedGradeStudent = student;
   const assessment = teacherData.assessments[student.id] || {};
-  editFinalGrade.value = assessment.finalGrade || "";
-  editGradeModal.style.display = "flex";
+  const editFinalGrade = document.getElementById("editFinalGrade");
+  const editGradeModal = document.getElementById("editGradeModal");
+  
+  if (editFinalGrade) editFinalGrade.value = assessment.finalGrade || "";
+  if (editGradeModal) editGradeModal.style.display = "flex";
 }
 
 async function saveEditedGrade() {
   if (!selectedGradeStudent) return;
+  const editFinalGrade = document.getElementById("editFinalGrade");
   const val = parseFloat(editFinalGrade.value);
+  
   if (isNaN(val) || val < 1 || val > 6) {
     showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
     return;
   }
-  teacherData.assessments[selectedGradeStudent.id].finalGrade = val;
   
-  // Status aktualisieren
+  teacherData.assessments[selectedGradeStudent.id].finalGrade = val;
   updateAssessmentStatus(selectedGradeStudent.id);
   
   showLoader();
   const saved = await saveTeacherData();
   hideLoader();
+  
   if (saved) {
     updateOverviewContent();
-    updateDashboard(); // Dashboard aktualisieren
-    // Bei geöffnetem Bewertungs-Tab die Notendarstellung aktualisieren
+    updateDashboard();
+    
     if (selectedGradeStudent.id === currentSelectedStudentId) {
       const finalGradeInput = document.getElementById("finalGrade");
       if (finalGradeInput) finalGradeInput.value = val;
     }
     updateStudentGradeInList(selectedGradeStudent.id, val);
     showNotification("Note aktualisiert.");
-    editGradeModal.style.display = "none";
+    const editGradeModal = document.getElementById("editGradeModal");
+    if (editGradeModal) editGradeModal.style.display = "none";
   }
+}
+
+function printOverviewData() {
+  window.print();
 }
 
 // === EINSTELLUNGEN ===
@@ -2090,13 +2124,28 @@ function updateSettingsTab() {
   populateSettingsYearSelect();
   populateSettingsDateSelect();
   populateTemplateSelects();
+  
+  const defaultSortingSelect = document.getElementById("defaultSortingSelect");
+  if (defaultSortingSelect && teacherData.settings) {
+    defaultSortingSelect.value = teacherData.settings.preferredSorting || "theme";
+  }
 }
 
 function populateSettingsYearSelect() {
+  const settingsYearSelect = document.getElementById("settingsYearSelect");
   if (!settingsYearSelect) return;
-  const years = getAvailableYears();
+  
+  const years = new Set();
+  const accessibleStudents = getAccessibleStudents();
+  
+  accessibleStudents.forEach(student => {
+    if (student.examDate) {
+      years.add(student.examDate.split("-")[0]);
+    }
+  });
+  
   settingsYearSelect.innerHTML = '<option value="">Alle Jahre</option>';
-  years.forEach((year) => {
+  Array.from(years).sort().reverse().forEach(year => {
     const opt = document.createElement("option");
     opt.value = year;
     opt.textContent = year;
@@ -2105,11 +2154,23 @@ function populateSettingsYearSelect() {
 }
 
 function populateSettingsDateSelect() {
+  const settingsDateSelect = document.getElementById("settingsDateSelect");
   if (!settingsDateSelect) return;
-  const year = settingsYearSelect.value;
-  const dates = getAvailableDates(year);
+  
+  const year = document.getElementById("settingsYearSelect")?.value;
+  const dates = new Set();
+  let filtered = getAccessibleStudents();
+  
+  if (year) {
+    filtered = filtered.filter(s => s.examDate && s.examDate.startsWith(year));
+  }
+  
+  filtered.forEach(s => {
+    if (s.examDate) dates.add(s.examDate);
+  });
+  
   settingsDateSelect.innerHTML = '<option value="">Alle Tage</option>';
-  dates.forEach((date) => {
+  Array.from(dates).sort().reverse().forEach(date => {
     const opt = document.createElement("option");
     opt.value = date;
     opt.textContent = formatDate(date);
@@ -2117,18 +2178,83 @@ function populateSettingsDateSelect() {
   });
 }
 
+function populateTemplateSelects() {
+  const selects = [document.getElementById("defaultTemplateSelect")];
+  
+  selects.forEach(select => {
+    if (!select) return;
+    
+    const currentValue = select.value;
+    select.innerHTML = "";
+    
+    const templates = getAllAssessmentTemplates();
+    templates.forEach(template => {
+      const option = document.createElement("option");
+      option.value = template.id;
+      option.textContent = template.name + (template.isDefault ? " (Standard)" : "");
+      select.appendChild(option);
+    });
+    
+    if (currentValue) {
+      select.value = currentValue;
+    } else if (teacherData.settings && teacherData.settings.defaultTemplate) {
+      select.value = teacherData.settings.defaultTemplate;
+    }
+  });
+}
+
+async function saveAppSettings() {
+  if (!teacherData.settings) {
+    teacherData.settings = {};
+  }
+  
+  const defaultTemplateSelect = document.getElementById("defaultTemplateSelect");
+  if (defaultTemplateSelect) {
+    teacherData.settings.defaultTemplate = defaultTemplateSelect.value;
+  }
+  
+  showLoader();
+  const saved = await saveTeacherData();
+  hideLoader();
+  
+  if (saved) {
+    showNotification("Einstellungen gespeichert.");
+  }
+}
+
+async function saveSortingSettings() {
+  if (!teacherData.settings) {
+    teacherData.settings = {};
+  }
+  
+  const defaultSortingSelect = document.getElementById("defaultSortingSelect");
+  if (defaultSortingSelect) {
+    teacherData.settings.preferredSorting = defaultSortingSelect.value;
+    setPreferredSorting(defaultSortingSelect.value);
+  }
+  
+  showLoader();
+  const saved = await saveTeacherData();
+  hideLoader();
+  
+  if (saved) {
+    showNotification("Sortier-Einstellungen gespeichert.");
+    updateDashboard(); // Dashboard neu laden mit neuer Sortierung
+  }
+}
+
 function exportData() {
   const useTxt = document.getElementById("exportTXT") && document.getElementById("exportTXT").checked;
-  const year = settingsYearSelect.value;
-  const day = settingsDateSelect.value;
+  const year = document.getElementById("settingsYearSelect")?.value;
+  const day = document.getElementById("settingsDateSelect")?.value;
   
-  let filtered = getAccessibleStudents(); // Alle zugänglichen Schüler
+  let filtered = getAccessibleStudents();
   
   if (year) {
-    filtered = filtered.filter((s) => getYearFromDate(s.examDate) === year);
+    filtered = filtered.filter(s => s.examDate && s.examDate.startsWith(year));
   }
   if (day) {
-    filtered = filtered.filter((s) => s.examDate === day);
+    filtered = filtered.filter(s => s.examDate === day);
   }
   
   if (useTxt) {
@@ -2140,8 +2266,8 @@ function exportData() {
       const status = assessment.status || ASSESSMENT_STATUS.NOT_STARTED;
       
       txtContent += `Name: ${student.name}\n`;
-      txtContent += `Datum: ${formatDate(student.examDate)}\n`;
-      txtContent += `Thema: ${student.topic || '-'}\n`;
+      txtContent += `Thema: ${student.theme}\n`;
+      txtContent += `Datum: ${formatDate(student.examDate || student.assessmentDate)}\n`;
       txtContent += `Zugewiesen an: ${assignedTeacher ? assignedTeacher.name : student.assignedTeacher}\n`;
       txtContent += `Status: ${getStatusText(status)}\n`;
       txtContent += `Bewertungsraster: ${template ? template.name : 'Unbekannt'}\n`;
@@ -2159,7 +2285,6 @@ function exportData() {
     });
     downloadFile(`${APP_CONFIG.name}_Export.txt`, txtContent, "text/plain");
   } else {
-    // JSON-Export
     const exportData = [];
     filtered.forEach((student) => {
       const assessment = teacherData.assessments[student.id] || {};
@@ -2169,8 +2294,8 @@ function exportData() {
       
       const entry = {
         name: student.name,
-        examDate: formatDate(student.examDate),
-        topic: student.topic || '',
+        theme: student.theme,
+        examDate: formatDate(student.examDate || student.assessmentDate),
         assignedTeacher: assignedTeacher ? assignedTeacher.name : student.assignedTeacher,
         status: getStatusText(status),
         templateName: template ? template.name : 'Unbekannt',
@@ -2201,352 +2326,4 @@ function downloadFile(name, content, mime) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-}
-
-function confirmDeleteAllData() {
-  if (!deleteVerificationCode) return;
-  if (deleteVerificationCode.value.trim() !== (currentUser.code || "")) {
-    showNotification("Bestätigungscode ist falsch.", "error");
-    return;
-  }
-  if (!confirm("Sollen wirklich alle Daten gelöscht werden? Das kann nicht rückgängig gemacht werden!")) {
-    return;
-  }
-  deleteAllData();
-}
-
-async function deleteAllData() {
-  if (!currentUser.code) return;
-  try {
-    showLoader();
-    teacherData.students = [];
-    teacherData.assessments = {};
-    teacherData.assessmentTemplates = [];
-    await saveTeacherData();
-    updateStudentsTab();
-    updateTemplatesTab();
-    updateAssessmentTab();
-    updateOverviewTab();
-    updateDashboard();
-    showNotification("Alle Daten wurden gelöscht.");
-  } catch (error) {
-    console.error("Fehler beim Löschen aller Daten:", error);
-    showNotification("Fehler beim Löschen.", "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-// === ADMIN-FUNKTIONEN ===
-
-async function performAdminLogin() {
-  const username = adminUsername ? adminUsername.value.trim() : "";
-  const password = adminPassword ? adminPassword.value.trim() : "";
-
-  if (!username || !password) {
-    showNotification("Bitte alle Felder ausfüllen.", "warning");
-    return;
-  }
-
-  showLoader();
-  
-  try {
-    const loaded = await loadAllTeachers();
-    if (!loaded) {
-      showNotification("Fehler beim Laden der Lehrerdaten.", "error");
-      hideLoader();
-      return;
-    }
-
-    const loginSuccess = loginAdmin(username, password);
-    if (loginSuccess) {
-      adminLoginSection.style.display = "none";
-      adminSection.style.display = "block";
-      updateTeachersAdminTab();
-      updateSystemInfoTab();
-      showNotification("Admin-Anmeldung erfolgreich!");
-    } else {
-      showNotification("Ungültige Anmeldedaten!", "error");
-    }
-  } catch (error) {
-    console.error("Admin Login Fehler:", error);
-    showNotification("Fehler bei der Anmeldung.", "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function performAdminLogout() {
-  logoutAdmin();
-  adminSection.style.display = "none";
-  loginSection.style.display = "block";
-  if (adminUsername) adminUsername.value = "";
-  if (adminPassword) adminPassword.value = "";
-  showNotification("Admin-Abmeldung erfolgreich.");
-}
-
-async function addNewTeacher() {
-  const name = newTeacherName ? newTeacherName.value.trim() : "";
-  const code = newTeacherCode ? newTeacherCode.value.trim() : "";
-  const password = newTeacherPassword ? newTeacherPassword.value.trim() : "";
-
-  if (!name || !code || !password) {
-    showNotification("Bitte alle Felder ausfüllen.", "warning");
-    return;
-  }
-
-  if (code.length > 5) {
-    showNotification("Kürzel darf maximal 5 Zeichen haben.", "warning");
-    return;
-  }
-
-  showLoader();
-  
-  try {
-    await addTeacher(name, code, password);
-    if (newTeacherName) newTeacherName.value = "";
-    if (newTeacherCode) newTeacherCode.value = "";
-    if (newTeacherPassword) newTeacherPassword.value = "";
-    updateTeachersAdminTab();
-    updateSystemInfoTab();
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    showNotification(`Lehrer "${name}" wurde hinzugefügt.`);
-  } catch (error) {
-    showNotification(error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function updateTeachersAdminTab() {
-  if (!teachersAdminTable) return;
-  
-  const tbody = teachersAdminTable.querySelector("tbody");
-  tbody.innerHTML = "";
-
-  if (allTeachers.length === 0) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="4">Keine Lehrer vorhanden</td>';
-    tbody.appendChild(tr);
-    return;
-  }
-
-  const sortedTeachers = [...allTeachers].sort((a, b) => a.name.localeCompare(b.name));
-
-  sortedTeachers.forEach((teacher) => {
-    const tr = document.createElement("tr");
-    const createdDate = teacher.createdAt ? formatDate(teacher.createdAt.split('T')[0]) : '-';
-    
-    tr.innerHTML = `
-      <td>${teacher.name}</td>
-      <td><span class="teacher-code">${teacher.code}</span></td>
-      <td>${createdDate}</td>
-      <td>
-        <div class="teacher-actions">
-          <button class="edit-btn" data-code="${teacher.code}">✏️</button>
-        </div>
-      </td>
-    `;
-    
-    tr.querySelector(".edit-btn").addEventListener("click", () => {
-      showEditTeacherModal(teacher);
-    });
-    
-    tbody.appendChild(tr);
-  });
-}
-
-function updateSystemInfoTab() {
-  if (totalTeachers) {
-    totalTeachers.textContent = allTeachers.length;
-  }
-  
-  if (firebaseStatus) {
-    import("./firebaseClient.js").then(({ db }) => {
-      firebaseStatus.textContent = db ? "Online" : "Offline";
-      firebaseStatus.className = db ? "stat-value status-online" : "stat-value status-offline";
-    });
-  }
-  
-  if (lastUpdate) {
-    lastUpdate.textContent = new Date().toLocaleString("de-DE");
-  }
-}
-
-async function refreshSystemInfo() {
-  showLoader();
-  try {
-    await loadAllTeachers();
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    updateSystemInfoTab();
-    showNotification("System-Informationen aktualisiert.");
-  } catch (error) {
-    showNotification("Fehler beim Aktualisieren.", "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function exportAllTeachers() {
-  const exportData = allTeachers.map(teacher => ({
-    name: teacher.name,
-    code: teacher.code,
-    createdAt: teacher.createdAt || '',
-    updatedAt: teacher.updatedAt || ''
-  }));
-
-  const jsonString = JSON.stringify(exportData, null, 2);
-  downloadFile(`${APP_CONFIG.name}_Lehrer_Export_${new Date().toISOString().split('T')[0]}.json`, jsonString, "application/json");
-  showNotification("Lehrer exportiert.");
-}
-
-function confirmDeleteAllTeachers() {
-  if (!adminDeleteVerificationCode) return;
-  
-  const code = adminDeleteVerificationCode.value.trim().toLowerCase();
-  if (code !== "delete teachers") {
-    showNotification('Bitte "delete teachers" eingeben, um zu bestätigen.', "error");
-    return;
-  }
-  
-  if (!confirm("Sollen wirklich ALLE Lehrer gelöscht werden?\n\nDas System wird auf Standard-Lehrer zurückgesetzt!\n\nDieser Vorgang kann nicht rückgängig gemacht werden!")) {
-    return;
-  }
-  
-  performDeleteAllTeachers();
-}
-
-async function performDeleteAllTeachers() {
-  showLoader();
-  try {
-    await deleteAllTeachers();
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    updateTeachersAdminTab();
-    updateSystemInfoTab();
-    if (adminDeleteVerificationCode) adminDeleteVerificationCode.value = "";
-    showNotification("Alle Lehrer wurden gelöscht. Standard-Lehrer wiederhergestellt.");
-  } catch (error) {
-    showNotification("Fehler beim Löschen der Lehrer: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function confirmDeleteAllSystemData() {
-  if (!adminDeleteVerificationCode) return;
-  
-  const code = adminDeleteVerificationCode.value.trim().toLowerCase();
-  if (code !== "delete everything") {
-    showNotification('Bitte "delete everything" eingeben, um zu bestätigen.', "error");
-    return;
-  }
-  
-  if (!confirm("Sollen wirklich ALLE DATEN gelöscht werden?\n\n- Alle Lehrer (außer Standard-Lehrer)\n- Alle Bewertungsdaten aller Lehrer\n- Kompletter System-Reset\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!")) {
-    return;
-  }
-  
-  performDeleteAllSystemData();
-}
-
-async function performDeleteAllSystemData() {
-  showLoader();
-  try {
-    await deleteAllTeacherData();
-    await deleteAllTeachers();
-    
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    updateTeachersAdminTab();
-    updateSystemInfoTab();
-    if (adminDeleteVerificationCode) adminDeleteVerificationCode.value = "";
-    
-    showNotification("Kompletter System-Reset durchgeführt. Alle Daten gelöscht.");
-  } catch (error) {
-    showNotification("Fehler beim System-Reset: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function showEditTeacherModal(teacher) {
-  if (editTeacherName) editTeacherName.value = teacher.name;
-  if (editTeacherCode) editTeacherCode.value = teacher.code;
-  if (editTeacherPassword) editTeacherPassword.value = teacher.password;
-  selectedTeacher = teacher;
-  if (editTeacherModal) editTeacherModal.style.display = "flex";
-}
-
-async function saveEditedTeacher() {
-  if (!selectedTeacher) return;
-
-  const name = editTeacherName ? editTeacherName.value.trim() : "";
-  const code = editTeacherCode ? editTeacherCode.value.trim() : "";
-  const password = editTeacherPassword ? editTeacherPassword.value.trim() : "";
-
-  if (!name || !code || !password) {
-    showNotification("Bitte alle Felder ausfüllen.", "warning");
-    return;
-  }
-
-  if (code.length > 5) {
-    showNotification("Kürzel darf maximal 5 Zeichen haben.", "warning");
-    return;
-  }
-
-  showLoader();
-  
-  try {
-    await updateTeacher(selectedTeacher.code, name, code, password);
-    updateTeachersAdminTab();
-    updateSystemInfoTab();
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    showNotification(`Lehrer "${name}" wurde aktualisiert.`);
-    if (editTeacherModal) editTeacherModal.style.display = "none";
-  } catch (error) {
-    showNotification(error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-function showDeleteTeacherConfirmation() {
-  teacherToDelete = selectedTeacher;
-  if (deleteTeacherName) deleteTeacherName.textContent = teacherToDelete.name;
-  if (editTeacherModal) editTeacherModal.style.display = "none";
-  if (confirmDeleteTeacherModal) confirmDeleteTeacherModal.style.display = "flex";
-}
-
-async function confirmDeleteTeacher() {
-  if (!teacherToDelete) return;
-  
-  showLoader();
-  
-  try {
-    await deleteTeacher(teacherToDelete.code);
-    updateTeachersAdminTab();
-    updateSystemInfoTab();
-    window.allTeachers = allTeachers;
-    initTeacherGrid(teacherGrid, showPasswordModal, allTeachers);
-    showNotification(`Lehrer "${teacherToDelete.name}" wurde gelöscht.`);
-    if (confirmDeleteTeacherModal) confirmDeleteTeacherModal.style.display = "none";
-    teacherToDelete = null;
-  } catch (error) {
-    showNotification(error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-// === HILFSFUNKTIONEN ===
-
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2);
-}
-
-function getYearFromDate(isoDateString) {
-  return isoDateString.split("-")[0];
-}
+  URL.revokeObjectURL(url);
