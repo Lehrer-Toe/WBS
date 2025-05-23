@@ -12,9 +12,11 @@
   --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
   --transition: all 0.3s ease;
   --header-bg: #34495e;
-  --blue-accent: #3498db; /* Neue Farbe für blauen Rahmen */
-  --danger-bg: #fdf2f2; /* Neuer Hintergrund für Gefahrenbereiche */
-  --danger-border: #fecaca; /* Neuer Rand für Gefahrenbereiche */
+  --blue-accent: #3498db;
+  --danger-bg: #fdf2f2;
+  --danger-border: #fecaca;
+  --template-bg: #f8f9fa;
+  --template-border: #dee2e6;
 }
 
 * {
@@ -106,7 +108,8 @@ input[type="text"],
 input[type="password"],
 input[type="date"],
 input[type="number"],
-select {
+select,
+textarea {
   padding: 0.75rem 1rem;
   margin: 5px 0;
   border: 1px solid var(--border-color);
@@ -116,6 +119,12 @@ select {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
+  font-family: inherit;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 60px;
 }
 
 input[type="date"] {
@@ -130,7 +139,8 @@ input[type="text"]:focus,
 input[type="password"]:focus,
 input[type="date"]:focus,
 input[type="number"]:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
@@ -150,6 +160,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: inherit;
 }
 
 button:hover {
@@ -166,6 +177,15 @@ button:active {
 }
 .btn-danger:hover {
   background-color: #c0392b;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
 }
 
 .teacher-grid {
@@ -265,7 +285,7 @@ button:active {
   }
   
   .sidebar {
-    width: 300px;
+    width: 350px;
     flex-shrink: 0;
   }
   
@@ -353,7 +373,7 @@ button:active {
   flex-wrap: wrap;
 }
 
-/* Bewertungskategorie: Box-Stil hinzufügen */
+/* Bewertungskategorie: Box-Stil */
 .assessment-category {
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -362,7 +382,6 @@ button:active {
   background-color: #f9f9f9;
 }
 
-/* Überschriften in den Bewertungs-Kategorien mittig zentrieren */
 .category-header {
   text-align: center;
   margin-bottom: 10px;
@@ -411,7 +430,6 @@ button:active {
   transform: scale(1.1);
 }
 
-/* Geändert: Blauer Rahmen für ausgewählte Note-Buttons */
 .grade-button.selected {
   transform: scale(1.1);
   box-shadow: 0 0 0 2px white, 0 0 0 4px var(--blue-accent);
@@ -437,7 +455,8 @@ table {
   font-size: 0.9rem;
 }
 
-.student-table th {
+.student-table th,
+.teacher-admin-table th {
   background-color: var(--primary-color);
   color: white;
   text-align: left;
@@ -446,16 +465,20 @@ table {
   white-space: nowrap;
 }
 
-.student-table td {
+.student-table td,
+.teacher-admin-table td {
   padding: 10px 15px;
   border-top: 1px solid #e0e0e0;
+  vertical-align: middle;
 }
 
-.student-table tr:nth-child(even) {
+.student-table tr:nth-child(even),
+.teacher-admin-table tr:nth-child(even) {
   background-color: #f9f9f9;
 }
 
-.student-table tr:hover {
+.student-table tr:hover,
+.teacher-admin-table tr:hover {
   background-color: #f1f1f1;
 }
 
@@ -478,10 +501,6 @@ table {
 
 .overview-table td:first-child {
   text-align: left;
-}
-
-.overview-table td:last-child {
-  text-align: center;
 }
 
 .overview-table tr:nth-child(even) {
@@ -546,7 +565,7 @@ table {
   background-color: white;
   padding: 20px;
   border-radius: 12px;
-  max-width: 500px;
+  max-width: 600px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
@@ -675,6 +694,13 @@ table {
   color: var(--primary-dark);
 }
 
+.help-text {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
 .date-display {
   font-size: 0.9rem;
   color: #666;
@@ -691,9 +717,9 @@ table {
 /* Höhe des Textfeldes angepasst */
 #studentInfoText {
   width: 100%;
-  height: 100px; /* 4 Zeilen statt min-height: 300px */
+  height: 100px;
   box-sizing: border-box;
-  resize: vertical; /* Optional: ermöglicht Benutzer das Anpassen der Höhe */
+  resize: vertical;
 }
 
 /* Animation für gespeicherten Text */
@@ -718,7 +744,7 @@ table {
   box-shadow: 0 2px 10px rgba(0,0,0,0.2);
   font-weight: bold;
   z-index: 100;
-  display: none; /* Standardmäßig ausgeblendet */
+  display: none;
 }
 
 /* Druck-Button */
@@ -733,37 +759,7 @@ table {
   background-color: #2980b9;
 }
 
-/* Für den Ausdruck */
-@media print {
-  header, .tabs, .selectors, button, .sidebar {
-    display: none !important;
-  }
-  
-  body, .container, .content-area {
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-  }
-  
-  .table-container {
-    overflow: visible !important;
-  }
-  
-  table {
-    width: 100% !important;
-    page-break-inside: auto !important;
-  }
-  
-  tr {
-    page-break-inside: avoid !important;
-    page-break-after: auto !important;
-  }
-}
-
-/* Admin-Bereich CSS-Erweiterungen */
-
-/* Admin-Login Bereich */
+/* Admin-Bereich CSS */
 .admin-login-form {
   max-width: 400px;
   margin: 0 auto;
@@ -779,15 +775,6 @@ table {
   flex: 1;
 }
 
-.btn-secondary {
-  background-color: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background-color: #5a6268;
-}
-
 .admin-access {
   border-top: 1px solid var(--border-color);
   padding-top: 1rem;
@@ -798,30 +785,6 @@ table {
   background-color: #6c757d;
   font-size: 0.9rem;
   padding: 0.5rem 1rem;
-}
-
-/* Admin-Panel */
-.teacher-admin-table th {
-  background-color: var(--primary-color);
-  color: white;
-  text-align: left;
-  padding: 12px 15px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.teacher-admin-table td {
-  padding: 12px 15px;
-  border-top: 1px solid #e0e0e0;
-  vertical-align: middle;
-}
-
-.teacher-admin-table tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-.teacher-admin-table tr:hover {
-  background-color: #f1f1f1;
 }
 
 .teacher-actions {
@@ -835,7 +798,6 @@ table {
   font-size: 0.85rem;
 }
 
-/* System-Info */
 .card {
   background: white;
   border: 1px solid var(--border-color);
@@ -878,7 +840,6 @@ table {
   color: var(--primary-color);
 }
 
-/* Admin-spezifische Formulare */
 .section {
   background: #f8f9fa;
   border-radius: 10px;
@@ -897,9 +858,169 @@ table {
   border-radius: 8px;
 }
 
-/* NEUE ADMIN-LÖSCH-STYLES */
+/* NEUE STYLES FÜR BEWERTUNGSRASTER */
 
-/* Gefahrenbereich - Rote Karte */
+/* Templates Grid */
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.template-card {
+  background: var(--template-bg);
+  border: 2px solid var(--template-border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.template-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.template-card.default {
+  border-color: var(--success-color);
+  background: #f0fff4;
+}
+
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 15px;
+}
+
+.template-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+  margin: 0;
+}
+
+.template-badge {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.template-badge.default {
+  background: var(--success-color);
+  color: white;
+}
+
+.template-badge.custom {
+  background: var(--primary-color);
+  color: white;
+}
+
+.template-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.template-criteria {
+  margin-bottom: 15px;
+}
+
+.template-criteria h4 {
+  font-size: 0.9rem;
+  color: var(--primary-dark);
+  margin-bottom: 8px;
+}
+
+.criteria-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.criterion-tag {
+  background: var(--primary-color);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.template-actions button {
+  flex: 1;
+  min-height: 36px;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+}
+
+/* Criterion Row Styling */
+.criterion-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.criterion-name {
+  flex: 1;
+}
+
+.criterion-weight {
+  width: 80px;
+}
+
+.remove-criterion {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px;
+  font-size: 1rem;
+  border-radius: 50%;
+}
+
+/* Filter Controls */
+.filter-controls {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.filter-controls .form-group {
+  margin-bottom: 0;
+}
+
+/* Extended Table Styles */
+.assigned-teacher-col {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.template-name-col {
+  color: #666;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.created-by-col {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+/* Gefahrenbereich */
 .danger-zone {
   background: var(--danger-bg);
   border: 2px solid var(--danger-border);
@@ -969,18 +1090,6 @@ table {
   margin-bottom: 8px;
 }
 
-.help-text {
-  font-size: 0.85rem;
-  color: #666;
-  margin-top: 5px;
-  line-height: 1.4;
-}
-
-.help-text br {
-  margin-bottom: 3px;
-}
-
-/* System-Aktionen */
 .system-actions {
   display: flex;
   gap: 10px;
@@ -992,7 +1101,31 @@ table {
   min-width: 150px;
 }
 
-/* Responsive Admin-Layout */
+/* Status-Indikatoren */
+.status-online {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.status-offline {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.status-warning {
+  color: var(--warning-color);
+  font-weight: bold;
+}
+
+.teacher-code {
+  font-family: 'Courier New', monospace;
+  background-color: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
   .admin-buttons {
     flex-direction: column;
@@ -1023,62 +1156,55 @@ table {
   .system-actions {
     flex-direction: column;
   }
-}
-
-/* Admin-Status-Indikatoren */
-.status-online {
-  color: var(--success-color);
-  font-weight: bold;
-}
-
-.status-offline {
-  color: var(--error-color);
-  font-weight: bold;
-}
-
-.status-warning {
-  color: var(--warning-color);
-  font-weight: bold;
-}
-
-/* Lehrer-Code Hervorhebung */
-.teacher-code {
-  font-family: 'Courier New', monospace;
-  background-color: #e9ecef;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: bold;
-}
-
-/* Admin-Tabellen-Scrolling */
-.table-container {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-/* Animation für Admin-Bereiche */
-.admin-fade-in {
-  animation: adminFadeIn 0.4s ease forwards;
-}
-
-@keyframes adminFadeIn {
-  0% { 
-    opacity: 0; 
-    transform: translateY(30px); 
+  
+  .templates-grid {
+    grid-template-columns: 1fr;
   }
-  100% { 
-    opacity: 1; 
-    transform: translateY(0); 
+  
+  .criterion-row {
+    flex-wrap: wrap;
+  }
+  
+  .criterion-name,
+  .criterion-weight {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  
+  .sidebar {
+    width: 100%;
   }
 }
 
-/* Spezielle Hervorhebung für destruktive Aktionen */
-.btn-danger:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.3);
+/* Für den Ausdruck */
+@media print {
+  header, .tabs, .selectors, button, .sidebar {
+    display: none !important;
+  }
+  
+  body, .container, .content-area {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  .table-container {
+    overflow: visible !important;
+  }
+  
+  table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
 }
 
-/* Erfolgs-/Fehler-Feedback für Admin-Aktionen */
+/* Admin-Feedback */
 .action-feedback {
   padding: 10px;
   border-radius: 8px;
