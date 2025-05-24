@@ -1,6 +1,7 @@
 // js/uiService.js
-import { ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS } from "./constants.js";
-import { teacherData } from "./dataService.js";
+import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS, THEME_STATUS, STUDENT_STATUS } from "./constants.js";
+import { allThemes } from "./themeService.js";
+import { assessmentTemplates } from "./assessmentService.js";
 
 /**
  * Zeigt den Ladebildschirm
@@ -55,102 +56,70 @@ export function formatDate(isoDateString) {
 }
 
 /**
- * Extrahiert das Jahr aus einem ISO-Datum
- * @param {string} isoDateString - ISO-Datum (YYYY-MM-DD)
- * @returns {string} Jahr
+ * Formatiert einen ISO-Datumstring mit Uhrzeit in deutsches Format
+ * @param {string} isoDateTimeString - ISO-Datum mit Zeit
+ * @returns {string} Formatiertes Datum mit Uhrzeit (DD.MM.YYYY, HH:MM)
  */
-export function getYearFromDate(isoDateString) {
-  return isoDateString.split("-")[0];
+export function formatDateTime(isoDateTimeString) {
+  if (!isoDateTimeString) return "";
+  const date = new Date(isoDateTimeString);
+  if (isNaN(date.getTime())) return isoDateTimeString;
+  
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 /**
- * Gibt verfügbare Jahre zurück - aktuelles Jahr immer an erster Stelle,
- * dann aufsteigend bis 10 Jahre in die Zukunft
- * @returns {string[]} Liste von Jahren
+ * Berechnet die verbleibenden Tage bis zu einem Datum
+ * @param {string} dateString - Zieldatum im ISO-Format
+ * @returns {number|null} Anzahl der Tage oder null, wenn kein gültiges Datum
  */
-export function getAvailableYears() {
-  const years = new Set();
-  const currentYear = new Date().getFullYear();
+export function getDaysRemaining(dateString) {
+  if (!dateString) return null;
+  
+  const targetDate = new Date(dateString);
+  if (isNaN(targetDate.getTime())) return null;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const diffTime = targetDate.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays;
+}
 
-  // Aktuelle Jahre plus 10 Jahre in die Zukunft
-  for (let i = 0; i <= 10; i++) {
-    years.add((currentYear + i).toString());
+/**
+ * Formatiert die verbleibenden Tage als Text mit Farbcodierung
+ * @param {number} days - Anzahl der verbleibenden Tage
+ * @returns {object} HTML und CSS-Klasse
+ */
+export function formatRemainingDays(days) {
+  if (days === null) return { text: "Kein Datum", className: "" };
+  
+  if (days < 0) {
+    return { 
+      text: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, 
+      className: "overdue" 
+    };
+  } else if (days === 0) {
+    return { text: "Heute fällig", className: "due-today" };
+  } else if (days === 1) {
+    return { text: "Morgen fällig", className: "due-soon" };
+  } else if (days <= 7) {
+    return { text: `In ${days} Tagen fällig`, className: "due-soon" };
+  } else {
+    return { text: `In ${days} Tagen fällig`, className: "due-later" };
   }
-
-  // Jahre aus vorhandenen Daten
-  teacherData.students.forEach((student) => {
-    years.add(getYearFromDate(student.examDate));
-  });
-
-  // Extrahiere das aktuelle Jahr
-  const currentYearStr = currentYear.toString();
-  
-  // Filtere das aktuelle Jahr heraus und sortiere die übrigen Jahre numerisch aufsteigend
-  let yearArray = Array.from(years)
-    .filter(y => y !== currentYearStr)
-    .sort((a, b) => parseInt(a) - parseInt(b));
-  
-  // Füge das aktuelle Jahr an erster Stelle ein
-  yearArray.unshift(currentYearStr);
-  
-  return yearArray;
 }
 
 /**
- * Gibt verfügbare Daten zurück
- * @param {string} year - Optional: Jahr filtern
- * @returns {string[]} Liste von Daten
- */
-export function getAvailableDates(year = null) {
-  const dates = new Set();
-  teacherData.students.forEach((student) => {
-    if (!year || getYearFromDate(student.examDate) === year) {
-      dates.add(student.examDate);
-    }
-  });
-  return Array.from(dates).sort().reverse();
-}
-
-/**
- * Gibt verfügbare Themen zurück
- * @param {string} selectedDate - Optional: Datum filtern
- * @returns {string[]} Liste von Themen
- */
-export function getAvailableTopics(selectedDate = null) {
-  const topics = new Set();
-  let filteredStudents = teacherData.students;
-  if (selectedDate) {
-    filteredStudents = filteredStudents.filter((s) => s.examDate === selectedDate);
-  }
-  filteredStudents.forEach((student) => {
-    if (student.topic && student.topic.trim() !== "") {
-      topics.add(student.topic);
-    }
-  });
-  return Array.from(topics).sort();
-}
-
-/**
- * Berechnet den Durchschnitt der Bewertungen
- * @param {Object} assessment - Bewertungsobjekt
- * @returns {string|null} Durchschnittsnote oder null
- */
-export function calculateAverageGrade(assessment) {
-  if (!assessment) return null;
-  let sum = 0;
-  let count = 0;
-  ASSESSMENT_CATEGORIES.forEach((category) => {
-    if (assessment[category.id] && assessment[category.id] > 0) {
-      sum += assessment[category.id];
-      count++;
-    }
-  });
-  if (count === 0) return null;
-  return (sum / count).toFixed(1);
-}
-
-/**
- * Initialisiert das Lehrer-Grid für die Anmeldung - DYNAMISCH aus Firebase
+ * Initialisiert das Lehrer-Grid für die Anmeldung
  * @param {HTMLElement} teacherGrid - DOM-Element für das Grid
  * @param {Function} showPasswordModalCallback - Callback für Passwortdialog
  * @param {Array} teachersArray - Array mit Lehrer-Objekten (optional)
@@ -181,13 +150,327 @@ export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachers
     card.className = "teacher-card";
     card.dataset.code = teacher.code;
     card.dataset.name = teacher.name;
+    
+    // Icon für Themen-Erstellung-Berechtigung hinzufügen
+    const hasCreateThemesPermission = teacher.permissions && teacher.permissions.canCreateThemes;
+    const permissionIcon = hasCreateThemesPermission ? 
+      '<span class="permission-badge" title="Kann Themen erstellen">📝</span>' : '';
+    
     card.innerHTML = `
       <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0e0e0'/%3E%3Ctext x='50' y='60' font-family='Arial' font-size='30' text-anchor='middle' fill='%23666'%3E${teacher.code.charAt(0)}%3C/text%3E%3C/svg%3E" alt="${teacher.name}">
-      <h3>${teacher.name}</h3>
+      <h3>${teacher.name} ${permissionIcon}</h3>
     `;
     card.addEventListener("click", () => {
       showPasswordModalCallback(teacher);
     });
     teacherGrid.appendChild(card);
   });
+}
+
+/**
+ * Erstellt ein HTML-Element für den Themenstatus
+ * @param {string} status - Status des Themas
+ * @returns {string} HTML für den Status-Badge
+ */
+export function createStatusBadge(status) {
+  let className = "";
+  let text = "";
+  
+  switch (status) {
+    case THEME_STATUS.ACTIVE:
+      className = "status-active";
+      text = "Aktiv";
+      break;
+    case THEME_STATUS.COMPLETED:
+      className = "status-completed";
+      text = "Abgeschlossen";
+      break;
+    case THEME_STATUS.OVERDUE:
+      className = "status-overdue";
+      text = "Überfällig";
+      break;
+    default:
+      className = "";
+      text = status || "Unbekannt";
+  }
+  
+  return `<span class="status-badge ${className}">${text}</span>`;
+}
+
+/**
+ * Erstellt ein HTML-Element für den Schülerstatus
+ * @param {string} status - Status des Schülers
+ * @returns {string} HTML für den Status-Badge
+ */
+export function createStudentStatusBadge(status) {
+  let className = "";
+  let text = "";
+  
+  switch (status) {
+    case STUDENT_STATUS.PENDING:
+      className = "status-pending";
+      text = "Offen";
+      break;
+    case STUDENT_STATUS.IN_PROGRESS:
+      className = "status-in-progress";
+      text = "In Bearbeitung";
+      break;
+    case STUDENT_STATUS.COMPLETED:
+      className = "status-completed";
+      text = "Bewertet";
+      break;
+    default:
+      className = "";
+      text = status || "Unbekannt";
+  }
+  
+  return `<span class="status-badge ${className}">${text}</span>`;
+}
+
+/**
+ * Erstellt HTML für die Fortschrittsanzeige eines Themas
+ * @param {object} theme - Thema-Objekt
+ * @returns {string} HTML für die Fortschrittsanzeige
+ */
+export function createThemeProgressHTML(theme) {
+  if (!theme.students || theme.students.length === 0) {
+    return '<div class="progress-bar empty">Keine Schüler</div>';
+  }
+  
+  const total = theme.students.length;
+  const completed = theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length;
+  const inProgress = theme.students.filter(s => s.status === STUDENT_STATUS.IN_PROGRESS).length;
+  const pending = total - completed - inProgress;
+  
+  const completedPercent = Math.round((completed / total) * 100);
+  const inProgressPercent = Math.round((inProgress / total) * 100);
+  const pendingPercent = 100 - completedPercent - inProgressPercent;
+  
+  return `
+    <div class="progress-container" title="${completed} von ${total} Schülern bewertet">
+      <div class="progress-bar">
+        <div class="progress-segment completed" style="width: ${completedPercent}%"></div>
+        <div class="progress-segment in-progress" style="width: ${inProgressPercent}%"></div>
+        <div class="progress-segment pending" style="width: ${pendingPercent}%"></div>
+      </div>
+      <div class="progress-text">${completed}/${total} bewertet</div>
+    </div>
+  `;
+}
+
+/**
+ * Füllt eine Select-Box mit Schuljahren
+ * @param {HTMLSelectElement} selectElement - Select-Element
+ * @param {string} currentValue - Aktuell ausgewählter Wert
+ */
+export function populateSchoolYearSelect(selectElement, currentValue = "") {
+  if (!selectElement) return;
+  
+  selectElement.innerHTML = '<option value="">Alle Schuljahre</option>';
+  
+  // Aktuelles Schuljahr und die nächsten 3 Jahre
+  const currentYear = new Date().getFullYear();
+  
+  for (let i = 0; i < 4; i++) {
+    const year = currentYear + i;
+    const schoolYear = `${year}/${year + 1}`;
+    
+    const option = document.createElement("option");
+    option.value = schoolYear;
+    option.textContent = schoolYear;
+    
+    if (schoolYear === currentValue) {
+      option.selected = true;
+    }
+    
+    selectElement.appendChild(option);
+  }
+  
+  // Verfügbare Schuljahre aus vorhandenen Themen
+  const existingYears = new Set();
+  
+  allThemes.forEach(theme => {
+    if (theme.school_year) {
+      existingYears.add(theme.school_year);
+    }
+  });
+  
+  // Jahre hinzufügen, die nicht bereits in der Liste sind
+  existingYears.forEach(year => {
+    if (!Array.from(selectElement.options).some(opt => opt.value === year)) {
+      const option = document.createElement("option");
+      option.value = year;
+      option.textContent = year;
+      
+      if (year === currentValue) {
+        option.selected = true;
+      }
+      
+      selectElement.appendChild(option);
+    }
+  });
+}
+
+/**
+ * Füllt eine Select-Box mit Bewertungsrastern
+ * @param {HTMLSelectElement} selectElement - Select-Element
+ * @param {string} currentValue - Aktuell ausgewählter Wert
+ */
+export function populateAssessmentTemplateSelect(selectElement, currentValue = "standard") {
+  if (!selectElement) return;
+  
+  selectElement.innerHTML = '';
+  
+  assessmentTemplates.forEach(template => {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.name;
+    
+    if (template.id === currentValue) {
+      option.selected = true;
+    }
+    
+    selectElement.appendChild(option);
+  });
+}
+
+/**
+ * Füllt eine Select-Box mit Lehrern
+ * @param {HTMLSelectElement} selectElement - Select-Element
+ * @param {Array} teachers - Array mit Lehrer-Objekten
+ * @param {string} currentValue - Aktuell ausgewählter Wert
+ */
+export function populateTeacherSelect(selectElement, teachers, currentValue = "") {
+  if (!selectElement) return;
+  
+  selectElement.innerHTML = '<option value="">Bitte wählen...</option>';
+  
+  if (!teachers || teachers.length === 0) {
+    return;
+  }
+  
+  teachers.sort((a, b) => a.name.localeCompare(b.name)).forEach(teacher => {
+    const option = document.createElement("option");
+    option.value = teacher.code;
+    option.textContent = teacher.name;
+    
+    if (teacher.code === currentValue) {
+      option.selected = true;
+    }
+    
+    selectElement.appendChild(option);
+  });
+}
+
+/**
+ * Erzeugt eine Farbe basierend auf einem String
+ * @param {string} str - Eingabestring
+ * @returns {string} Hexadezimale Farbdefinition
+ */
+export function stringToColor(str) {
+  if (!str) return "#cccccc";
+  
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  let color = '#';
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xFF;
+    color += ('00' + value.toString(16)).substr(-2);
+  }
+  
+  return color;
+}
+
+/**
+ * Erzeugt einen Initialen-Avatar für einen Namen
+ * @param {string} name - Name
+ * @returns {string} HTML für den Avatar
+ */
+export function createInitialsAvatar(name) {
+  if (!name) return '<div class="avatar">?</div>';
+  
+  const initials = name.split(' ')
+    .map(n => n.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+  
+  const backgroundColor = stringToColor(name);
+  
+  return `
+    <div class="avatar" style="background-color: ${backgroundColor}">
+      ${initials}
+    </div>
+  `;
+}
+
+/**
+ * Extrahiert das Jahr aus einem ISO-Datum
+ * @param {string} isoDateString - ISO-Datum (YYYY-MM-DD)
+ * @returns {string} Jahr
+ */
+export function getYearFromDate(isoDateString) {
+  return isoDateString ? isoDateString.split("-")[0] : "";
+}
+
+/**
+ * Erstellt ein TXT-Export aus den Daten
+ * @param {Array} data - Daten für den Export
+ * @param {string} title - Titel des Exports
+ * @returns {string} Formatierter Text
+ */
+export function createTextExport(data, title) {
+  let output = `${title}\nExportiert am: ${new Date().toLocaleString("de-DE")}\n\n`;
+  
+  data.forEach((item, index) => {
+    output += `#${index + 1}: ${item.title || item.name}\n`;
+    
+    // Füge alle Eigenschaften hinzu, die kein Array oder Objekt sind
+    Object.entries(item).forEach(([key, value]) => {
+      if (key !== 'title' && key !== 'name' && typeof value !== 'object') {
+        output += `${key}: ${value}\n`;
+      }
+    });
+    
+    // Füge Schüler hinzu, wenn vorhanden
+    if (item.students && Array.isArray(item.students)) {
+      output += `\nSchüler:\n`;
+      item.students.forEach(student => {
+        output += `- ${student.name} (Status: ${student.status})\n`;
+        
+        if (student.assessment) {
+          output += `  Bewertung:\n`;
+          Object.entries(student.assessment).forEach(([key, value]) => {
+            if (key !== 'updated_at') {
+              output += `  - ${key}: ${value}\n`;
+            }
+          });
+        }
+      });
+    }
+    
+    output += "\n" + "-".repeat(40) + "\n\n";
+  });
+  
+  return output;
+}
+
+/**
+ * Hilfsfunktion zum Herunterladen einer Datei
+ * @param {string} filename - Dateiname
+ * @param {string} content - Dateiinhalt
+ * @param {string} contentType - MIME-Typ
+ */
+export function downloadFile(filename, content, contentType = "text/plain") {
+  const blob = new Blob([content], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
