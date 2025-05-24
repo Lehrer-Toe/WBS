@@ -5,6 +5,22 @@
 [build.environment]
   NODE_VERSION = "16"
 
+# MIME-Typ-Konfiguration für JavaScript-Module
+[[headers]]
+  for = "/js/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/js/modules/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
 # Redirect für Module-Pfade
 [[redirects]]
   from = "/js/modules/*"
