@@ -1,16 +1,9 @@
 // js/dataService.js
 
-import { ASSESSMENT_CATEGORIES } from "./constants.js";
 import { db } from "./firebaseClient.js";
-
-/**
- * Globale Datenstruktur, in der alle Studierenden (students) und
- * deren Bewertungen (assessments) gespeichert werden.
- */
-export let teacherData = {
-  students: [],
-  assessments: {}
-};
+import { THEMES_CONFIG, STUDENT_STATUS } from "./constants.js";
+import { loadAllThemes, allThemes } from "./themeService.js";
+import { loadAssessmentTemplates } from "./assessmentService.js";
 
 /**
  * Der aktuell eingeloggte Lehrer. Enthält Lehrername, Kürzel und Passwort.
@@ -18,135 +11,212 @@ export let teacherData = {
 export let currentUser = {
   name: null,
   code: null,
-  password: null
+  password: null,
+  permissions: {}
 };
 
 /**
- * Diese Funktion passt alte Bewertungs-Kategorien an die neuen Kategorien an,
- * falls ältere Datenstrukturen vorhanden sind.
+ * Initialisiert die Daten für den aktuellen Benutzer
  */
-function migrateAssessmentCategories() {
-  const categoryMapping = {
-    organization: "presentation",
-    workBehavior: "content",
-    teamwork: "language",
-    quality: "impression",
-    reflection: "reflection",
-    documentation: "documentation"
-  };
-
-  // Für jeden Schüler die Bewertungen durchgehen und ggf. umbenennen
-  for (const studentId in teacherData.assessments) {
-    const assessment = teacherData.assessments[studentId];
-    if (!assessment) continue; // Schutz vor undefined
-
-    // Alte Schlüssel durch neue ersetzen
-    for (const oldCategory in categoryMapping) {
-      if (assessment.hasOwnProperty(oldCategory)) {
-        const newCategory = categoryMapping[oldCategory];
-        assessment[newCategory] = assessment[oldCategory];
-        if (oldCategory !== newCategory) {
-          delete assessment[oldCategory];
-        }
-      }
-    }
-
-    // Dafür sorgen, dass alle erwarteten Kategorien existieren
-    ASSESSMENT_CATEGORIES.forEach((category) => {
-      if (!assessment.hasOwnProperty(category.id)) {
-        // Beispielsweise Standard-Wert 2 anlegen
-        assessment[category.id] = 2;
-      }
-    });
-
-    // Auch ein Info-Text sollte immer existieren
-    if (!assessment.hasOwnProperty("infoText")) {
-      assessment["infoText"] = "";
-    }
-  }
-}
-
-/**
- * Lädt die Lehrerdaten aus Firebase für das Kürzel in currentUser.code.
- * Falls keine Daten vorliegen, wird teacherData neu angelegt und gespeichert.
- */
-export async function loadTeacherData() {
-  if (!currentUser.code) return false;
+export async function initializeUserData() {
   try {
-    // Sicherheitscheck: Firebase muss initialisiert sein
-    if (!db) {
-      console.error("Firestore nicht initialisiert!");
-      return false;
-    }
-
-    // Eintrag mit passendem Kürzel laden
-    const docRef = db.collection("wbs_data").doc(currentUser.code);
-    const doc = await docRef.get();
-
-    // Wenn Daten vorhanden => local übernehmen
-    if (doc.exists) {
-      const data = doc.data();
-      if (data && data.data) {
-        teacherData = data.data;
-        migrateAssessmentCategories();
-        console.log("Lehrerdaten erfolgreich geladen");
-        return true;
-      } else {
-        console.error("Datenstruktur ungültig:", data);
-        teacherData = {
-          students: [],
-          assessments: {}
-        };
-        return await saveTeacherData();
-      }
-    } 
-    // Ansonsten: neue Struktur speichern
-    else {
-      console.log("Keine vorhandenen Daten gefunden, erstelle neue Struktur");
-      teacherData = {
-        students: [],
-        assessments: {}
-      };
-      return await saveTeacherData();
-    }
-  } catch (error) {
-    console.error("Fehler in loadTeacherData:", error.code, error.message, error);
-    alert("Fehler beim Laden der Lehrerdaten. Bitte prüfen Sie die Firebase-Berechtigungen.");
-    return false;
-  }
-}
-
-/**
- * Speichert teacherData und currentUser in Firebase.
- * Falls es für das Kürzel bereits Einträge gibt, wird ein Update ausgeführt.
- */
-export async function saveTeacherData() {
-  if (!currentUser.code) return false;
-  try {
-    // Sicherheitscheck: Firebase muss initialisiert sein
-    if (!db) {
-      console.error("Firestore nicht initialisiert!");
-      return false;
-    }
+    // Lade Themen
+    await loadAllThemes();
     
-    // Prüfen, ob die Datenstruktur gültig ist
-    if (!teacherData || !teacherData.students || !teacherData.assessments) {
-      console.error("Ungültige Datenstruktur:", teacherData);
-      return false;
-    }
-
-    await db.collection("wbs_data").doc(currentUser.code).set({
-      teacher_code: currentUser.code,
-      teacher_name: currentUser.name,
-      data: teacherData,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    // Lade Bewertungsraster
+    await loadAssessmentTemplates();
     
-    console.log("Lehrerdaten erfolgreich gespeichert");
     return true;
   } catch (error) {
-    console.error("Fehler in saveTeacherData:", error.code, error.message, error);
-    alert("Fehler beim Speichern der Daten. Bitte prüfen Sie die Firebase-Berechtigungen.");
+    console.error("Fehler beim Initialisieren der Benutzerdaten:", error);
     return false;
   }
+}
+
+/**
+ * Liefert alle Themen, die für den aktuellen Benutzer relevant sind
+ * - Themen, die der Benutzer erstellt hat
+ * - Themen, bei denen der Benutzer Schüler bewerten darf
+ */
+export function getThemesForCurrentUser() {
+  if (!currentUser.code) return [];
+  
+  return allThemes.filter(theme => {
+    // Themen, die der Benutzer erstellt hat
+    if (theme.created_by === currentUser.code) return true;
+    
+    // Themen, bei denen der Benutzer Schüler bewerten darf
+    if (theme.students && theme.students.some(student => student.assigned_teacher === currentUser.code)) {
+      return true;
+    }
+    
+    return false;
+  });
+}
+
+/**
+ * Liefert alle Schüler, die der aktuelle Benutzer bewerten darf
+ */
+export function getStudentsForCurrentUser() {
+  if (!currentUser.code) return [];
+  
+  const students = [];
+  
+  allThemes.forEach(theme => {
+    if (theme.students) {
+      theme.students.forEach(student => {
+        if (student.assigned_teacher === currentUser.code) {
+          students.push({
+            ...student,
+            theme: {
+              id: theme.id,
+              title: theme.title,
+              deadline: theme.deadline,
+              assessment_template_id: theme.assessment_template_id
+            }
+          });
+        }
+      });
+    }
+  });
+  
+  return students;
+}
+
+/**
+ * Liefert die Statistiken für den aktuellen Benutzer
+ */
+export function getCurrentUserStats() {
+  if (!currentUser.code) return {};
+  
+  const themesCreated = allThemes.filter(theme => theme.created_by === currentUser.code).length;
+  
+  let studentsAssigned = 0;
+  let studentsCompleted = 0;
+  let studentsPending = 0;
+  
+  allThemes.forEach(theme => {
+    if (theme.students) {
+      theme.students.forEach(student => {
+        if (student.assigned_teacher === currentUser.code) {
+          studentsAssigned++;
+          
+          if (student.status === STUDENT_STATUS.COMPLETED) {
+            studentsCompleted++;
+          } else if (student.status === STUDENT_STATUS.PENDING) {
+            studentsPending++;
+          }
+        }
+      });
+    }
+  });
+  
+  return {
+    themesCreated,
+    studentsAssigned,
+    studentsCompleted,
+    studentsPending,
+    studentsInProgress: studentsAssigned - studentsCompleted - studentsPending
+  };
+}
+
+/**
+ * Aktualisiert den Status aller Themen basierend auf den Deadlines
+ */
+export function updateThemeStatuses() {
+  const now = new Date();
+  
+  allThemes.forEach(theme => {
+    if (theme.deadline) {
+      const deadline = new Date(theme.deadline);
+      
+      // Setze Status basierend auf Deadline und Schülerbewertungen
+      if (theme.students && theme.students.every(s => s.status === STUDENT_STATUS.COMPLETED)) {
+        theme.status = 'completed';
+      } else if (deadline < now) {
+        theme.status = 'overdue';
+      } else {
+        theme.status = 'active';
+      }
+    }
+  });
+}
+
+/**
+ * Liefert die verfügbaren Schuljahre aus den vorhandenen Themen
+ */
+export function getAvailableSchoolYears() {
+  const schoolYears = new Set();
+  
+  allThemes.forEach(theme => {
+    if (theme.school_year) {
+      schoolYears.add(theme.school_year);
+    }
+  });
+  
+  return Array.from(schoolYears).sort();
+}
+
+/**
+ * Exportiert alle Daten des aktuellen Benutzers
+ */
+export async function exportUserData() {
+  // Exportiert Themen und Bewertungen, die für den aktuellen Benutzer relevant sind
+  const themesForUser = getThemesForCurrentUser();
+  
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    teacher: {
+      name: currentUser.name,
+      code: currentUser.code
+    },
+    themes: themesForUser
+  };
+  
+  return exportData;
+}
+
+/**
+ * Berechnet die Gesamtanzahl der Schüler in allen Themen
+ */
+export function getTotalStudentCount() {
+  let count = 0;
+  
+  allThemes.forEach(theme => {
+    if (theme.students) {
+      count += theme.students.length;
+    }
+  });
+  
+  return count;
+}
+
+/**
+ * Liefert alle Schüler mit ihren Bewertungen für Exportzwecke
+ */
+export function getAllStudentsWithAssessments() {
+  const students = [];
+  
+  allThemes.forEach(theme => {
+    if (theme.students) {
+      theme.students.forEach(student => {
+        students.push({
+          id: student.id,
+          name: student.name,
+          status: student.status,
+          assigned_teacher: student.assigned_teacher,
+          assessment: student.assessment || {},
+          theme: {
+            id: theme.id,
+            title: theme.title,
+            school_year: theme.school_year,
+            deadline: theme.deadline,
+            created_by: theme.created_by
+          }
+        });
+      });
+    }
+  });
+  
+  return students;
 }
