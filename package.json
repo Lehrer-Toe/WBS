@@ -1,7 +1,12 @@
 {
   "name": "wbs-bewertungssystem",
-  "version": "1.6.0",
+  "version": "2.0.0",
+  "description": "WBS Bewertungssystem für Themen und Gruppen",
   "scripts": {
-    "build": "node build.js"
+    "build": "node build.js",
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
   }
 }
