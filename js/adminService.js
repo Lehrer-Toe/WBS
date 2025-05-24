@@ -1,7 +1,15 @@
 // js/adminService.js
 
 import { db } from "./firebaseClient.js";
-import { ADMIN_CONFIG, DEFAULT_TEACHERS } from "./constants.js";
+import { 
+  ADMIN_CONFIG, 
+  DEFAULT_TEACHERS, 
+  TEACHER_PERMISSIONS,
+  SYSTEM_SETTINGS,
+  DEFAULT_SYSTEM_SETTINGS,
+  ASSESSMENT_TEMPLATES,
+  THEMES_CONFIG
+} from "./constants.js";
 
 /**
  * Globale Variable für alle registrierten Lehrer
@@ -15,6 +23,11 @@ export let currentAdmin = {
   username: null,
   isLoggedIn: false
 };
+
+/**
+ * Aktuelle Systemeinstellungen
+ */
+export let systemSettings = {...DEFAULT_SYSTEM_SETTINGS};
 
 /**
  * Lädt alle registrierten Lehrer aus Firebase
@@ -125,17 +138,24 @@ export function logoutAdmin() {
 /**
  * Neuen Lehrer hinzufügen
  */
-export async function addTeacher(name, code, password) {
+export async function addTeacher(name, code, password, permissions = {}) {
   // Prüfen, ob Kürzel bereits existiert
   const existing = allTeachers.find(t => t.code.toUpperCase() === code.toUpperCase());
   if (existing) {
     throw new Error(`Kürzel "${code}" ist bereits vergeben.`);
   }
 
+  // Standard-Berechtigungen setzen
+  const defaultPermissions = {
+    [TEACHER_PERMISSIONS.CREATE_THEMES]: false,
+    [TEACHER_PERMISSIONS.MANAGE_TEMPLATES]: false
+  };
+
   const newTeacher = {
     name: name.trim(),
     code: code.toUpperCase().trim(),
     password: password.trim(),
+    permissions: { ...defaultPermissions, ...permissions },
     createdAt: new Date().toISOString()
   };
 
@@ -161,7 +181,7 @@ export async function addTeacher(name, code, password) {
 /**
  * Lehrer bearbeiten
  */
-export async function updateTeacher(originalCode, name, code, password) {
+export async function updateTeacher(originalCode, name, code, password, permissions = null) {
   const index = allTeachers.findIndex(t => t.code === originalCode);
   if (index === -1) {
     throw new Error("Lehrer nicht gefunden.");
@@ -177,11 +197,15 @@ export async function updateTeacher(originalCode, name, code, password) {
 
   const oldTeacher = { ...allTeachers[index] };
   
+  // Verwende die vorhandenen Berechtigungen, wenn keine neuen übergeben wurden
+  const updatedPermissions = permissions || oldTeacher.permissions || {};
+  
   allTeachers[index] = {
     ...allTeachers[index],
     name: name.trim(),
     code: code.toUpperCase().trim(),
     password: password.trim(),
+    permissions: updatedPermissions,
     updatedAt: new Date().toISOString()
   };
 
@@ -229,7 +253,44 @@ export async function deleteTeacher(code) {
 }
 
 /**
- * NEUE FUNKTION: Alle Lehrer löschen und auf Standard zurücksetzen
+ * Aktualisiert die Lehrerberechtigungen
+ */
+export async function updateTeacherPermissions(teacherCode, permissions) {
+  const index = allTeachers.findIndex(t => t.code === teacherCode);
+  if (index === -1) {
+    throw new Error("Lehrer nicht gefunden.");
+  }
+
+  const oldTeacher = { ...allTeachers[index] };
+  
+  // Aktualisiere nur die Berechtigungen
+  allTeachers[index] = {
+    ...allTeachers[index],
+    permissions: {
+      ...oldTeacher.permissions,
+      ...permissions
+    },
+    updatedAt: new Date().toISOString()
+  };
+
+  try {
+    const saved = await saveAllTeachers();
+    if (!saved) {
+      // Rollback bei Fehler
+      allTeachers[index] = oldTeacher;
+      throw new Error("Fehler beim Speichern der Berechtigungen.");
+    }
+  } catch (error) {
+    // Rollback bei Fehler
+    allTeachers[index] = oldTeacher;
+    throw error;
+  }
+
+  return allTeachers[index];
+}
+
+/**
+ * Alle Lehrer löschen und auf Standard zurücksetzen
  */
 export async function deleteAllTeachers() {
   try {
@@ -257,96 +318,302 @@ export async function deleteAllTeachers() {
 }
 
 /**
- * NEUE FUNKTION: Alle Bewertungsdaten aller Lehrer löschen
+ * Systemeinstellungen laden
  */
-export async function deleteAllTeacherData() {
+export async function loadSystemSettings() {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
-    throw new Error("Datenbank nicht verfügbar");
+    return {...DEFAULT_SYSTEM_SETTINGS};
   }
 
   try {
-    console.log("Lösche alle Bewertungsdaten...");
+    const docRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await docRef.get();
+
+    if (doc.exists) {
+      systemSettings = doc.data();
+      return systemSettings;
+    } else {
+      // Erste Initialisierung
+      systemSettings = {...DEFAULT_SYSTEM_SETTINGS};
+      
+      try {
+        await docRef.set({
+          ...systemSettings,
+          created_at: firebase.firestore.FieldValue.serverTimestamp(),
+          updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (saveError) {
+        console.warn("Konnte Systemeinstellungen nicht speichern:", saveError);
+      }
+      
+      return systemSettings;
+    }
+  } catch (error) {
+    console.error("Fehler beim Laden der Systemeinstellungen:", error);
+    return {...DEFAULT_SYSTEM_SETTINGS};
+  }
+}
+
+/**
+ * Systemeinstellungen speichern
+ */
+export async function saveSystemSettings(settings) {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    return false;
+  }
+
+  try {
+    const docRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
     
-    // Hole alle Dokumente aus der wbs_data Collection
-    const snapshot = await db.collection("wbs_data").get();
+    // Prüfen, ob das Dokument existiert
+    const doc = await docRef.get();
     
-    if (snapshot.empty) {
-      console.log("Keine Bewertungsdaten gefunden");
-      return true;
+    if (doc.exists) {
+      // Aktualisieren
+      await docRef.update({
+        ...settings,
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // Neu erstellen
+      await docRef.set({
+        ...settings,
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
     }
     
-    // Batch-Delete für bessere Performance
-    const batch = db.batch();
-    let deleteCount = 0;
+    // Lokale Systemeinstellungen aktualisieren
+    systemSettings = {...settings};
     
-    snapshot.forEach((doc) => {
-      batch.delete(doc.ref);
-      deleteCount++;
-    });
-    
-    // Batch ausführen
-    await batch.commit();
-    
-    console.log(`${deleteCount} Bewertungsdaten-Dokumente gelöscht`);
+    console.log("Systemeinstellungen erfolgreich gespeichert");
     return true;
   } catch (error) {
-    console.error("Fehler beim Löschen der Bewertungsdaten:", error);
-    throw error;
+    console.error("Fehler beim Speichern der Systemeinstellungen:", error);
+    return false;
   }
 }
 
 /**
- * NEUE FUNKTION: Spezifische Lehrer-Bewertungsdaten löschen
+ * Alle Themen und Bewertungsdaten löschen
  */
-export async function deleteTeacherData(teacherCode) {
+export async function deleteAllData() {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
     throw new Error("Datenbank nicht verfügbar");
   }
 
   try {
-    console.log(`Lösche Bewertungsdaten für Lehrer: ${teacherCode}`);
+    console.log("Lösche alle Daten...");
     
-    // Lösche das spezifische Dokument
-    await db.collection("wbs_data").doc(teacherCode).delete();
+    // Lösche alle Themen
+    const themesSnapshot = await db.collection(THEMES_CONFIG.collectionName).get();
+    const themesBatch = db.batch();
     
-    console.log(`Bewertungsdaten für ${teacherCode} gelöscht`);
+    themesSnapshot.forEach((doc) => {
+      themesBatch.delete(doc.ref);
+    });
+    
+    await themesBatch.commit();
+    
+    // Lösche alle Bewertungsraster (außer Standard)
+    const templatesSnapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName).get();
+    const templatesBatch = db.batch();
+    
+    templatesSnapshot.forEach((doc) => {
+      if (doc.id !== "standard") {
+        templatesBatch.delete(doc.ref);
+      }
+    });
+    
+    await templatesBatch.commit();
+    
+    console.log("Alle Daten wurden gelöscht");
     return true;
   } catch (error) {
-    console.error(`Fehler beim Löschen der Daten für ${teacherCode}:`, error);
+    console.error("Fehler beim Löschen aller Daten:", error);
     throw error;
   }
 }
 
 /**
- * NEUE FUNKTION: System-Statistiken abrufen
+ * Systemstatistiken abrufen
  */
 export async function getSystemStats() {
   if (!db) {
     return {
       totalTeachers: allTeachers.length,
-      totalStudentData: 0,
-      firebaseStatus: "Offline"
+      totalThemes: 0,
+      totalStudents: 0,
+      totalTemplates: 0,
+      firebaseStatus: "Offline",
+      schoolYear: systemSettings.currentSchoolYear || "Nicht festgelegt"
     };
   }
 
   try {
-    // Zähle alle Bewertungsdokumente
-    const snapshot = await db.collection("wbs_data").get();
+    // Zähle alle Themen
+    const themesSnapshot = await db.collection(THEMES_CONFIG.collectionName).get();
+    
+    // Zähle alle Bewertungsraster
+    const templatesSnapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName).get();
+    
+    // Zähle alle Schüler (alle Themen durchlaufen und Schüler addieren)
+    let totalStudents = 0;
+    for (const doc of themesSnapshot.docs) {
+      const theme = doc.data();
+      if (theme.students && Array.isArray(theme.students)) {
+        totalStudents += theme.students.length;
+      }
+    }
     
     return {
       totalTeachers: allTeachers.length,
-      totalStudentData: snapshot.size,
-      firebaseStatus: "Online"
+      totalThemes: themesSnapshot.size,
+      totalStudents: totalStudents,
+      totalTemplates: templatesSnapshot.size,
+      firebaseStatus: "Online",
+      schoolYear: systemSettings.currentSchoolYear || "Nicht festgelegt"
     };
   } catch (error) {
     console.error("Fehler beim Abrufen der System-Statistiken:", error);
     return {
       totalTeachers: allTeachers.length,
-      totalStudentData: 0,
-      firebaseStatus: "Error"
+      totalThemes: 0,
+      totalStudents: 0,
+      totalTemplates: 0,
+      firebaseStatus: "Error",
+      schoolYear: systemSettings.currentSchoolYear || "Nicht festgelegt"
     };
+  }
+}
+
+/**
+ * Exportiert alle Daten aus dem System
+ */
+export async function exportAllData() {
+  if (!db) {
+    throw new Error("Datenbank nicht verfügbar");
+  }
+
+  try {
+    // Alle Lehrer
+    const teachers = [...allTeachers];
+    
+    // Systemeinstellungen
+    const settings = await loadSystemSettings();
+    
+    // Alle Themen
+    const themesSnapshot = await db.collection(THEMES_CONFIG.collectionName).get();
+    const themes = themesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Alle Bewertungsraster
+    const templatesSnapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName).get();
+    const templates = templatesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Alle Daten zusammenfassen
+    const exportData = {
+      version: "1.0",
+      exportDate: new Date().toISOString(),
+      systemSettings: settings,
+      teachers: teachers,
+      themes: themes,
+      assessmentTemplates: templates
+    };
+    
+    return exportData;
+  } catch (error) {
+    console.error("Fehler beim Exportieren aller Daten:", error);
+    throw error;
+  }
+}
+
+/**
+ * Importiert Daten in das System
+ */
+export async function importAllData(data) {
+  if (!db) {
+    throw new Error("Datenbank nicht verfügbar");
+  }
+
+  if (!data || !data.version) {
+    throw new Error("Ungültiges Datenformat");
+  }
+
+  try {
+    // Wir setzen hier Transaktionen ein, um sicherzustellen, dass entweder alles oder nichts importiert wird
+    
+    // 1. Systemeinstellungen importieren
+    if (data.systemSettings) {
+      await saveSystemSettings(data.systemSettings);
+    }
+    
+    // 2. Lehrer importieren
+    if (data.teachers && Array.isArray(data.teachers)) {
+      allTeachers = [...data.teachers];
+      await saveAllTeachers();
+    }
+    
+    // 3. Bewertungsraster importieren
+    if (data.assessmentTemplates && Array.isArray(data.assessmentTemplates)) {
+      const templatesBatch = db.batch();
+      
+      // Lösche zuerst alle vorhandenen Raster (außer Standard)
+      const templatesSnapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName).get();
+      templatesSnapshot.forEach((doc) => {
+        if (doc.id !== "standard") {
+          templatesBatch.delete(doc.ref);
+        }
+      });
+      
+      // Neue Raster hinzufügen
+      for (const template of data.assessmentTemplates) {
+        const { id, ...templateData } = template;
+        const templateRef = db.collection(ASSESSMENT_TEMPLATES.collectionName).doc(id);
+        templatesBatch.set(templateRef, {
+          ...templateData,
+          imported_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
+      await templatesBatch.commit();
+    }
+    
+    // 4. Themen importieren
+    if (data.themes && Array.isArray(data.themes)) {
+      const themesBatch = db.batch();
+      
+      // Lösche zuerst alle vorhandenen Themen
+      const themesSnapshot = await db.collection(THEMES_CONFIG.collectionName).get();
+      themesSnapshot.forEach((doc) => {
+        themesBatch.delete(doc.ref);
+      });
+      
+      // Neue Themen hinzufügen
+      for (const theme of data.themes) {
+        const { id, ...themeData } = theme;
+        const themeRef = db.collection(THEMES_CONFIG.collectionName).doc(id);
+        themesBatch.set(themeRef, {
+          ...themeData,
+          imported_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      
+      await themesBatch.commit();
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Importieren aller Daten:", error);
+    throw error;
   }
 }
 
@@ -358,4 +625,14 @@ export function validateTeacher(code, password) {
     t.code.toUpperCase() === code.toUpperCase() && 
     t.password === password
   );
+}
+
+/**
+ * Prüft, ob ein Lehrer die angegebene Berechtigung hat
+ */
+export function hasTeacherPermission(teacherCode, permission) {
+  const teacher = allTeachers.find(t => t.code === teacherCode);
+  if (!teacher) return false;
+  
+  return teacher.permissions && teacher.permissions[permission] === true;
 }
