@@ -9,7 +9,7 @@ try {
     fs.mkdirSync('js', { recursive: true });
   }
   
-  // Hier werden die Umgebungsvariablen für Netlify verwendet
+  // Firebase-Config
   const firebaseConfig = {
     apiKey: process.env.VITE_FIREBASE_API_KEY || '',
     authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -19,18 +19,6 @@ try {
     appId: process.env.VITE_FIREBASE_APP_ID || ''
   };
 
-  // Überprüfe leere Werte und gib Warnungen aus
-  let missingVars = [];
-  Object.entries(firebaseConfig).forEach(([key, value]) => {
-    if (!value) missingVars.push(key);
-  });
-  
-  if (missingVars.length > 0) {
-    console.warn(`Warnung: Folgende Umgebungsvariablen fehlen oder sind leer: ${missingVars.join(', ')}`);
-    console.warn('Die Anwendung könnte möglicherweise nicht richtig funktionieren.');
-  }
-
-  // Hier wird eine Konfiguration erstellt, die sowohl mit Netlify als auch mit Vite funktioniert
   const configFileContent = `
 // js/firebaseConfig.js - AUTOMATISCH GENERIERT, NICHT BEARBEITEN
 export const FIREBASE_CONFIG = {
@@ -46,23 +34,7 @@ export const FIREBASE_CONFIG = {
   fs.writeFileSync('js/firebaseConfig.js', configFileContent);
   console.log('Firebase-Konfigurationsdatei wurde erfolgreich erstellt.');
   
-  // Erstelle eine js/modules-Weiterleitung, um 404-Fehler zu vermeiden
-  if (!fs.existsSync('js/modules')) {
-    fs.mkdirSync('js/modules', { recursive: true });
-  }
-
-  // Erstelle Redirect-Dateien, die auf die Hauptmodule verweisen
-  const redirectModules = ['adminModule.js', 'loginModule.js', 'themeModule.js', 'templateModule.js'];
-  
-  redirectModules.forEach(module => {
-    const redirectContent = `// Weiterleitung zu ../
-import * as moduleContent from '../${module}';
-export default moduleContent;
-export * from '../${module}';
-`;
-    fs.writeFileSync(`js/modules/${module}`, redirectContent);
-    console.log(`Redirect für ${module} erstellt.`);
-  });
+  // NICHTS WEITERES TUN - Keine Module kopieren oder umleiten
   
 } catch (error) {
   console.error('Fehler beim Erstellen der Firebase-Konfigurationsdatei:', error);
