@@ -3,9 +3,9 @@
 import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "./firebaseClient.js";
 import { loadAllTeachers } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./modules/loginModule.js";
-import { initAdminModule } from "./modules/adminModule.js";
-import { initThemeModule } from "./modules/themeModule.js";
+import { initLoginModule, performLogout } from "./loginModule.js";  // Pfad geändert
+import { initAdminModule } from "./adminModule.js";  // Pfad geändert
+import { initThemeModule } from "./themeModule.js";  // Pfad geändert
 import { assessmentTemplates, loadAssessmentTemplates } from "./assessmentService.js";
 
 // DOM-Elemente
