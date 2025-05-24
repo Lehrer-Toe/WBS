@@ -20,7 +20,7 @@
   <div id="loginSection">
     <header>
       <h1>Zeig was du kannst</h1>
-      <div class="version">v1.7</div>
+      <div class="version">v2.0</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -56,7 +56,7 @@
   <div id="adminLoginSection" style="display: none;">
     <header>
       <h1>Zeig was du kannst - Admin</h1>
-      <div class="version">v1.7</div>
+      <div class="version">v2.0</div>
     </header>
     
     <div class="container animate-fade-in">
@@ -93,6 +93,7 @@
     <div class="container">
       <div class="tabs">
         <div class="tab active" data-tab="teachers">Lehrer verwalten</div>
+        <div class="tab" data-tab="templates">Bewertungsraster</div>
         <div class="tab" data-tab="system">System-Info</div>
       </div>
       
@@ -114,6 +115,18 @@
                 <label for="newTeacherPassword">Passwort</label>
                 <input type="password" id="newTeacherPassword" placeholder="Passwort festlegen">
               </div>
+              <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="canCreateThemes">
+                  <span class="checkbox-text">Kann Themen erstellen</span>
+                </label>
+              </div>
+              <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="canManageTemplates">
+                  <span class="checkbox-text">Kann Bewertungsraster verwalten</span>
+                </label>
+              </div>
               <button id="addTeacherBtn">Lehrer hinzufügen</button>
             </div>
           </div>
@@ -126,16 +139,57 @@
                   <tr>
                     <th>Name</th>
                     <th>Kürzel</th>
+                    <th>Berechtigungen</th>
                     <th>Erstellt am</th>
                     <th>Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td colspan="4">Lade Lehrer...</td>
+                    <td colspan="5">Lade Lehrer...</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tab: Bewertungsraster verwalten -->
+      <div class="tab-content" id="templates-tab">
+        <div class="main-layout">
+          <div class="sidebar">
+            <div class="section">
+              <h3>Neues Bewertungsraster</h3>
+              <form id="newTemplateForm">
+                <div class="form-group">
+                  <label for="templateName">Name des Rasters</label>
+                  <input type="text" id="templateName" placeholder="z.B. Standard-Bewertung">
+                </div>
+                <div class="form-group">
+                  <label for="templateDescription">Beschreibung (optional)</label>
+                  <textarea id="templateDescription" rows="3" placeholder="Beschreibung des Bewertungsrasters"></textarea>
+                </div>
+                <div id="categoriesContainer">
+                  <h4>Bewertungskategorien</h4>
+                  <div class="categories-list" id="categoriesList">
+                    <!-- Kategorien werden dynamisch hinzugefügt -->
+                  </div>
+                  <button type="button" id="addCategoryBtn" class="btn-secondary">Kategorie hinzufügen</button>
+                </div>
+                <button type="submit" id="createTemplateBtn">Bewertungsraster erstellen</button>
+              </form>
+            </div>
+          </div>
+          
+          <div class="content-area">
+            <h2>Bewertungsraster</h2>
+            <div class="templates-list" id="templatesList">
+              <!-- Bewertungsraster werden dynamisch geladen -->
+              <div class="loading-container">
+                <span class="loader"></span>
+                <p>Bewertungsraster werden geladen...</p>
+              </div>
             </div>
           </div>
         </div>
@@ -146,11 +200,34 @@
         <h2>System-Informationen</h2>
         
         <div class="card">
+          <h3>Systemeinstellungen</h3>
+          <div class="form-group">
+            <label for="currentSchoolYear">Aktuelles Schuljahr</label>
+            <select id="currentSchoolYear">
+              <option value="">Bitte wählen...</option>
+              <!-- Schuljahre werden dynamisch befüllt -->
+            </select>
+          </div>
+        </div>
+        
+        <div class="card">
           <h3>Statistiken</h3>
           <div id="systemStats">
             <div class="stat-item">
               <span class="stat-label">Registrierte Lehrer:</span>
               <span class="stat-value" id="totalTeachers">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Themen insgesamt:</span>
+              <span class="stat-value" id="totalThemes">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Schüler insgesamt:</span>
+              <span class="stat-value" id="totalStudents">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Bewertungsraster:</span>
+              <span class="stat-value" id="totalTemplates">-</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Firebase Status:</span>
@@ -167,11 +244,13 @@
           <h3>System-Aktionen</h3>
           <div class="system-actions">
             <button id="refreshSystemBtn">System aktualisieren</button>
-            <button id="exportTeachersBtn" class="btn-secondary">Lehrer exportieren</button>
+            <button id="exportSystemBtn" class="btn-secondary">Systemdaten exportieren</button>
+            <button id="importSystemBtn" class="btn-secondary">Systemdaten importieren</button>
+            <input type="file" id="importFileInput" accept=".json" style="display: none;">
           </div>
         </div>
 
-        <!-- NEUE SEKTION: Datenlöschung -->
+        <!-- Datenlöschung -->
         <div class="card danger-zone">
           <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
           <p class="warning-text">
@@ -200,7 +279,7 @@
             <h4>Was passiert bei den Aktionen:</h4>
             <ul>
               <li><strong>Alle Lehrer löschen:</strong> Setzt alle Lehrer auf Standard zurück (KRE, RIF, TOE)</li>
-              <li><strong>Kompletter System-Reset:</strong> Löscht ALLE Lehrer UND alle Bewertungsdaten aller Lehrer</li>
+              <li><strong>Kompletter System-Reset:</strong> Löscht ALLE Lehrer UND alle Themen, Schüler und Bewertungen</li>
             </ul>
           </div>
         </div>
@@ -221,79 +300,62 @@
     
     <div class="container">
       <div class="tabs">
-        <div class="tab active" data-tab="students">Schüler anlegen</div>
+        <div class="tab active" data-tab="themes">Themen verwalten</div>
         <div class="tab" data-tab="assessment">Bewertung</div>
         <div class="tab" data-tab="overview">Übersicht</div>
-        <div class="tab" data-tab="settings">Einstellungen</div>
+        <div class="tab" data-tab="templates">Bewertungsraster</div>
       </div>
       
-      <div class="tab-content active" id="students-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Prüfling anlegen</h3>
-              <div class="form-group">
-                <label for="newStudentName">Name des Prüflings</label>
-                <input type="text" id="newStudentName" placeholder="Vor- und Nachname">
-              </div>
-              <div class="form-group">
-                <label for="newStudentTopic">Thema (optional)</label>
-                <input type="text" id="newStudentTopic" placeholder="Thema der Prüfung">
-              </div>
-              <div class="form-group">
-                <label for="examDate">Prüfungsdatum</label>
-                <input type="date" id="examDate">
-              </div>
-              <button id="addStudentBtn">Prüfling hinzufügen</button>
+      <!-- Tab: Themen verwalten -->
+      <div class="tab-content active" id="themes-tab">
+        <div id="themesContainer">
+          <div class="themes-header">
+            <h2>Themen & Gruppen</h2>
+            <div class="themes-actions">
+              <select id="themeFilterSelect" class="theme-filter">
+                <option value="">Alle Themen</option>
+                <option value="active">Aktive Themen</option>
+                <option value="completed">Abgeschlossene Themen</option>
+                <option value="overdue">Überfällige Themen</option>
+              </select>
+              <button id="newThemeBtn" class="btn-primary">Neues Thema erstellen</button>
             </div>
           </div>
           
-          <div class="content-area">
-            <h2>Alle Prüflinge</h2>
-            <div class="table-container">
-              <table class="student-table" id="studentsTable">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Datum</th>
-                    <th>Thema</th>
-                    <th>Aktionen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colspan="4">Keine Prüflinge vorhanden</td>
-                  </tr>
-                </tbody>
-              </table>
+          <div class="themes-list" id="themesList">
+            <!-- Themen werden dynamisch geladen -->
+            <div class="loading-container">
+              <span class="loader"></span>
+              <p>Themen werden geladen...</p>
+            </div>
+          </div>
+        </div>
+        
+        <div id="studentsContainer" style="display: none;">
+          <h2>Schüler für Thema</h2>
+          
+          <div class="students-actions">
+            <button id="addStudentBtn" class="btn-primary">Schüler hinzufügen</button>
+          </div>
+          
+          <div class="students-list" id="studentsList">
+            <!-- Schüler werden dynamisch geladen -->
+            <div class="loading-container">
+              <span class="loader"></span>
+              <p>Schüler werden geladen...</p>
             </div>
           </div>
         </div>
       </div>
       
+      <!-- Tab: Bewertung -->
       <div class="tab-content" id="assessment-tab">
         <div class="main-layout">
           <div class="sidebar">
             <div class="section">
-              <h3>Prüflinge filtern</h3>
-              <div class="form-group">
-                <label for="assessmentDateSelect">Prüfungsdatum</label>
-                <select id="assessmentDateSelect">
-                  <option value="">Alle Termine</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="assessmentTopicSelect">Thema</label>
-                <select id="assessmentTopicSelect">
-                  <option value="">Alle Themen</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="section">
-              <h3>Prüflinge</h3>
+              <h3>Zu bewertende Schüler</h3>
               <ul class="student-list" id="assessmentStudentList">
-                <li>Bitte wählen Sie ein Datum oder Thema</li>
+                <li>Keine Schüler zur Bewertung zugewiesen</li>
               </ul>
             </div>
           </div>
@@ -301,45 +363,43 @@
           <div class="content-area" id="assessmentContent">
             <div class="welcome-card">
               <h2>Willkommen bei der WBS Bewertungsapp</h2>
-              <p>Bitte einen Prüfungstag oder ein Thema wählen und anschließend einen Prüfling aus der Liste auswählen.</p>
+              <p>Bitte wählen Sie einen Schüler aus der Liste aus, um die Bewertung durchzuführen.</p>
             </div>
           </div>
         </div>
       </div>
       
+      <!-- Tab: Übersicht -->
       <div class="tab-content" id="overview-tab">
-        <h2>Übersicht aller Bewertungen</h2>
+        <h2>Übersicht aller Themen und Bewertungen</h2>
         
         <div class="selectors">
           <div class="selector-group">
-            <label for="overviewYearSelect">Prüfungsjahr</label>
-            <select id="overviewYearSelect">
-              <option value="">Alle Jahre</option>
+            <label for="overviewSchoolYearSelect">Schuljahr</label>
+            <select id="overviewSchoolYearSelect">
+              <option value="">Alle Schuljahre</option>
+              <!-- Schuljahre werden dynamisch befüllt -->
             </select>
           </div>
           
           <div class="selector-group">
-            <label for="overviewDateSelect">Prüfungstag</label>
-            <select id="overviewDateSelect">
-              <option value="">Alle Tage</option>
-            </select>
-          </div>
-          
-          <div class="selector-group">
-            <label for="overviewTopicSelect">Thema</label>
-            <select id="overviewTopicSelect">
-              <option value="">Alle Themen</option>
+            <label for="overviewStatusSelect">Status</label>
+            <select id="overviewStatusSelect">
+              <option value="">Alle Status</option>
+              <option value="active">Aktiv</option>
+              <option value="completed">Abgeschlossen</option>
+              <option value="overdue">Überfällig</option>
             </select>
           </div>
           
           <div>
-            <button id="printBtn" class="print-btn">
+            <button id="exportDataBtn" class="btn-secondary">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                <rect x="6" y="14" width="12" height="8"></rect>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              Drucken
+              Daten exportieren
             </button>
           </div>
         </div>
@@ -348,139 +408,68 @@
           <table class="overview-table" id="overviewTable">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Datum</th>
                 <th>Thema</th>
-                <th>Präsentation</th>
-                <th>Inhalt</th>
-                <th>Sprache</th>
-                <th>Eindruck</th>
-                <th>Prüfung</th>
-                <th>Reflexion</th>
-                <th>Fachwissen</th>
-                <th>Dokumentation</th>
-                <th>Note</th>
+                <th>Schuljahr</th>
+                <th>Deadline</th>
+                <th>Status</th>
+                <th>Fortschritt</th>
                 <th>Aktionen</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colspan="13">Keine Prüflinge gefunden</td>
+                <td colspan="6">Keine Themen gefunden</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
       
-      <div class="tab-content" id="settings-tab">
-        <h2>Einstellungen</h2>
-        
-        <div class="selectors">
-          <div class="selector-group">
-            <label for="settingsYearSelect">Prüfungsjahr</label>
-            <select id="settingsYearSelect">
-              <option value="">Alle Jahre</option>
-            </select>
+      <!-- Tab: Bewertungsraster -->
+      <div class="tab-content" id="templates-tab">
+        <div class="main-layout">
+          <div class="sidebar">
+            <div class="section">
+              <h3>Neues Bewertungsraster</h3>
+              <form id="newTeacherTemplateForm">
+                <div class="form-group">
+                  <label for="teacherTemplateName">Name des Rasters</label>
+                  <input type="text" id="teacherTemplateName" placeholder="z.B. Meine Bewertung">
+                </div>
+                <div class="form-group">
+                  <label for="teacherTemplateDescription">Beschreibung (optional)</label>
+                  <textarea id="teacherTemplateDescription" rows="3" placeholder="Beschreibung des Bewertungsrasters"></textarea>
+                </div>
+                <div id="teacherCategoriesContainer">
+                  <h4>Bewertungskategorien</h4>
+                  <div class="categories-list" id="teacherCategoriesList">
+                    <!-- Kategorien werden dynamisch hinzugefügt -->
+                  </div>
+                  <button type="button" id="addTeacherCategoryBtn" class="btn-secondary">Kategorie hinzufügen</button>
+                </div>
+                <button type="submit" id="createTeacherTemplateBtn">Bewertungsraster erstellen</button>
+              </form>
+            </div>
           </div>
           
-          <div class="selector-group">
-            <label for="settingsDateSelect">Prüfungstag</label>
-            <select id="settingsDateSelect">
-              <option value="">Alle Tage</option>
-            </select>
+          <div class="content-area">
+            <h2>Meine Bewertungsraster</h2>
+            <div class="templates-list" id="teacherTemplatesList">
+              <!-- Bewertungsraster werden dynamisch geladen -->
+              <div class="loading-container">
+                <span class="loader"></span>
+                <p>Bewertungsraster werden geladen...</p>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <div class="card">
-          <h3>Ergebnisse exportieren</h3>
-          <p>Ergebnisse für den ausgewählten Zeitraum exportieren.</p>
-          <button id="exportDataBtn">Ergebnisse herunterladen</button>
-          <div style="margin-top: 10px;">
-            <label>
-              <input type="radio" name="exportFormat" id="exportTXT" checked> Als TXT exportieren
-            </label>
-          </div>
-          <div>
-            <label>
-              <input type="radio" name="exportFormat" id="exportJSON"> Als JSON exportieren
-            </label>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>Daten löschen</h3>
-          <p>Achtung: Diese Aktion kann nicht rückgängig gemacht werden.</p>
-          <div class="form-group">
-            <label for="deleteVerificationCode">Zur Bestätigung den Lehrerkürzel eingeben</label>
-            <input type="text" id="deleteVerificationCode" placeholder="z.B. KRE, RIF, TOE">
-          </div>
-          <button id="deleteDataBtn" class="btn-danger">Alle Daten löschen</button>
         </div>
       </div>
     </div>
-    
-    <div class="modal" id="editStudentModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Prüfling bearbeiten</h3>
-          <button class="modal-close" id="closeEditStudentModal">&times;</button>
-        </div>
-        <div class="form-group">
-          <label for="editStudentName">Name des Prüflings</label>
-          <input type="text" id="editStudentName" placeholder="Vor- und Nachname">
-        </div>
-        <div class="form-group">
-          <label for="editStudentTopic">Thema (optional)</label>
-          <input type="text" id="editStudentTopic" placeholder="Thema der Prüfung">
-        </div>
-        <div class="form-group">
-          <label for="editExamDate">Prüfungsdatum</label>
-          <input type="date" id="editExamDate">
-        </div>
-        <div class="modal-footer">
-          <button class="btn-danger" id="deleteStudentBtn">Löschen</button>
-          <button id="saveStudentBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
-    
-    <div class="modal" id="editGradeModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Note bearbeiten</h3>
-          <button class="modal-close" id="closeEditGradeModal">&times;</button>
-        </div>
-        <div id="editGradeContent">
-          <div class="form-group">
-            <label for="editFinalGrade">Endnote</label>
-            <input type="number" id="editFinalGrade" min="1" max="6" step="0.5">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="saveGradeBtn">Speichern</button>
-        </div>
-      </div>
-    </div>
-    
-    <div class="modal" id="confirmDeleteModal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Prüfling löschen</h3>
-          <button class="modal-close" id="closeConfirmDeleteModal">&times;</button>
-        </div>
-        <p>Soll dieser Prüfling und alle zugehörigen Bewertungen gelöscht werden?</p>
-        <p id="deleteStudentName" style="font-weight: bold;"></p>
-        <div class="modal-footer">
-          <button id="cancelDeleteBtn">Abbrechen</button>
-          <button class="btn-danger" id="confirmDeleteBtn">Löschen</button>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Sticky-Durchschnittsanzeige wird dynamisch erzeugt -->
   </div>
 
-  <!-- Admin-Modals -->
+  <!-- Modals -->
+  
+  <!-- Edit Teacher Modal -->
   <div class="modal" id="editTeacherModal">
     <div class="modal-content">
       <div class="modal-header">
@@ -499,6 +488,18 @@
         <label for="editTeacherPassword">Passwort</label>
         <input type="password" id="editTeacherPassword" placeholder="Neues Passwort">
       </div>
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="editCanCreateThemes">
+          <span class="checkbox-text">Kann Themen erstellen</span>
+        </label>
+      </div>
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="editCanManageTemplates">
+          <span class="checkbox-text">Kann Bewertungsraster verwalten</span>
+        </label>
+      </div>
       <div class="modal-footer">
         <button class="btn-danger" id="deleteTeacherBtn">Löschen</button>
         <button id="saveTeacherBtn">Speichern</button>
@@ -506,6 +507,7 @@
     </div>
   </div>
 
+  <!-- Confirm Delete Teacher Modal -->
   <div class="modal" id="confirmDeleteTeacherModal">
     <div class="modal-content">
       <div class="modal-header">
@@ -513,11 +515,118 @@
         <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
       </div>
       <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
-      <p><strong>Achtung:</strong> Alle Bewertungsdaten dieses Lehrers bleiben erhalten, aber der Zugang wird gesperrt.</p>
       <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
       <div class="modal-footer">
         <button id="cancelDeleteTeacherBtn">Abbrechen</button>
         <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme Modal -->
+  <div class="modal" id="themeModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="themeModalTitle">Neues Thema erstellen</h3>
+        <button class="modal-close" id="closeThemeModal">&times;</button>
+      </div>
+      <form id="themeForm">
+        <div class="form-group">
+          <label for="themeNameInput">Titel des Themas</label>
+          <input type="text" id="themeNameInput" placeholder="z.B. Webentwicklung Projekt" required>
+        </div>
+        <div class="form-group">
+          <label for="themeDescriptionInput">Beschreibung (optional)</label>
+          <textarea id="themeDescriptionInput" rows="3" placeholder="Beschreibung des Themas"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="themeDeadlineInput">Deadline</label>
+          <input type="date" id="themeDeadlineInput">
+        </div>
+        <div class="form-group">
+          <label for="themeSchoolYearSelect">Schuljahr</label>
+          <select id="themeSchoolYearSelect" required>
+            <!-- Schuljahre werden dynamisch befüllt -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="themeTemplateSelect">Bewertungsraster</label>
+          <select id="themeTemplateSelect" required>
+            <!-- Bewertungsraster werden dynamisch befüllt -->
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelThemeBtn" class="btn-secondary">Abbrechen</button>
+          <button type="submit" id="saveThemeBtn">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Student Modal -->
+  <div class="modal" id="studentModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="studentModalTitle">Schüler hinzufügen</h3>
+        <button class="modal-close" id="closeStudentModal">&times;</button>
+      </div>
+      <form id="studentForm">
+        <div class="form-group">
+          <label for="studentNameInput">Name des Schülers</label>
+          <input type="text" id="studentNameInput" placeholder="Vor- und Nachname" required>
+        </div>
+        <div class="form-group">
+          <label for="studentTeacherSelect">Prüfungslehrer</label>
+          <select id="studentTeacherSelect" required>
+            <option value="">Bitte wählen...</option>
+            <!-- Lehrer werden dynamisch befüllt -->
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelStudentBtn" class="btn-secondary">Abbrechen</button>
+          <button type="submit" id="saveStudentBtn">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Category Modal -->
+  <div class="modal" id="categoryModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Bewertungskategorie</h3>
+        <button class="modal-close" id="closeCategoryModal">&times;</button>
+      </div>
+      <form id="categoryForm">
+        <div class="form-group">
+          <label for="categoryNameInput">Name der Kategorie</label>
+          <input type="text" id="categoryNameInput" placeholder="z.B. Präsentation" required>
+        </div>
+        <div class="form-group">
+          <label for="categoryWeightInput">Gewichtung</label>
+          <input type="number" id="categoryWeightInput" min="1" max="10" value="1" required>
+          <small>1 = normale Gewichtung, höhere Werte = stärkere Gewichtung</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelCategoryBtn" class="btn-secondary">Abbrechen</button>
+          <button type="submit" id="saveCategoryBtn">Hinzufügen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Theme Details Modal -->
+  <div class="modal" id="themeDetailsModal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="themeDetailsTitle">Thema-Details</h3>
+        <button class="modal-close" id="closeThemeDetailsModal">&times;</button>
+      </div>
+      <div id="themeDetailsContent">
+        <!-- Wird dynamisch gefüllt -->
+      </div>
+      <div class="modal-footer">
+        <button id="closeThemeDetailsBtn">Schließen</button>
       </div>
     </div>
   </div>
