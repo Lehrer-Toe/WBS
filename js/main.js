@@ -1,11 +1,11 @@
 // js/main.js
-import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "./firebaseClient.js";
-import { loadAllTeachers } from "./adminService.js";
-import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./loginModule.js";
-import { initAdminModule } from "./adminModule.js";
-import { initThemeModule } from "./themeModule.js";
-import { loadAssessmentTemplates } from "./assessmentService.js";
+import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "/js/firebaseClient.js";
+import { loadAllTeachers } from "/js/adminService.js";
+import { showLoader, hideLoader, showNotification } from "/js/uiService.js";
+import { initLoginModule, performLogout } from "/js/loginModule.js";
+import { initAdminModule } from "/js/adminModule.js";
+import { initThemeModule } from "/js/themeModule.js";
+import { loadAssessmentTemplates } from "/js/assessmentService.js";
 
 // DOM-Elemente
 let logoutBtn = null;
