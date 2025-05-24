@@ -9,7 +9,7 @@
   for = "/*.js"
   [headers.values]
     Content-Type = "application/javascript"
-    
+
 [[headers]]
   for = "/js/*.js"
   [headers.values]
@@ -19,3 +19,15 @@
   for = "/js/modules/*.js"
   [headers.values]
     Content-Type = "application/javascript"
+
+# ENTFERNEN SIE DIESEN REDIRECT:
+# [[redirects]]
+#   from = "/js/modules/*"
+#   to = "/js/:splat"
+#   status = 200
+
+# Standard-Redirect für SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
