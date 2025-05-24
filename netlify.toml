@@ -5,7 +5,11 @@
 [build.environment]
   NODE_VERSION = "16"
 
-# MIME-Typ-Konfiguration für JavaScript-Module
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+    
 [[headers]]
   for = "/js/*.js"
   [headers.values]
@@ -15,20 +19,3 @@
   for = "/js/modules/*.js"
   [headers.values]
     Content-Type = "application/javascript"
-
-[[headers]]
-  for = "/*.js"
-  [headers.values]
-    Content-Type = "application/javascript"
-
-# Redirect für Module-Pfade
-[[redirects]]
-  from = "/js/modules/*"
-  to = "/js/:splat"
-  status = 200
-
-# Standard-Redirect für SPA
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
