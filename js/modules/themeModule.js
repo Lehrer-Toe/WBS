@@ -1,4 +1,4 @@
-// js/modules/themeModule.js
+// js/themeModule.js
 
 import { 
   showLoader, 
@@ -13,7 +13,7 @@ import {
   populateSchoolYearSelect,
   populateAssessmentTemplateSelect,
   populateTeacherSelect
-} from "../uiService.js";
+} from "./uiService.js";
 import {
   allThemes,
   loadAllThemes,
@@ -28,11 +28,11 @@ import {
   filterThemes,
   getThemesForAssessment,
   getThemesCreatedByTeacher
-} from "../themeService.js";
-import { currentUser } from "../dataService.js";
-import { allTeachers, systemSettings } from "../adminService.js";
-import { assessmentTemplates } from "../assessmentService.js";
-import { THEMES_CONFIG, STUDENT_STATUS, THEME_STATUS } from "../constants.js";
+} from "./themeService.js";
+import { currentUser } from "./dataService.js";
+import { allTeachers, systemSettings } from "./adminService.js";
+import { assessmentTemplates } from "./assessmentService.js";
+import { THEMES_CONFIG, STUDENT_STATUS, THEME_STATUS } from "./constants.js";
 
 /**
  * Referenz auf die DOM-Elemente
