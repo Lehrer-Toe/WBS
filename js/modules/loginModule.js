@@ -1,9 +1,9 @@
 // js/loginModule.js
 
-import { showLoader, hideLoader, showNotification, initTeacherGrid } from "./uiService.js";
-import { currentUser } from "./dataService.js";
-import { validateTeacher, allTeachers } from "./adminService.js";
-import { initializeUserData } from "./dataService.js";
+import { showLoader, hideLoader, showNotification, initTeacherGrid } from "/js/uiService.js";
+import { currentUser } from "/js/dataService.js";
+import { validateTeacher, allTeachers } from "/js/adminService.js";
+import { initializeUserData } from "/js/dataService.js";
 
 /**
  * Referenz auf die DOM-Elemente
