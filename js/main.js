@@ -1,82 +1,91 @@
-// js/main.js
+// js/main.js - Umgestellt auf IIFE statt ES Module
 
-import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "./firebaseClient.js";
-import { loadAllTeachers } from "./adminService.js";
-import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./loginModule.js";  // Pfad geändert
-import { initAdminModule } from "./adminModule.js";  // Pfad geändert
-import { initThemeModule } from "./themeModule.js";  // Pfad geändert
-import { assessmentTemplates, loadAssessmentTemplates } from "./assessmentService.js";
+// Unmittelbar aufgerufene Funktion (IIFE), um einen isolierten Scope zu haben
+(function() {
+  // Importieren Sie die Funktionen als globale Variablen, ohne import-Statements
+  const initDatabase = window.firebaseClient.initDatabase;
+  const ensureCollections = window.firebaseClient.ensureCollections;
+  const ensureDefaultAssessmentTemplate = window.firebaseClient.ensureDefaultAssessmentTemplate;
+  const loadAllTeachers = window.adminService.loadAllTeachers;
+  const showLoader = window.uiService.showLoader;
+  const hideLoader = window.uiService.hideLoader;
+  const showNotification = window.uiService.showNotification;
+  const initLoginModule = window.loginModule.initLoginModule;
+  const performLogout = window.loginModule.performLogout;
+  const initAdminModule = window.adminModule.initAdminModule;
+  const initThemeModule = window.themeModule.initThemeModule;
+  const loadAssessmentTemplates = window.assessmentService.loadAssessmentTemplates;
 
-// DOM-Elemente
-let logoutBtn = null;
+  // DOM-Elemente
+  let logoutBtn = null;
 
-// Start
-document.addEventListener("DOMContentLoaded", async () => {
-  console.log("WBS Bewertungssystem wird initialisiert...");
-  showLoader();
-  
-  try {
-    // 1. Firebase initialisieren
-    await initDatabase();
-    await ensureCollections();
-    await ensureDefaultAssessmentTemplate();
+  // Start
+  document.addEventListener("DOMContentLoaded", async function() {
+    console.log("WBS Bewertungssystem wird initialisiert...");
+    showLoader();
     
-    // 2. Lehrer aus Firebase laden
-    console.log("Lade Lehrer-Daten...");
-    await loadAllTeachers();
-    
-    // 3. Bewertungsraster laden
-    console.log("Lade Bewertungsraster...");
-    await loadAssessmentTemplates();
-    
-    // 4. Lehrer-Grid für Anmeldung initialisieren
-    initLoginModule();
-    
-    // 5. Admin-Modul initialisieren
-    initAdminModule();
-    
-    // 6. Themen-Modul initialisieren
-    await initThemeModule();
-    
-    // 7. Event-Listener einrichten
-    setupGlobalEventListeners();
-    
-    console.log("Initialisierung abgeschlossen!");
-  } catch (error) {
-    console.error("Fehler bei der Initialisierung:", error);
-    showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
-  } finally {
-    hideLoader();
-  }
-});
-
-// Richtet globale Event-Listener ein
-function setupGlobalEventListeners() {
-  // Logout-Button
-  logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", performLogout);
-  }
-  
-  // Tab-Wechsel
-  const tabs = document.querySelectorAll(".tab");
-  const tabContents = document.querySelectorAll(".tab-content");
-  
-  tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-      const tabId = tab.dataset.tab;
+    try {
+      // 1. Firebase initialisieren
+      await initDatabase();
+      await ensureCollections();
+      await ensureDefaultAssessmentTemplate();
       
-      // Tabs deaktivieren
-      tabs.forEach(t => t.classList.remove("active"));
-      tabContents.forEach(c => c.classList.remove("active"));
+      // 2. Lehrer aus Firebase laden
+      console.log("Lade Lehrer-Daten...");
+      await loadAllTeachers();
       
-      // Ausgewählten Tab aktivieren
-      tab.classList.add("active");
-      const tabContent = document.getElementById(`${tabId}-tab`);
-      if (tabContent) {
-        tabContent.classList.add("active");
-      }
-    });
+      // 3. Bewertungsraster laden
+      console.log("Lade Bewertungsraster...");
+      await loadAssessmentTemplates();
+      
+      // 4. Lehrer-Grid für Anmeldung initialisieren
+      initLoginModule();
+      
+      // 5. Admin-Modul initialisieren
+      initAdminModule();
+      
+      // 6. Themen-Modul initialisieren
+      await initThemeModule();
+      
+      // 7. Event-Listener einrichten
+      setupGlobalEventListeners();
+      
+      console.log("Initialisierung abgeschlossen!");
+    } catch (error) {
+      console.error("Fehler bei der Initialisierung:", error);
+      showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
+    } finally {
+      hideLoader();
+    }
   });
-}
+
+  // Richtet globale Event-Listener ein
+  function setupGlobalEventListeners() {
+    // Logout-Button
+    logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", performLogout);
+    }
+    
+    // Tab-Wechsel
+    const tabs = document.querySelectorAll(".tab");
+    const tabContents = document.querySelectorAll(".tab-content");
+    
+    tabs.forEach(function(tab) {
+      tab.addEventListener("click", function() {
+        const tabId = tab.dataset.tab;
+        
+        // Tabs deaktivieren
+        tabs.forEach(function(t) { t.classList.remove("active"); });
+        tabContents.forEach(function(c) { c.classList.remove("active"); });
+        
+        // Ausgewählten Tab aktivieren
+        tab.classList.add("active");
+        const tabContent = document.getElementById(`${tabId}-tab`);
+        if (tabContent) {
+          tabContent.classList.add("active");
+        }
+      });
+    });
+  }
+})();
