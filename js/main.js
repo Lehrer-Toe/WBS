@@ -2,9 +2,9 @@
 import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "./firebaseClient.js";
 import { loadAllTeachers } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./modules/loginModule.js";
-import { initAdminModule } from "./modules/adminModule.js";
-import { initThemeModule } from "./modules/themeModule.js";
+import { initLoginModule, performLogout } from "./modules/loginModule.js";  // HIER GEÄNDERT!
+import { initAdminModule } from "./modules/adminModule.js";  // HIER GEÄNDERT!
+import { initThemeModule } from "./modules/themeModule.js";  // HIER GEÄNDERT!
 import { loadAssessmentTemplates } from "./assessmentService.js";
 
 // DOM-Elemente
