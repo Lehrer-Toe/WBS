@@ -1,4 +1,4 @@
-// js/modules/adminModule.js
+// js/adminModule.js
 
 import { 
   showLoader, 
@@ -6,7 +6,7 @@ import {
   showNotification, 
   formatDate, 
   downloadFile 
-} from "../uiService.js";
+} from "./uiService.js";
 import {
   loginAdmin,
   logoutAdmin,
@@ -24,9 +24,9 @@ import {
   loadSystemSettings,
   saveSystemSettings,
   systemSettings
-} from "../adminService.js";
-import { loadAssessmentTemplates } from "../assessmentService.js";
-import { TEACHER_PERMISSIONS } from "../constants.js";
+} from "./adminService.js";
+import { loadAssessmentTemplates } from "./assessmentService.js";
+import { TEACHER_PERMISSIONS } from "./constants.js";
 
 /**
  * Referenz auf die DOM-Elemente
