@@ -1,4 +1,4 @@
-// js/loginModule.js
+// js/modules/loginModule.js
 
 import { showLoader, hideLoader, showNotification, initTeacherGrid } from "../uiService.js";
 import { currentUser } from "../dataService.js";
