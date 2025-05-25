@@ -474,3 +474,112 @@ export function downloadFile(filename, content, contentType = "text/plain") {
   link.click();
   document.body.removeChild(link);
 }
+/**
+ * Macht eine Tabelle sortierbar
+ * @param {HTMLTableElement} table - Die Tabelle
+ * @param {Array} data - Die Daten
+ * @param {Function} renderFunction - Funktion zum Rendern der Zeilen
+ */
+export function makeTableSortable(table, data, renderFunction) {
+  const headers = table.querySelectorAll('.sortable-header');
+  let currentSort = { field: null, direction: 'asc' };
+  
+  headers.forEach(header => {
+    header.addEventListener('click', () => {
+      const field = header.dataset.sort;
+      
+      // Toggle Sortierrichtung
+      if (currentSort.field === field) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort.field = field;
+        currentSort.direction = 'asc';
+      }
+      
+      // Visuelles Feedback
+      headers.forEach(h => {
+        h.classList.remove('asc', 'desc');
+        const icon = h.querySelector('.sort-icon');
+        if (icon) icon.textContent = '↕';
+      });
+      
+      header.classList.add(currentSort.direction);
+      const icon = header.querySelector('.sort-icon');
+      if (icon) {
+        icon.textContent = currentSort.direction === 'asc' ? '↑' : '↓';
+      }
+      
+      // Daten sortieren
+      const sortedData = sortData(data, field, currentSort.direction);
+      
+      // Tabelle neu rendern
+      renderFunction(sortedData);
+    });
+  });
+}
+
+/**
+ * Sortiert Daten nach einem Feld
+ */
+export function sortData(data, field, direction = 'asc') {
+  return [...data].sort((a, b) => {
+    let aVal = a[field];
+    let bVal = b[field];
+    
+    // Spezielle Behandlung für bestimmte Felder
+    if (field === 'progress') {
+      // Fortschritt berechnen
+      aVal = a.students ? a.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length / a.students.length : 0;
+      bVal = b.students ? b.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length / b.students.length : 0;
+    } else if (field === 'deadline') {
+      aVal = aVal ? new Date(aVal) : new Date('9999-12-31');
+      bVal = bVal ? new Date(bVal) : new Date('9999-12-31');
+    }
+    
+    // Vergleich
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+/**
+ * Filtert und sortiert Schüler für die Bewertungsansicht
+ */
+export function filterAndSortStudents(students, filterValue, sortField) {
+  let filtered = [...students];
+  
+  // Filter anwenden
+  if (filterValue) {
+    filtered = filtered.filter(student => student.status === filterValue);
+  }
+  
+  // Sortierung anwenden
+  switch (sortField) {
+    case 'name':
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case 'class':
+      filtered.sort((a, b) => (a.class || '').localeCompare(b.class || ''));
+      break;
+    case 'deadline':
+      filtered.sort((a, b) => {
+        const aDate = a.theme?.deadline ? new Date(a.theme.deadline) : new Date('9999-12-31');
+        const bDate = b.theme?.deadline ? new Date(b.theme.deadline) : new Date('9999-12-31');
+        return aDate - bDate;
+      });
+      break;
+    case 'status':
+      filtered.sort((a, b) => {
+        const statusOrder = { 
+          [STUDENT_STATUS.PENDING]: 0,
+          [STUDENT_STATUS.IN_PROGRESS]: 1,
+          [STUDENT_STATUS.COMPLETED]: 2
+        };
+        return statusOrder[a.status] - statusOrder[b.status];
+      });
+      break;
+  }
+  
+  return filtered;
+}
