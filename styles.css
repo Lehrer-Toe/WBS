@@ -2063,3 +2063,326 @@ table tr:hover {
   background-color: #e8f4f8;
   border: 1px solid #bee5eb;
 }
+
+/* NEU: Informations-Liste Styles */
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.info-item {
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: var(--card-shadow);
+  border-left: 4px solid var(--primary-color);
+  position: relative;
+}
+
+.info-item.priority-important {
+  border-left-color: var(--warning-color);
+}
+
+.info-item.priority-urgent {
+  border-left-color: var(--error-color);
+}
+
+.info-item.inactive {
+  opacity: 0.6;
+  background-color: #f8f9fa;
+}
+
+.info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.info-title {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 1.1rem;
+}
+
+.info-priority {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: white;
+}
+
+.info-priority.normal {
+  background-color: var(--info-color);
+}
+
+.info-priority.important {
+  background-color: var(--warning-color);
+}
+
+.info-priority.urgent {
+  background-color: var(--error-color);
+}
+
+.info-content {
+  margin-bottom: 15px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.info-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #888;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+
+.info-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.info-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-indicator.active {
+  background-color: var(--success-color);
+}
+
+.status-indicator.inactive {
+  background-color: #ccc;
+}
+
+/* NEU: Teacher Info List (für Lehrer-Interface) */
+.teacher-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.teacher-info-item {
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: var(--card-shadow);
+  border-left: 4px solid var(--primary-color);
+}
+
+.teacher-info-item.priority-important {
+  border-left-color: var(--warning-color);
+  background: #fffbf0;
+}
+
+.teacher-info-item.priority-urgent {
+  border-left-color: var(--error-color);
+  background: #fef2f2;
+}
+
+.teacher-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.teacher-info-title {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 1.1rem;
+}
+
+.teacher-info-date {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.teacher-info-content {
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+/* NEU: School Year Display */
+.current-school-year-display {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.current-school-year-display p {
+  margin: 5px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-school-year-display strong {
+  color: var(--primary-color);
+}
+
+.school-year-highlight {
+  background: var(--primary-color);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.deadline-warning-small {
+  color: var(--warning-color);
+  font-weight: 500;
+}
+
+.deadline-urgent-small {
+  color: var(--error-color);
+  font-weight: 600;
+}
+
+/* NEU: Toggle Switch für Info-Status */
+.info-toggle {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.info-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: var(--success-color);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+/* NEU: Tab-Namen Verwaltung */
+.tab-name-preview {
+  background: #f8f9fa;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 20px;
+}
+
+.tab-name-preview h4 {
+  margin: 0 0 10px 0;
+  color: var(--primary-color);
+}
+
+.tab-preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tab-preview-item {
+  background: var(--primary-color);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.tab-preview-item.active {
+  background: var(--accent-color);
+}
+
+/* NEU: Info-Erstellung Buttons */
+.info-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 15px;
+}
+
+/* NEU: Priority Select Styling */
+select#infoPriority {
+  background-color: white;
+}
+
+select#infoPriority option[value="normal"] {
+  background-color: #e3f2fd;
+}
+
+select#infoPriority option[value="important"] {
+  background-color: #fff3e0;
+}
+
+select#infoPriority option[value="urgent"] {
+  background-color: #ffebee;
+}
+
+/* NEU: Responsive Verbesserungen für neue Features */
+@media (max-width: 768px) {
+  .info-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .info-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .info-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .tab-preview-list {
+    flex-direction: column;
+  }
+  
+  .current-school-year-display p {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+}
