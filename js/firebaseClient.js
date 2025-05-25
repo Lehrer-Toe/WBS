@@ -1,692 +1,587 @@
-// js/dataService.js - Erweiterte Version mit Klassen-Filtern
+// js/firebaseClient.js - Erweiterte Version
+import { FIREBASE_CONFIG } from "./firebaseConfig.js";
+import { SYSTEM_SETTINGS, DEFAULT_SYSTEM_SETTINGS, DEFAULT_ASSESSMENT_CATEGORIES } from "./constants.js";
 
-import { db } from "./firebaseClient.js";
-import { THEMES_CONFIG, STUDENT_STATUS, AVAILABLE_CLASSES } from "./constants.js";
-import { loadAllThemes, allThemes } from "./themeService.js";
-import { loadAssessmentTemplates } from "./assessmentService.js";
-
-/**
- * Der aktuell eingeloggte Lehrer. Enthält Lehrername, Kürzel und Passwort.
- */
-export let currentUser = {
-  name: null,
-  code: null,
-  password: null,
-  permissions: {}
-};
+// Diese Variablen werden als named exports exportiert
+export let db = null;
+export let auth = null;
 
 /**
- * Cache für gefilterte Daten
+ * Initialisiert die Verbindung zu Firebase
  */
-let dataCache = {
-  studentsByClass: new Map(),
-  themesBySchoolYear: new Map(),
-  lastCacheUpdate: null
-};
-
-/**
- * Initialisiert die Daten für den aktuellen Benutzer
- */
-export async function initializeUserData() {
+export async function initDatabase() {
   try {
-    // Lade Themen
-    await loadAllThemes();
+    // Prüfen, ob die Konfiguration gültig ist
+    if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
+      console.error("Firebase-Konfiguration unvollständig:", FIREBASE_CONFIG);
+      return false;
+    }
+
+    // Firebase initialisieren
+    firebase.initializeApp(FIREBASE_CONFIG);
     
-    // Lade Bewertungsraster
-    await loadAssessmentTemplates();
+    // Firestore-Instanz abrufen
+    db = firebase.firestore();
+    auth = firebase.auth();
     
-    // NEU: Cache aufbauen
-    rebuildDataCache();
+    // Offline-Persistenz aktivieren (optional)
+    try {
+      await db.enablePersistence({synchronizeTabs: true}).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          console.warn('Persistenz konnte nicht aktiviert werden, möglicherweise mehrere Tabs geöffnet');
+        } else if (err.code === 'unimplemented') {
+          console.warn('Ihr Browser unterstützt keine Persistenz');
+        }
+      });
+    } catch (persistenceError) {
+      console.warn("Persistenz-Fehler, nicht kritisch:", persistenceError);
+    }
+    
+    console.log("Firebase erfolgreich initialisiert");
+
+    // Initialisiere System-Einstellungen, falls sie noch nicht existieren
+    await ensureSystemSettings();
+    
+    // Initialisiere Standard-Bewertungsraster
+    await ensureDefaultAssessmentTemplate();
+    
+    // NEU: Überprüfe und aktualisiere Datenstruktur
+    await migrateDataStructure();
     
     return true;
   } catch (error) {
-    console.error("Fehler beim Initialisieren der Benutzerdaten:", error);
+    console.error("Fehler bei der Firebase-Initialisierung:", error);
+    alert("Fehler bei der Firebase-Initialisierung. Bitte prüfen Sie die Konsole für Details.");
     return false;
   }
 }
 
 /**
- * NEU: Baut den Daten-Cache neu auf
+ * Prüft, ob Systemeinstellungen existieren und erstellt sie, falls nicht
  */
-function rebuildDataCache() {
-  console.log("Baue Daten-Cache auf...");
-  
-  // Cache leeren
-  dataCache.studentsByClass.clear();
-  dataCache.themesBySchoolYear.clear();
-  
-  // Schüler nach Klassen gruppieren
-  allThemes.forEach(theme => {
-    if (theme.students && Array.isArray(theme.students)) {
-      theme.students.forEach(student => {
-        if (student.class) {
-          if (!dataCache.studentsByClass.has(student.class)) {
-            dataCache.studentsByClass.set(student.class, []);
-          }
-          
-          dataCache.studentsByClass.get(student.class).push({
-            ...student,
-            theme: {
-              id: theme.id,
-              title: theme.title,
-              deadline: theme.deadline,
-              created_by: theme.created_by
-            }
-          });
-        }
-      });
-    }
-    
-    // Themen nach Schuljahr gruppieren
-    if (theme.school_year) {
-      if (!dataCache.themesBySchoolYear.has(theme.school_year)) {
-        dataCache.themesBySchoolYear.set(theme.school_year, []);
+export async function ensureSystemSettings() {
+  if (!db) return false;
+
+  try {
+    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await settingsRef.get();
+
+    if (!doc.exists) {
+      console.log("Systemeinstellungen werden initialisiert...");
+      
+      // NEU: Erweiterte Standard-Systemeinstellungen
+      const currentYear = new Date().getFullYear();
+      const defaultSettings = {
+        ...DEFAULT_SYSTEM_SETTINGS,
+        currentSchoolYear: `${currentYear}/${currentYear + 1}`,
+        schoolYearEnd: null,
+        lastAssessmentDate: null,
+        version: "2.0",
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      await settingsRef.set(defaultSettings);
+      console.log("Systemeinstellungen erfolgreich initialisiert");
+    } else {
+      console.log("Systemeinstellungen bereits vorhanden");
+      
+      // NEU: Prüfe, ob alle neuen Felder vorhanden sind
+      const data = doc.data();
+      let needsUpdate = false;
+      const updates = {};
+      
+      if (!data.schoolYearEnd) {
+        updates.schoolYearEnd = null;
+        needsUpdate = true;
       }
-      dataCache.themesBySchoolYear.get(theme.school_year).push(theme);
+      
+      if (!data.lastAssessmentDate) {
+        updates.lastAssessmentDate = null;
+        needsUpdate = true;
+      }
+      
+      if (!data.version) {
+        updates.version = "2.0";
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        updates.updated_at = firebase.firestore.FieldValue.serverTimestamp();
+        await settingsRef.update(updates);
+        console.log("Systemeinstellungen aktualisiert mit neuen Feldern");
+      }
     }
-  });
-  
-  dataCache.lastCacheUpdate = new Date();
-  console.log(`Cache aufgebaut: ${dataCache.studentsByClass.size} Klassen, ${dataCache.themesBySchoolYear.size} Schuljahre`);
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Initialisieren der Systemeinstellungen:", error);
+    return false;
+  }
 }
 
 /**
- * Liefert alle Themen, die für den aktuellen Benutzer relevant sind
- * - Themen, die der Benutzer erstellt hat
- * - Themen, bei denen der Benutzer Schüler bewerten darf
+ * Prüft, ob die notwendigen Sammlungen existieren und erstellt sie
  */
-export function getThemesForCurrentUser() {
-  if (!currentUser.code) return [];
+export async function ensureCollections() {
+  if (!db) return false;
   
-  return allThemes.filter(theme => {
-    // Themen, die der Benutzer erstellt hat
-    if (theme.created_by === currentUser.code) return true;
+  try {
+    // In Firestore müssen Sammlungen nicht explizit erstellt werden
+    // Sie entstehen automatisch beim ersten Dokument
+    console.log("Firebase-Collections sind bereit");
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Prüfen der Collections:", error);
+    return false;
+  }
+}
+
+/**
+ * Lädt die Systemeinstellungen
+ */
+export async function getSystemSettings() {
+  if (!db) return null;
+
+  try {
+    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await settingsRef.get();
+
+    if (doc.exists) {
+      return doc.data();
+    } else {
+      // Falls keine Einstellungen vorhanden sind, erstelle sie
+      await ensureSystemSettings();
+      const newDoc = await settingsRef.get();
+      return newDoc.data();
+    }
+  } catch (error) {
+    console.error("Fehler beim Laden der Systemeinstellungen:", error);
+    return null;
+  }
+}
+
+/**
+ * Aktualisiert die Systemeinstellungen
+ */
+export async function updateSystemSettings(settings) {
+  if (!db) return false;
+
+  try {
+    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
     
-    // Themen, bei denen der Benutzer Schüler bewerten darf
-    if (theme.students && theme.students.some(student => student.assigned_teacher === currentUser.code)) {
+    // NEU: Erweiterte Validierung der Einstellungen
+    const validatedSettings = validateSystemSettings(settings);
+    
+    await settingsRef.update({
+      ...validatedSettings,
+      updated_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log("Systemeinstellungen erfolgreich aktualisiert");
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Aktualisieren der Systemeinstellungen:", error);
+    return false;
+  }
+}
+
+/**
+ * NEU: Validiert Systemeinstellungen vor dem Speichern
+ */
+function validateSystemSettings(settings) {
+  const validated = { ...settings };
+  
+  // Schuljahr validieren
+  if (validated.currentSchoolYear) {
+    const schoolYearPattern = /^\d{4}\/\d{4}$/;
+    if (!schoolYearPattern.test(validated.currentSchoolYear)) {
+      console.warn("Ungültiges Schuljahr-Format:", validated.currentSchoolYear);
+      delete validated.currentSchoolYear;
+    }
+  }
+  
+  // Datumsfelder validieren
+  if (validated.schoolYearEnd) {
+    const endDate = new Date(validated.schoolYearEnd);
+    if (isNaN(endDate.getTime())) {
+      console.warn("Ungültiges Schuljahresende:", validated.schoolYearEnd);
+      delete validated.schoolYearEnd;
+    }
+  }
+  
+  if (validated.lastAssessmentDate) {
+    const assessmentDate = new Date(validated.lastAssessmentDate);
+    if (isNaN(assessmentDate.getTime())) {
+      console.warn("Ungültiges Bewertungsdatum:", validated.lastAssessmentDate);
+      delete validated.lastAssessmentDate;
+    }
+  }
+  
+  return validated;
+}
+
+/**
+ * Initialisiert das Standardbewertungsraster, falls es noch nicht existiert
+ */
+export async function ensureDefaultAssessmentTemplate() {
+  if (!db) return false;
+
+  try {
+    const templateRef = db.collection("wbs_assessment_templates").doc("standard");
+    const doc = await templateRef.get();
+
+    if (!doc.exists) {
+      console.log("Erstelle Standard-Bewertungsraster...");
+      
+      await templateRef.set({
+        name: "Standard-Bewertungsraster",
+        description: "Das Standard-Bewertungsraster für alle Themen",
+        isDefault: true,
+        created_by: "SYSTEM",
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+        version: "2.0",
+        categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          weight: 1
+        }))
+      });
+      
+      console.log("Standard-Bewertungsraster erfolgreich erstellt");
+      return true;
+    } else {
+      // NEU: Prüfe, ob das Standard-Raster aktualisiert werden muss
+      const data = doc.data();
+      if (!data.version || data.version !== "2.0") {
+        console.log("Aktualisiere Standard-Bewertungsraster...");
+        
+        await templateRef.update({
+          version: "2.0",
+          description: "Das Standard-Bewertungsraster für alle Themen",
+          updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+          categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+            id: cat.id,
+            name: cat.name,
+            weight: 1
+          }))
+        });
+        
+        console.log("Standard-Bewertungsraster aktualisiert");
+      }
       return true;
     }
-    
+  } catch (error) {
+    console.error("Fehler beim Initialisieren des Standard-Bewertungsrasters:", error);
     return false;
-  });
-}
-
-/**
- * Liefert alle Schüler, die der aktuelle Benutzer bewerten darf
- */
-export function getStudentsForCurrentUser() {
-  if (!currentUser.code) return [];
-  
-  const students = [];
-  
-  allThemes.forEach(theme => {
-    if (theme.students) {
-      theme.students.forEach(student => {
-        if (student.assigned_teacher === currentUser.code) {
-          students.push({
-            ...student,
-            theme: {
-              id: theme.id,
-              title: theme.title,
-              deadline: theme.deadline,
-              assessment_template_id: theme.assessment_template_id
-            }
-          });
-        }
-      });
-    }
-  });
-  
-  return students;
-}
-
-/**
- * NEU: Liefert alle Schüler einer bestimmten Klasse
- */
-export function getStudentsByClass(className) {
-  if (!className) return [];
-  
-  // Prüfe Cache-Aktualität
-  if (shouldRefreshCache()) {
-    rebuildDataCache();
   }
-  
-  return dataCache.studentsByClass.get(className) || [];
 }
 
 /**
- * NEU: Liefert alle verfügbaren Klassen mit Schülerzahlen
+ * NEU: Migriert die Datenstruktur auf die neue Version
  */
-export function getAvailableClassesWithCounts() {
-  // Prüfe Cache-Aktualität
-  if (shouldRefreshCache()) {
-    rebuildDataCache();
-  }
+export async function migrateDataStructure() {
+  if (!db) return false;
   
-  const classInfo = [];
-  
-  // Alle verfügbaren Klassen durchgehen
-  AVAILABLE_CLASSES.forEach(className => {
-    const students = dataCache.studentsByClass.get(className) || [];
+  try {
+    console.log("Prüfe Datenstruktur-Migration...");
     
-    if (students.length > 0) {
-      // Statistiken für die Klasse berechnen
-      const completed = students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length;
-      const inProgress = students.filter(s => s.status === STUDENT_STATUS.IN_PROGRESS).length;
-      const pending = students.filter(s => s.status === STUDENT_STATUS.PENDING).length;
-      
-      classInfo.push({
-        className,
-        totalStudents: students.length,
-        completed,
-        inProgress,
-        pending,
-        completionRate: students.length > 0 ? Math.round((completed / students.length) * 100) : 0
-      });
-    }
-  });
-  
-  // Nach Klassennamen sortieren
-  return classInfo.sort((a, b) => {
-    // Numerische Sortierung (5a vor 10a)
-    const aNum = parseInt(a.className);
-    const bNum = parseInt(b.className);
+    // 1. Migriere Themen (füge fehlende Felder hinzu)
+    await migrateThemes();
     
-    if (aNum !== bNum) {
-      return aNum - bNum;
-    }
+    // 2. Migriere Schüler (füge Klassen-Felder hinzu)
+    await migrateStudents();
     
-    // Bei gleicher Zahl alphabetisch sortieren
-    return a.className.localeCompare(b.className);
-  });
-}
-
-/**
- * NEU: Filtert Schüler nach verschiedenen Kriterien
- */
-export function filterStudents(filters = {}) {
-  let students = getStudentsForCurrentUser();
-  
-  // Nach Klasse filtern
-  if (filters.class) {
-    students = students.filter(student => student.class === filters.class);
-  }
-  
-  // Nach Status filtern
-  if (filters.status) {
-    students = students.filter(student => student.status === filters.status);
-  }
-  
-  // Nach Thema filtern
-  if (filters.themeId) {
-    students = students.filter(student => student.theme.id === filters.themeId);
-  }
-  
-  // Nach Deadline filtern (überfällig, diese Woche, etc.)
-  if (filters.deadline) {
-    const now = new Date();
+    // 3. Migriere Bewertungsraster (aktualisiere Struktur)
+    await migrateAssessmentTemplates();
     
-    students = students.filter(student => {
-      if (!student.theme.deadline) return false;
-      
-      const deadline = new Date(student.theme.deadline);
-      const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-      
-      switch (filters.deadline) {
-        case 'overdue':
-          return daysRemaining < 0;
-        case 'today':
-          return daysRemaining === 0;
-        case 'this_week':
-          return daysRemaining > 0 && daysRemaining <= 7;
-        case 'next_week':
-          return daysRemaining > 7 && daysRemaining <= 14;
-        default:
-          return true;
-      }
-    });
-  }
-  
-  // Nach Note filtern
-  if (filters.grade) {
-    students = students.filter(student => {
-      if (!student.assessment || !student.assessment.finalGrade) {
-        return filters.grade === 'ungraded';
-      }
-      
-      const grade = student.assessment.finalGrade;
-      
-      switch (filters.grade) {
-        case 'excellent': // 1.0 - 1.5
-          return grade >= 1.0 && grade <= 1.5;
-        case 'good': // 1.6 - 2.5
-          return grade >= 1.6 && grade <= 2.5;
-        case 'satisfactory': // 2.6 - 3.5
-          return grade >= 2.6 && grade <= 3.5;
-        case 'sufficient': // 3.6 - 4.0
-          return grade >= 3.6 && grade <= 4.0;
-        case 'poor': // 4.1 - 6.0
-          return grade >= 4.1 && grade <= 6.0;
-        case 'ungraded':
-          return false; // Bereits oben behandelt
-        default:
-          return true;
-      }
-    });
-  }
-  
-  return students;
-}
-
-/**
- * NEU: Liefert Themen nach Schuljahr
- */
-export function getThemesBySchoolYear(schoolYear) {
-  if (!schoolYear) return [];
-  
-  // Prüfe Cache-Aktualität
-  if (shouldRefreshCache()) {
-    rebuildDataCache();
-  }
-  
-  return dataCache.themesBySchoolYear.get(schoolYear) || [];
-}
-
-/**
- * NEU: Liefert alle verfügbaren Schuljahre mit Statistiken
- */
-export function getSchoolYearsWithStats() {
-  // Prüfe Cache-Aktualität
-  if (shouldRefreshCache()) {
-    rebuildDataCache();
-  }
-  
-  const schoolYearStats = [];
-  
-  dataCache.themesBySchoolYear.forEach((themes, schoolYear) => {
-    let totalStudents = 0;
-    let completedStudents = 0;
-    let activeThemes = 0;
-    let completedThemes = 0;
-    let overdueThemes = 0;
-    
-    themes.forEach(theme => {
-      // Themen-Status zählen
-      switch (theme.status) {
-        case 'active':
-          activeThemes++;
-          break;
-        case 'completed':
-          completedThemes++;
-          break;
-        case 'overdue':
-          overdueThemes++;
-          break;
-      }
-      
-      // Schüler zählen
-      if (theme.students) {
-        totalStudents += theme.students.length;
-        completedStudents += theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length;
-      }
-    });
-    
-    schoolYearStats.push({
-      schoolYear,
-      totalThemes: themes.length,
-      activeThemes,
-      completedThemes,
-      overdueThemes,
-      totalStudents,
-      completedStudents,
-      completionRate: totalStudents > 0 ? Math.round((completedStudents / totalStudents) * 100) : 0
-    });
-  });
-  
-  // Nach Schuljahr sortieren (neueste zuerst)
-  return schoolYearStats.sort((a, b) => b.schoolYear.localeCompare(a.schoolYear));
-}
-
-/**
- * Liefert die Statistiken für den aktuellen Benutzer
- */
-export function getCurrentUserStats() {
-  if (!currentUser.code) return {};
-  
-  const themesCreated = allThemes.filter(theme => theme.created_by === currentUser.code).length;
-  
-  let studentsAssigned = 0;
-  let studentsCompleted = 0;
-  let studentsPending = 0;
-  let studentsInProgress = 0;
-  
-  // NEU: Klassen-Statistiken
-  const classCounts = new Map();
-  
-  allThemes.forEach(theme => {
-    if (theme.students) {
-      theme.students.forEach(student => {
-        if (student.assigned_teacher === currentUser.code) {
-          studentsAssigned++;
-          
-          // Status zählen
-          switch (student.status) {
-            case STUDENT_STATUS.COMPLETED:
-              studentsCompleted++;
-              break;
-            case STUDENT_STATUS.PENDING:
-              studentsPending++;
-              break;
-            case STUDENT_STATUS.IN_PROGRESS:
-              studentsInProgress++;
-              break;
-          }
-          
-          // Klassen zählen
-          if (student.class) {
-            classCounts.set(student.class, (classCounts.get(student.class) || 0) + 1);
-          }
-        }
-      });
-    }
-  });
-  
-  return {
-    themesCreated,
-    studentsAssigned,
-    studentsCompleted,
-    studentsPending,
-    studentsInProgress,
-    completionRate: studentsAssigned > 0 ? Math.round((studentsCompleted / studentsAssigned) * 100) : 0,
-    classesInvolved: classCounts.size,
-    mostActiveClass: getMostActiveClass(classCounts)
-  };
-}
-
-/**
- * NEU: Ermittelt die aktivste Klasse für den aktuellen Benutzer
- */
-function getMostActiveClass(classCounts) {
-  if (classCounts.size === 0) return null;
-  
-  let maxCount = 0;
-  let mostActiveClass = null;
-  
-  classCounts.forEach((count, className) => {
-    if (count > maxCount) {
-      maxCount = count;
-      mostActiveClass = className;
-    }
-  });
-  
-  return mostActiveClass ? { class: mostActiveClass, count: maxCount } : null;
-}
-
-/**
- * Aktualisiert den Status aller Themen basierend auf den Deadlines
- */
-export function updateThemeStatuses() {
-  const now = new Date();
-  let updated = false;
-  
-  allThemes.forEach(theme => {
-    const oldStatus = theme.status;
-    
-    if (theme.deadline) {
-      const deadline = new Date(theme.deadline);
-      
-      // Setze Status basierend auf Deadline und Schülerbewertungen
-      if (theme.students && theme.students.every(s => s.status === STUDENT_STATUS.COMPLETED)) {
-        theme.status = 'completed';
-      } else if (deadline < now) {
-        theme.status = 'overdue';
-      } else {
-        theme.status = 'active';
-      }
-    }
-    
-    if (oldStatus !== theme.status) {
-      updated = true;
-    }
-  });
-  
-  // Cache neu aufbauen, wenn sich etwas geändert hat
-  if (updated) {
-    rebuildDataCache();
+    console.log("Datenstruktur-Migration abgeschlossen");
+    return true;
+  } catch (error) {
+    console.error("Fehler bei der Datenstruktur-Migration:", error);
+    return false;
   }
 }
 
 /**
- * Liefert die verfügbaren Schuljahre aus den vorhandenen Themen
+ * NEU: Migriert Themen-Dokumente
  */
-export function getAvailableSchoolYears() {
-  const schoolYears = new Set();
-  
-  allThemes.forEach(theme => {
-    if (theme.school_year) {
-      schoolYears.add(theme.school_year);
-    }
-  });
-  
-  return Array.from(schoolYears).sort().reverse(); // Neueste zuerst
-}
-
-/**
- * NEU: Liefert verfügbare Klassen aus den vorhandenen Schülern
- */
-export function getAvailableClasses() {
-  // Prüfe Cache-Aktualität
-  if (shouldRefreshCache()) {
-    rebuildDataCache();
-  }
-  
-  return Array.from(dataCache.studentsByClass.keys()).sort((a, b) => {
-    // Numerische Sortierung
-    const aNum = parseInt(a);
-    const bNum = parseInt(b);
+async function migrateThemes() {
+  try {
+    const themesRef = db.collection("wbs_themes");
+    const snapshot = await themesRef.get();
     
-    if (aNum !== bNum) {
-      return aNum - bNum;
-    }
-    
-    return a.localeCompare(b);
-  });
-}
-
-/**
- * Exportiert alle Daten des aktuellen Benutzers
- */
-export async function exportUserData() {
-  // Exportiert Themen und Bewertungen, die für den aktuellen Benutzer relevant sind
-  const themesForUser = getThemesForCurrentUser();
-  const studentsForUser = getStudentsForCurrentUser();
-  const userStats = getCurrentUserStats();
-  
-  // NEU: Erweiterte Export-Daten
-  const exportData = {
-    exportDate: new Date().toISOString(),
-    exportVersion: "2.0",
-    teacher: {
-      name: currentUser.name,
-      code: currentUser.code
-    },
-    statistics: userStats,
-    themes: themesForUser,
-    students: studentsForUser,
-    classSummary: getAvailableClassesWithCounts(),
-    schoolYearSummary: getSchoolYearsWithStats()
-  };
-  
-  return exportData;
-}
-
-/**
- * NEU: Exportiert Klassen-spezifische Daten
- */
-export function exportClassData(className) {
-  if (!className) return null;
-  
-  const students = getStudentsByClass(className);
-  const themes = new Set();
-  const teachers = new Set();
-  
-  // Sammle Themen und Lehrer
-  students.forEach(student => {
-    themes.add(student.theme.title);
-    teachers.add(student.assigned_teacher);
-  });
-  
-  // Statistiken berechnen
-  const completed = students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length;
-  const inProgress = students.filter(s => s.status === STUDENT_STATUS.IN_PROGRESS).length;
-  const pending = students.filter(s => s.status === STUDENT_STATUS.PENDING).length;
-  
-  return {
-    exportDate: new Date().toISOString(),
-    className,
-    totalStudents: students.length,
-    statistics: {
-      completed,
-      inProgress,
-      pending,
-      completionRate: students.length > 0 ? Math.round((completed / students.length) * 100) : 0
-    },
-    involvedThemes: Array.from(themes),
-    involvedTeachers: Array.from(teachers),
-    students: students.map(student => ({
-      name: student.name,
-      status: student.status,
-      theme: student.theme.title,
-      assignedTeacher: student.assigned_teacher,
-      finalGrade: student.assessment?.finalGrade || null
-    }))
-  };
-}
-
-/**
- * Berechnet die Gesamtanzahl der Schüler in allen Themen
- */
-export function getTotalStudentCount() {
-  let count = 0;
-  
-  allThemes.forEach(theme => {
-    if (theme.students) {
-      count += theme.students.length;
-    }
-  });
-  
-  return count;
-}
-
-/**
- * Liefert alle Schüler mit ihren Bewertungen für Exportzwecke
- */
-export function getAllStudentsWithAssessments() {
-  const students = [];
-  
-  allThemes.forEach(theme => {
-    if (theme.students) {
-      theme.students.forEach(student => {
-        students.push({
-          id: student.id,
-          name: student.name,
-          class: student.class || "", // NEU: Klasse hinzugefügt
-          status: student.status,
-          assigned_teacher: student.assigned_teacher,
-          assessment: student.assessment || {},
-          theme: {
-            id: theme.id,
-            title: theme.title,
-            school_year: theme.school_year,
-            deadline: theme.deadline,
-            created_by: theme.created_by
-          }
-        });
-      });
-    }
-  });
-  
-  return students;
-}
-
-/**
- * NEU: Prüft, ob der Cache aktualisiert werden muss
- */
-function shouldRefreshCache() {
-  if (!dataCache.lastCacheUpdate) return true;
-  
-  // Cache alle 5 Minuten erneuern
-  const cacheAge = Date.now() - dataCache.lastCacheUpdate.getTime();
-  return cacheAge > 5 * 60 * 1000; // 5 Minuten
-}
-
-/**
- * NEU: Sucht Schüler nach Name oder Klasse
- */
-export function searchStudents(query) {
-  if (!query || query.trim().length < 2) return [];
-  
-  const searchTerm = query.toLowerCase().trim();
-  const allStudents = getStudentsForCurrentUser();
-  
-  return allStudents.filter(student => {
-    return (
-      student.name.toLowerCase().includes(searchTerm) ||
-      (student.class && student.class.toLowerCase().includes(searchTerm)) ||
-      student.theme.title.toLowerCase().includes(searchTerm)
-    );
-  });
-}
-
-/**
- * NEU: Liefert Deadline-Statistiken
- */
-export function getDeadlineStatistics() {
-  const now = new Date();
-  const stats = {
-    overdue: 0,
-    today: 0,
-    thisWeek: 0,
-    nextWeek: 0,
-    later: 0,
-    noDeadline: 0
-  };
-  
-  const themes = getThemesForCurrentUser();
-  
-  themes.forEach(theme => {
-    if (!theme.deadline) {
-      stats.noDeadline++;
+    if (snapshot.empty) {
+      console.log("Keine Themen zum Migrieren gefunden");
       return;
     }
     
-    const deadline = new Date(theme.deadline);
-    const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+    const batch = db.batch();
+    let updateCount = 0;
     
-    if (daysRemaining < 0) {
-      stats.overdue++;
-    } else if (daysRemaining === 0) {
-      stats.today++;
-    } else if (daysRemaining <= 7) {
-      stats.thisWeek++;
-    } else if (daysRemaining <= 14) {
-      stats.nextWeek++;
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      let needsUpdate = false;
+      const updates = {};
+      
+      // Prüfe auf fehlende Felder
+      if (!data.assessment_template_id) {
+        updates.assessment_template_id = "standard";
+        needsUpdate = true;
+      }
+      
+      if (!data.school_year) {
+        const currentYear = new Date().getFullYear();
+        updates.school_year = `${currentYear}/${currentYear + 1}`;
+        needsUpdate = true;
+      }
+      
+      if (!data.version) {
+        updates.version = "2.0";
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        updates.migrated_at = firebase.firestore.FieldValue.serverTimestamp();
+        batch.update(doc.ref, updates);
+        updateCount++;
+      }
+    });
+    
+    if (updateCount > 0) {
+      await batch.commit();
+      console.log(`${updateCount} Themen migriert`);
     } else {
-      stats.later++;
+      console.log("Alle Themen sind bereits aktuell");
     }
-  });
-  
-  return stats;
+  } catch (error) {
+    console.error("Fehler bei der Themen-Migration:", error);
+  }
 }
 
 /**
- * NEU: Event-Listener für Cache-Updates
+ * NEU: Migriert Schüler-Daten (fügt Klassen-Felder hinzu)
  */
-document.addEventListener('DOMContentLoaded', () => {
-  // Cache alle 10 Minuten aktualisieren
-  setInterval(() => {
-    if (currentUser.code) {
-      rebuildDataCache();
+async function migrateStudents() {
+  try {
+    const themesRef = db.collection("wbs_themes");
+    const snapshot = await themesRef.get();
+    
+    if (snapshot.empty) {
+      console.log("Keine Themen mit Schülern zum Migrieren gefunden");
+      return;
     }
-  }, 10 * 60 * 1000); // 10 Minuten
-});
+    
+    const batch = db.batch();
+    let updateCount = 0;
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      
+      if (data.students && Array.isArray(data.students)) {
+        let studentsUpdated = false;
+        const updatedStudents = data.students.map(student => {
+          if (!student.class) {
+            studentsUpdated = true;
+            return {
+              ...student,
+              class: "", // Leeres Feld für spätere Befüllung
+              migrated_at: new Date().toISOString()
+            };
+          }
+          return student;
+        });
+        
+        if (studentsUpdated) {
+          batch.update(doc.ref, {
+            students: updatedStudents,
+            students_migrated_at: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          updateCount++;
+        }
+      }
+    });
+    
+    if (updateCount > 0) {
+      await batch.commit();
+      console.log(`${updateCount} Themen mit Schüler-Migration aktualisiert`);
+    } else {
+      console.log("Alle Schüler-Daten sind bereits aktuell");
+    }
+  } catch (error) {
+    console.error("Fehler bei der Schüler-Migration:", error);
+  }
+}
+
+/**
+ * NEU: Migriert Bewertungsraster-Struktur
+ */
+async function migrateAssessmentTemplates() {
+  try {
+    const templatesRef = db.collection("wbs_assessment_templates");
+    const snapshot = await templatesRef.get();
+    
+    if (snapshot.empty) {
+      console.log("Keine Bewertungsraster zum Migrieren gefunden");
+      return;
+    }
+    
+    const batch = db.batch();
+    let updateCount = 0;
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      let needsUpdate = false;
+      const updates = {};
+      
+      // Prüfe auf fehlende Felder
+      if (!data.version) {
+        updates.version = "2.0";
+        needsUpdate = true;
+      }
+      
+      // Prüfe Kategorien-Struktur
+      if (data.categories && Array.isArray(data.categories)) {
+        const updatedCategories = data.categories.map(cat => {
+          if (typeof cat === 'string') {
+            // Alte String-Struktur zu Objekt-Struktur konvertieren
+            return {
+              id: cat.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+              name: cat,
+              weight: 1
+            };
+          } else if (cat && !cat.weight) {
+            // Fehlende Gewichtung hinzufügen
+            return {
+              ...cat,
+              weight: 1
+            };
+          }
+          return cat;
+        });
+        
+        if (JSON.stringify(updatedCategories) !== JSON.stringify(data.categories)) {
+          updates.categories = updatedCategories;
+          needsUpdate = true;
+        }
+      }
+      
+      if (needsUpdate) {
+        updates.migrated_at = firebase.firestore.FieldValue.serverTimestamp();
+        batch.update(doc.ref, updates);
+        updateCount++;
+      }
+    });
+    
+    if (updateCount > 0) {
+      await batch.commit();
+      console.log(`${updateCount} Bewertungsraster migriert`);
+    } else {
+      console.log("Alle Bewertungsraster sind bereits aktuell");
+    }
+  } catch (error) {
+    console.error("Fehler bei der Bewertungsraster-Migration:", error);
+  }
+}
+
+/**
+ * NEU: Prüft die Datenbank-Gesundheit
+ */
+export async function checkDatabaseHealth() {
+  if (!db) return { status: "disconnected", issues: ["Keine Datenbankverbindung"] };
+  
+  const health = {
+    status: "healthy",
+    issues: [],
+    collections: {},
+    lastChecked: new Date().toISOString()
+  };
+  
+  try {
+    // Prüfe System-Einstellungen
+    const systemSettings = await getSystemSettings();
+    if (!systemSettings) {
+      health.issues.push("Systemeinstellungen nicht verfügbar");
+      health.status = "warning";
+    } else {
+      health.collections.systemSettings = {
+        exists: true,
+        version: systemSettings.version || "unknown"
+      };
+    }
+    
+    // Prüfe Lehrer-Collection
+    const teachersDoc = await db.collection("wbs_teachers").doc("teachers_list").get();
+    health.collections.teachers = {
+      exists: teachersDoc.exists,
+      count: teachersDoc.exists && teachersDoc.data().teachers ? teachersDoc.data().teachers.length : 0
+    };
+    
+    // Prüfe Themen-Collection
+    const themesSnapshot = await db.collection("wbs_themes").limit(1).get();
+    health.collections.themes = {
+      exists: !themesSnapshot.empty,
+      accessible: true
+    };
+    
+    // Prüfe Bewertungsraster-Collection
+    const templatesSnapshot = await db.collection("wbs_assessment_templates").limit(1).get();
+    health.collections.assessmentTemplates = {
+      exists: !templatesSnapshot.empty,
+      accessible: true
+    };
+    
+    if (health.issues.length > 0) {
+      health.status = health.issues.length > 2 ? "error" : "warning";
+    }
+    
+  } catch (error) {
+    console.error("Fehler bei der Gesundheitsprüfung:", error);
+    health.status = "error";
+    health.issues.push(`Datenbankfehler: ${error.message}`);
+  }
+  
+  return health;
+}
+
+/**
+ * NEU: Bereinigt verwaiste Daten
+ */
+export async function cleanupOrphanedData() {
+  if (!db) return { cleaned: 0, errors: [] };
+  
+  const result = { cleaned: 0, errors: [] };
+  
+  try {
+    console.log("Starte Datenbereinigung...");
+    
+    // 1. Bereinige Themen ohne gültigen Ersteller
+    const teachersDoc = await db.collection("wbs_teachers").doc("teachers_list").get();
+    const validTeachers = teachersDoc.exists && teachersDoc.data().teachers 
+      ? teachersDoc.data().teachers.map(t => t.code) 
+      : [];
+    
+    const themesSnapshot = await db.collection("wbs_themes").get();
+    const batch = db.batch();
+    
+    themesSnapshot.forEach(doc => {
+      const theme = doc.data();
+      if (theme.created_by && !validTeachers.includes(theme.created_by)) {
+        console.log(`Lösche verwaistes Thema: ${theme.title} (Ersteller: ${theme.created_by})`);
+        batch.delete(doc.ref);
+        result.cleaned++;
+      }
+    });
+    
+    if (result.cleaned > 0) {
+      await batch.commit();
+      console.log(`${result.cleaned} verwaiste Themen bereinigt`);
+    }
+    
+  } catch (error) {
+    console.error("Fehler bei der Datenbereinigung:", error);
+    result.errors.push(error.message);
+  }
+  
+  return result;
+}
