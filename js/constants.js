@@ -54,7 +54,8 @@ export const THEMES_CONFIG = {
  * Bewertungsraster
  */
 export const ASSESSMENT_TEMPLATES = {
-  collectionName: "wbs_assessment_templates"
+  collectionName: "wbs_assessment_templates",
+  maxTemplatesPerTeacher: 5
 };
 
 /**
@@ -80,7 +81,7 @@ export const THEME_STATUS = {
  */
 export const TEACHER_PERMISSIONS = {
   CREATE_THEMES: "canCreateThemes",
-  MANAGE_TEMPLATES: "canManageTemplates"
+  MANAGE_TEMPLATES: "canManageTemplates" // ENTFERNT - Jeder Lehrer kann seine eigenen Raster verwalten
 };
 
 /**
@@ -88,5 +89,19 @@ export const TEACHER_PERMISSIONS = {
  */
 export const DEFAULT_SYSTEM_SETTINGS = {
   currentSchoolYear: new Date().getFullYear() + "/" + (new Date().getFullYear() + 1),
-  defaultAssessmentTemplate: "standard"
+  defaultAssessmentTemplate: "standard",
+  schoolYearEnd: null,
+  lastAssessmentDate: null
 };
+
+/**
+ * Verfügbare Klassen
+ */
+export const AVAILABLE_CLASSES = [
+  "5a", "5b", "5c",
+  "6a", "6b", "6c",
+  "7a", "7b", "7c",
+  "8a", "8b", "8c",
+  "9a", "9b", "9c",
+  "10a", "10b", "10c"
+];
