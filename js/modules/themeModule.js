@@ -1,1401 +1,1869 @@
-// ==== FÜR js/modules/themeModule.js ====
-// Ersetzen Sie die Imports am Anfang der Datei mit:
-
-import { 
-  showLoader, 
-  hideLoader, 
-  showNotification,
-  formatDate,
-  getDaysRemaining,
-  formatRemainingDays,
-  createStatusBadge,
-  createStudentStatusBadge,
-  createThemeProgressHTML,
-  populateSchoolYearSelect,
-  populateAssessmentTemplateSelect,
-  populateTeacherSelect
-} from "../uiService.js";
-import {
-  allThemes,
-  loadAllThemes,
-  createTheme,
-  updateTheme,
-  deleteTheme,
-  addStudentToTheme,
-  updateStudent,
-  removeStudentFromTheme,
-  updateStudentAssessment,
-  calculateStudentAverage,
-  filterThemes,
-  getThemesForAssessment,
-  getThemesCreatedByTeacher
-} from "../themeService.js";
-import { currentUser } from "../dataService.js";
-import { allTeachers, systemSettings } from "../adminService.js";
-import { assessmentTemplates } from "../assessmentService.js";
-import { THEMES_CONFIG, STUDENT_STATUS, THEME_STATUS } from "../constants.js";
-
-/**
- * Referenz auf die DOM-Elemente
- */
-let elements = {
-  // Tabs
-  themesTab: null,
-  assessmentTab: null,
-  overviewTab: null,
+:root {
+  --primary-color: #34495e;
+  --primary-light: #5c7a99;
+  --primary-dark: #2c3e50;
+  --accent-color: #e67e22;
+  --secondary-color: #f7f9fc;
+  --text-color: #333;
+  --success-color: #27ae60;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
+  --info-color: #3498db;
+  --border-color: #e0e0e0;
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  --transition: all 0.3s ease;
+  --header-bg: #34495e;
+  --blue-accent: #3498db; /* Farbe für blauen Rahmen */
+  --danger-bg: #fdf2f2; /* Hintergrund für Gefahrenbereiche */
+  --danger-border: #fecaca; /* Rand für Gefahrenbereiche */
   
-  // Themen-Verwaltung
-  themesContainer: null,
-  themesList: null,
-  newThemeBtn: null,
-  themeFilterSelect: null,
-  
-  // Thema-Modal
-  themeModal: null,
-  themeModalTitle: null,
-  themeForm: null,
-  themeNameInput: null,
-  themeDescriptionInput: null,
-  themeDeadlineInput: null,
-  themeSchoolYearSelect: null,
-  themeTemplateSelect: null,
-  saveThemeBtn: null,
-  cancelThemeBtn: null,
-  
-  // Schüler-Verwaltung
-  studentsContainer: null,
-  studentsList: null,
-  addStudentBtn: null,
-  
-  // Schüler-Modal
-  studentModal: null,
-  studentModalTitle: null,
-  studentForm: null,
-  studentNameInput: null,
-  studentTeacherSelect: null,
-  saveStudentBtn: null,
-  cancelStudentBtn: null,
-  
-  // Bewertungs-Tab
-  assessmentContainer: null,
-  assessmentStudentList: null,
-  assessmentContent: null,
-  
-  // Übersichts-Tab
-  overviewContainer: null,
-  overviewSchoolYearSelect: null,
-  overviewStatusSelect: null,
-  overviewTable: null,
-  exportDataBtn: null
-};
-
-/**
- * Zustand für die Themen-/Schülerbearbeitung
- */
-let selectedTheme = null;
-let selectedStudent = null;
-let editMode = false;
-let currentSelectedStudentId = null;
-let infoTextSaveTimer = null;
-
-/**
- * Initialisiert das Themen-Modul
- */
-export async function initThemeModule() {
-  // DOM-Elemente abrufen
-  loadDOMElements();
-  
-  // Event-Listener hinzufügen
-  setupEventListeners();
-  
-  // Themen laden
-  await loadAllThemes();
-  
-  // Wenn der Benutzer eingeloggt ist, aktualisiere die Ansicht
-  document.addEventListener("userLoggedIn", (event) => {
-    updateUI();
-  });
+  /* Status-Farben */
+  --status-active: #3498db;
+  --status-completed: #27ae60;
+  --status-overdue: #e74c3c;
+  --status-pending: #f39c12;
+  --status-in-progress: #9b59b6;
 }
 
-/**
- * Lädt alle benötigten DOM-Elemente
- */
-function loadDOMElements() {
-  // Tabs
-  elements.themesTab = document.getElementById("themes-tab");
-  elements.assessmentTab = document.getElementById("assessment-tab");
-  elements.overviewTab = document.getElementById("overview-tab");
-  
-  // Themen-Verwaltung
-  elements.themesContainer = document.getElementById("themesContainer");
-  elements.themesList = document.getElementById("themesList");
-  elements.newThemeBtn = document.getElementById("newThemeBtn");
-  elements.themeFilterSelect = document.getElementById("themeFilterSelect");
-  
-  // Thema-Modal
-  elements.themeModal = document.getElementById("themeModal");
-  elements.themeModalTitle = document.getElementById("themeModalTitle");
-  elements.themeForm = document.getElementById("themeForm");
-  elements.themeNameInput = document.getElementById("themeNameInput");
-  elements.themeDescriptionInput = document.getElementById("themeDescriptionInput");
-  elements.themeDeadlineInput = document.getElementById("themeDeadlineInput");
-  elements.themeSchoolYearSelect = document.getElementById("themeSchoolYearSelect");
-  elements.themeTemplateSelect = document.getElementById("themeTemplateSelect");
-  elements.saveThemeBtn = document.getElementById("saveThemeBtn");
-  elements.cancelThemeBtn = document.getElementById("cancelThemeBtn");
-  
-  // Schüler-Verwaltung
-  elements.studentsContainer = document.getElementById("studentsContainer");
-  elements.studentsList = document.getElementById("studentsList");
-  elements.addStudentBtn = document.getElementById("addStudentBtn");
-  
-  // Schüler-Modal
-  elements.studentModal = document.getElementById("studentModal");
-  elements.studentModalTitle = document.getElementById("studentModalTitle");
-  elements.studentForm = document.getElementById("studentForm");
-  elements.studentNameInput = document.getElementById("studentNameInput");
-  elements.studentTeacherSelect = document.getElementById("studentTeacherSelect");
-  elements.saveStudentBtn = document.getElementById("saveStudentBtn");
-  elements.cancelStudentBtn = document.getElementById("cancelStudentBtn");
-  
-  // Bewertungs-Tab
-  elements.assessmentContainer = document.getElementById("assessmentContainer");
-  elements.assessmentStudentList = document.getElementById("assessmentStudentList");
-  elements.assessmentContent = document.getElementById("assessmentContent");
-  
-  // Übersichts-Tab
-  elements.overviewContainer = document.getElementById("overviewContainer");
-  elements.overviewSchoolYearSelect = document.getElementById("overviewSchoolYearSelect");
-  elements.overviewStatusSelect = document.getElementById("overviewStatusSelect");
-  elements.overviewTable = document.getElementById("overviewTable");
-  elements.exportDataBtn = document.getElementById("exportDataBtn");
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/**
- * Richtet die Event-Listener ein
- */
-function setupEventListeners() {
-  // Tab-Wechsel
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", function() {
-      const tabId = this.dataset.tab;
-      
-      // Wenn der Tab gewechselt wird, aktualisiere die Ansicht
-      if (tabId === "themes") {
-        updateThemesTab();
-      } else if (tabId === "assessment") {
-        updateAssessmentTab();
-      } else if (tabId === "overview") {
-        updateOverviewTab();
-      }
-    });
-  });
-  
-  // Neues Thema erstellen
-  if (elements.newThemeBtn) {
-    elements.newThemeBtn.addEventListener("click", showNewThemeModal);
-  }
-  
-  // Themen filtern
-  if (elements.themeFilterSelect) {
-    elements.themeFilterSelect.addEventListener("change", updateThemesList);
-  }
-  
-  // Thema-Modal
-  if (elements.cancelThemeBtn) {
-    elements.cancelThemeBtn.addEventListener("click", () => {
-      elements.themeModal.style.display = "none";
-    });
-  }
-  if (elements.themeForm) {
-    elements.themeForm.addEventListener("submit", saveTheme);
-  }
-  
-  // Schüler-Modal
-  if (elements.cancelStudentBtn) {
-    elements.cancelStudentBtn.addEventListener("click", () => {
-      elements.studentModal.style.display = "none";
-    });
-  }
-  if (elements.studentForm) {
-    elements.studentForm.addEventListener("submit", saveStudent);
-  }
-  
-  // Daten exportieren
-  if (elements.exportDataBtn) {
-    elements.exportDataBtn.addEventListener("click", exportData);
+body {
+  font-family: 'Roboto', sans-serif;
+  background: #f4f4f4;
+  color: var(--text-color);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  background: var(--header-bg);
+  color: white;
+  padding: 1.5rem;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+}
+
+header h1 {
+  color: white;
+  margin: 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: var(--card-shadow);
+}
+
+@media (max-width: 768px) {
+  .container {
+    margin: 1rem;
+    padding: 1.5rem;
   }
 }
 
-/**
- * Aktualisiert die Benutzeroberfläche basierend auf den Berechtigungen
- */
-function updateUI() {
-  // Prüfen, ob der Benutzer Themen erstellen darf
-  const canCreateThemes = currentUser.permissions && 
-                         currentUser.permissions.canCreateThemes === true;
-  
-  // Neue-Thema-Button anzeigen/verstecken
-  if (elements.newThemeBtn) {
-    elements.newThemeBtn.style.display = canCreateThemes ? "block" : "none";
-  }
-  
-  // Tabs aktualisieren
-  updateThemesTab();
-  updateAssessmentTab();
-  updateOverviewTab();
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-/**
- * Aktualisiert den Themen-Tab
- */
-function updateThemesTab() {
-  if (!elements.themesTab) return;
-  
-  // Lade nur Themen, die der Benutzer erstellt hat
-  const themes = getThemesCreatedByTeacher(currentUser.code);
-  
-  // Themen in der Liste anzeigen
-  updateThemesList(themes);
+.tab {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+  position: relative;
 }
 
-/**
- * Aktualisiert die Themenliste
- */
-function updateThemesList(themes = null) {
-  if (!elements.themesList) return;
-  
-  // Wenn keine Themen übergeben wurden, hole alle für den aktuellen Benutzer
-  if (!themes) {
-    themes = getThemesCreatedByTeacher(currentUser.code);
-  }
-  
-  // Filter anwenden, wenn ausgewählt
-  if (elements.themeFilterSelect && elements.themeFilterSelect.value) {
-    const filterValue = elements.themeFilterSelect.value;
-    
-    if (filterValue === "active") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.ACTIVE);
-    } else if (filterValue === "completed") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.COMPLETED);
-    } else if (filterValue === "overdue") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.OVERDUE);
-    }
-  }
-  
-  // Liste leeren
-  elements.themesList.innerHTML = "";
-  
-  // Wenn keine Themen vorhanden sind
-  if (themes.length === 0) {
-    elements.themesList.innerHTML = `
-      <div class="empty-state">
-        <p>Keine Themen gefunden</p>
-        ${currentUser.permissions && currentUser.permissions.canCreateThemes ? 
-          '<button id="emptyNewThemeBtn" class="btn-primary">Neues Thema erstellen</button>' : 
-          '<p>Sie haben keine Berechtigung, um Themen zu erstellen.</p>'}
-      </div>
-    `;
-    
-    // Event-Listener für den Button in der Empty State
-    const emptyNewThemeBtn = document.getElementById("emptyNewThemeBtn");
-    if (emptyNewThemeBtn) {
-      emptyNewThemeBtn.addEventListener("click", showNewThemeModal);
-    }
-    
-    return;
-  }
-  
-  // Themen sortieren (neueste zuerst)
-  themes.sort((a, b) => {
-    // Priorität: Überfällige Themen, dann aktive, dann abgeschlossene
-    if (a.status !== b.status) {
-      if (a.status === THEME_STATUS.OVERDUE) return -1;
-      if (b.status === THEME_STATUS.OVERDUE) return 1;
-      if (a.status === THEME_STATUS.ACTIVE) return -1;
-      if (b.status === THEME_STATUS.ACTIVE) return 1;
-    }
-    
-    // Nach Deadline sortieren
-    if (a.deadline && b.deadline) {
-      return new Date(a.deadline) - new Date(b.deadline);
-    } else if (a.deadline) {
-      return -1;
-    } else if (b.deadline) {
-      return 1;
-    }
-    
-    // Fallback: Nach Erstellungsdatum
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
-  
-  // Themen in der Liste anzeigen
-  themes.forEach(theme => {
-    const themeCard = document.createElement("div");
-    themeCard.className = `theme-card ${theme.status}`;
-    themeCard.dataset.id = theme.id;
-    
-    // Fortschrittsbalken erstellen
-    const progressHTML = createThemeProgressHTML(theme);
-    
-    // Deadline-Info
-    let deadlineHTML = "";
-    if (theme.deadline) {
-      const daysRemaining = getDaysRemaining(theme.deadline);
-      const { text, className } = formatRemainingDays(daysRemaining);
-      
-      deadlineHTML = `
-        <div class="theme-deadline ${className}">
-          <span class="deadline-icon">⏰</span>
-          <span class="deadline-text">${text}</span>
-          <span class="deadline-date">${formatDate(theme.deadline)}</span>
-        </div>
-      `;
-    }
-    
-    themeCard.innerHTML = `
-      <div class="theme-header">
-        <h3 class="theme-title">${theme.title}</h3>
-        ${createStatusBadge(theme.status)}
-      </div>
-      <div class="theme-description">
-        ${theme.description || "Keine Beschreibung"}
-      </div>
-      ${deadlineHTML}
-      <div class="theme-meta">
-        <span class="theme-school-year">${theme.school_year || systemSettings.currentSchoolYear || ""}</span>
-        <span class="theme-students-count">${theme.students ? theme.students.length : 0}/${THEMES_CONFIG.maxStudentsPerTheme} Schüler</span>
-      </div>
-      ${progressHTML}
-      <div class="theme-actions">
-        <button class="btn-edit" data-id="${theme.id}">Bearbeiten</button>
-        <button class="btn-manage-students" data-id="${theme.id}">Schüler verwalten</button>
-        <button class="btn-delete" data-id="${theme.id}">Löschen</button>
-      </div>
-    `;
-    
-    // Event-Listener für die Buttons
-    themeCard.querySelector(".btn-edit").addEventListener("click", () => {
-      showEditThemeModal(theme);
-    });
-    
-    themeCard.querySelector(".btn-manage-students").addEventListener("click", () => {
-      showStudentsManagement(theme);
-    });
-    
-    themeCard.querySelector(".btn-delete").addEventListener("click", () => {
-      confirmDeleteTheme(theme);
-    });
-    
-    elements.themesList.appendChild(themeCard);
-  });
+.tab.active {
+  color: var(--primary-color);
 }
 
-/**
- * Zeigt den Modal für ein neues Thema
- */
-function showNewThemeModal() {
-  editMode = false;
-  selectedTheme = null;
-  
-  // Modal-Titel setzen
-  elements.themeModalTitle.textContent = "Neues Thema erstellen";
-  
-  // Formular zurücksetzen
-  elements.themeForm.reset();
-  
-  // Standardwerte setzen
-  const today = new Date();
-  const twoWeeksLater = new Date(today);
-  twoWeeksLater.setDate(today.getDate() + 14);
-  
-  elements.themeDeadlineInput.value = twoWeeksLater.toISOString().split('T')[0];
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.themeSchoolYearSelect, systemSettings.currentSchoolYear);
-  
-  // Bewertungsraster-Dropdown befüllen
-  populateAssessmentTemplateSelect(elements.themeTemplateSelect, "standard");
-  
-  // Modal anzeigen
-  elements.themeModal.style.display = "flex";
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background-color: var(--accent-color);
 }
 
-/**
- * Zeigt den Modal zum Bearbeiten eines Themas
- */
-function showEditThemeModal(theme) {
-  editMode = true;
-  selectedTheme = theme;
-  
-  // Modal-Titel setzen
-  elements.themeModalTitle.textContent = "Thema bearbeiten";
-  
-  // Formular mit Daten füllen
-  elements.themeNameInput.value = theme.title;
-  elements.themeDescriptionInput.value = theme.description || "";
-  elements.themeDeadlineInput.value = theme.deadline || "";
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.themeSchoolYearSelect, theme.school_year || systemSettings.currentSchoolYear);
-  
-  // Bewertungsraster-Dropdown befüllen
-  populateAssessmentTemplateSelect(elements.themeTemplateSelect, theme.assessment_template_id || "standard");
-  
-  // Modal anzeigen
-  elements.themeModal.style.display = "flex";
+.tab-content {
+  display: none;
+  animation: fadeIn 0.3s ease;
 }
 
-/**
- * Speichert ein Thema (neu oder bearbeitet)
- */
-async function saveTheme(event) {
-  event.preventDefault();
-  
-  const title = elements.themeNameInput.value.trim();
-  const description = elements.themeDescriptionInput.value.trim();
-  const deadline = elements.themeDeadlineInput.value;
-  const schoolYear = elements.themeSchoolYearSelect.value;
-  const templateId = elements.themeTemplateSelect.value;
-  
-  if (!title) {
-    showNotification("Bitte geben Sie einen Titel ein.", "warning");
-    return;
+.tab-content.active {
+  display: block;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  padding: 0.75rem 1rem;
+  margin: 5px 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+input[type="date"] {
+  min-height: 50px;
+}
+
+input[type="number"] {
+  width: 80px;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.2);
+}
+
+button {
+  background-color: var(--primary-color);
+  border: none;
+  color: white;
+  padding: 0.75rem 1rem;
+  margin: 5px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-weight: 500;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button:hover {
+  background-color: var(--primary-light);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+}
+
+.btn-success {
+  background-color: var(--success-color);
+}
+
+.btn-warning {
+  background-color: var(--warning-color);
+}
+
+.btn-danger {
+  background-color: var(--error-color);
+}
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+.btn-info {
+  background-color: var(--info-color);
+}
+
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-export svg {
+  width: 16px;
+  height: 16px;
+}
+
+.teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.teacher-card {
+  background: white;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.teacher-card:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.teacher-card img {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+  object-fit: cover;
+  background-color: #f0f0f0;
+}
+
+.teacher-card h3 {
+  margin: 0.5rem 0;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.permission-badge {
+  background-color: var(--info-color);
+  color: white;
+  padding: 3px 6px;
+  border-radius: 50%;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  animation: fadeInOut 3s ease forwards;
+  color: white;
+}
+
+.notification.success {
+  background-color: var(--success-color);
+}
+
+.notification.warning {
+  background-color: var(--warning-color);
+}
+
+.notification.error {
+  background-color: var(--error-color);
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(20px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(20px); }
+}
+
+.version {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.main-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 992px) {
+  .main-layout {
+    flex-direction: row;
   }
   
-  showLoader();
+  .sidebar {
+    width: 300px;
+    flex-shrink: 0;
+  }
   
-  try {
-    if (editMode && selectedTheme) {
-      // Thema aktualisieren
-      await updateTheme(selectedTheme.id, {
-        title,
-        description,
-        deadline,
-        school_year: schoolYear,
-        assessment_template_id: templateId,
-        updated_at: new Date().toISOString()
-      });
-      
-      showNotification("Thema erfolgreich aktualisiert.");
-    } else {
-      // Neues Thema erstellen
-      await createTheme({
-        title,
-        description,
-        deadline,
-        created_by: currentUser.code,
-        school_year: schoolYear,
-        assessment_template_id: templateId
-      });
-      
-      showNotification("Thema erfolgreich erstellt.");
-    }
-    
-    // Modal schließen
-    elements.themeModal.style.display = "none";
-    
-    // Themenliste aktualisieren
-    updateThemesList();
-  } catch (error) {
-    console.error("Fehler beim Speichern des Themas:", error);
-    showNotification("Fehler beim Speichern des Themas: " + error.message, "error");
-  } finally {
-    hideLoader();
+  .content-area {
+    flex-grow: 1;
   }
 }
 
-/**
- * Bestätigt das Löschen eines Themas
- */
-function confirmDeleteTheme(theme) {
-  if (confirm(`Möchten Sie das Thema "${theme.title}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-    deleteThemeConfirmed(theme.id);
+.sidebar {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.content-area {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.student-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.student-item {
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  background: #f5f8fa;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.student-item:hover {
+  background: #e9f0f7;
+}
+
+.student-item.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.student-item.pending {
+  border-left: 4px solid var(--status-pending);
+}
+
+.student-item.in_progress {
+  border-left: 4px solid var(--status-in-progress);
+}
+
+.student-item.completed {
+  border-left: 4px solid var(--status-completed);
+}
+
+.student-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.student-name {
+  font-weight: 500;
+}
+
+.student-theme {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.student-class {
+  font-size: 0.8rem;
+  color: var(--info-color);
+  font-weight: 500;
+}
+
+.student-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.assessment-container {
+  padding: 20px;
+  border-radius: 12px;
+  background: white;
+}
+
+.student-header {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.student-header h2 {
+  color: var(--primary-color);
+  margin-bottom: 5px;
+}
+
+.final-grade-display {
+  font-size: 3rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-color);
+  margin: 20px 0;
+}
+
+.final-grade-input {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+/* Bewertungskategorie: Box-Stil hinzufügen */
+.assessment-category {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f9f9f9;
+}
+
+/* Überschriften in den Bewertungs-Kategorien mittig zentrieren */
+.category-header {
+  text-align: center;
+  margin-bottom: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.category-header h3 {
+  margin: 0;
+  color: white;
+}
+
+.weight-badge {
+  background-color: rgba(255, 255, 255, 0.2);
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.category-grade {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--primary-dark);
+  margin: 10px 0;
+}
+
+.grade-buttons {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.grade-button {
+  min-width: 35px;
+  height: 35px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.grade-button:hover {
+  transform: scale(1.1);
+}
+
+/* Geändert: Blauer Rahmen für ausgewählte Note-Buttons */
+.grade-button.selected {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--blue-accent);
+}
+
+.grade-button.grade-0  { background-color: #95a5a6; }
+.grade-button.grade-1  { background-color: #27ae60; }
+.grade-button.grade-2  { background-color: #2ecc71; }
+.grade-button.grade-3  { background-color: #f1c40f; color: #333; }
+.grade-button.grade-4  { background-color: #e67e22; }
+.grade-button.grade-5  { background-color: #d35400; }
+.grade-button.grade-6  { background-color: #c0392b; }
+
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 10px 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+table td {
+  padding: 10px 15px;
+  border-top: 1px solid #e0e0e0;
+}
+
+table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+table tr:hover {
+  background-color: #f1f1f1;
+}
+
+/* Sortierbare Tabellen-Header */
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.sortable-header:hover {
+  background-color: var(--primary-light);
+}
+
+.sort-icon {
+  margin-left: 5px;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.sortable-header.asc .sort-icon {
+  opacity: 1;
+}
+
+.sortable-header.desc .sort-icon {
+  opacity: 1;
+}
+
+.teacher-admin-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 12px 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.teacher-admin-table td {
+  padding: 12px 15px;
+  border-top: 1px solid #e0e0e0;
+  vertical-align: middle;
+}
+
+.teacher-admin-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.teacher-admin-table tr:hover {
+  background-color: #f1f1f1;
+}
+
+.overview-table th {
+  background-color: var(--primary-color);
+  color: white;
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.overview-table td {
+  padding: 8px 10px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.85rem;
+}
+
+.overview-table tr.active {
+  border-left: 4px solid var(--status-active);
+}
+
+.overview-table tr.completed {
+  border-left: 4px solid var(--status-completed);
+}
+
+.overview-table tr.overdue {
+  border-left: 4px solid var(--status-overdue);
+}
+
+.edit-btn, .btn-edit {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: auto;
+}
+
+.btn-edit:hover {
+  background-color: var(--primary-light);
+}
+
+.btn-delete {
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  min-height: auto;
+  padding: 6px 12px;
+}
+
+.btn-delete:hover {
+  background-color: #c0392b;
+}
+
+.btn-details {
+  background-color: var(--info-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  min-height: auto;
+  padding: 6px 12px;
+}
+
+.btn-details:hover {
+  background-color: #2980b9;
+}
+
+.btn-manage-students {
+  background-color: var(--success-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  min-height: auto;
+  padding: 6px 12px;
+}
+
+.btn-manage-students:hover {
+  background-color: #219653;
+}
+
+.selectors {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.selector-group {
+  flex: 1;
+  min-width: 200px;
+}
+
+.selector-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--primary-dark);
+}
+
+.export-button-container {
+  margin-left: auto;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--card-shadow);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content.modal-large {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--primary-dark);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #777;
+  min-height: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 15px;
+}
+
+.loader-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid var(--primary-light);
+  border-bottom-color: var(--primary-color);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid var(--primary-light);
+  border-bottom-color: var(--primary-color);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
   }
 }
 
-/**
- * Löscht ein Thema nach Bestätigung
- */
-async function deleteThemeConfirmed(themeId) {
-  showLoader();
-  
-  try {
-    await deleteTheme(themeId);
-    
-    showNotification("Thema erfolgreich gelöscht.");
-    
-    // Themenliste aktualisieren
-    updateThemesList();
-  } catch (error) {
-    console.error("Fehler beim Löschen des Themas:", error);
-    showNotification("Fehler beim Löschen des Themas: " + error.message, "error");
-  } finally {
-    hideLoader();
+.teacher-info {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.teacher-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.teacher-name {
+  color: white;
+  font-weight: 500;
+}
+
+.logout-btn {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--primary-dark);
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.checkbox-text {
+  margin-left: 8px;
+}
+
+.date-display {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.student-grade {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 5px;
+  display: inline-block;
+}
+
+/* Höhe des Textfeldes angepasst */
+#studentInfoText {
+  width: 100%;
+  height: 100px; /* 4 Zeilen statt min-height: 300px */
+  box-sizing: border-box;
+  resize: vertical; /* Optional: ermöglicht Benutzer das Anpassen der Höhe */
+}
+
+.info-text-container {
+  background: #f8f9fa;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.info-text-container h3 {
+  margin-bottom: 10px;
+  color: var(--primary-dark);
+}
+
+/* Animation für gespeicherten Text */
+.save-flash {
+  animation: saveFlash 1s ease;
+}
+
+@keyframes saveFlash {
+  0% { background-color: rgba(52, 152, 219, 0.2); }
+  100% { background-color: transparent; }
+}
+
+/* Admin-Login Bereich */
+.admin-login-form {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.admin-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-buttons button {
+  flex: 1;
+}
+
+.admin-access {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  margin-top: 2rem;
+}
+
+.admin-access button {
+  background-color: #6c757d;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+}
+
+/* System-Info */
+.card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+}
+
+.card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+
+#systemStats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.section {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.section h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--primary-dark);
+  text-align: center;
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+/* ADMIN-LÖSCH-STYLES */
+
+/* Gefahrenbereich - Rote Karte */
+.danger-zone {
+  background: var(--danger-bg);
+  border: 2px solid var(--danger-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.danger-zone h3 {
+  color: var(--error-color);
+  border-bottom: 2px solid var(--error-color);
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+}
+
+.warning-text {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  color: #991b1b;
+}
+
+.danger-actions {
+  display: flex;
+  gap: 15px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+.danger-actions .btn-danger {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.danger-actions .btn-danger:hover {
+  background-color: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.danger-explanation {
+  background: #fef3f2;
+  border: 1px solid #fed7d7;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.danger-explanation h4 {
+  color: var(--error-color);
+  margin-bottom: 10px;
+}
+
+.danger-explanation ul {
+  margin-left: 20px;
+  color: #7f1d1d;
+}
+
+.danger-explanation li {
+  margin-bottom: 8px;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.help-text br {
+  margin-bottom: 3px;
+}
+
+/* System-Aktionen */
+.system-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.system-actions button {
+  flex: 1;
+  min-width: 150px;
+}
+
+/* Admin-Status-Indikatoren */
+.status-online {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.status-offline {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.status-warning {
+  color: var(--warning-color);
+  font-weight: bold;
+}
+
+/* Lehrer-Code Hervorhebung */
+.teacher-code {
+  font-family: 'Courier New', monospace;
+  background-color: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+/* Admin-Tabellen-Scrolling */
+.table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Animation für Admin-Bereiche */
+.admin-fade-in {
+  animation: adminFadeIn 0.4s ease forwards;
+}
+
+@keyframes adminFadeIn {
+  0% { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0); 
   }
 }
 
-/**
- * Zeigt die Schüler-Verwaltung für ein Thema
- */
-function showStudentsManagement(theme) {
-  selectedTheme = theme;
-  
-  // Studenten-Container anzeigen, Themen-Container ausblenden
-  elements.themesContainer.style.display = "none";
-  elements.studentsContainer.style.display = "block";
-  
-  // Überschrift aktualisieren
-  const studentsHeading = document.querySelector("#studentsContainer h2");
-  if (studentsHeading) {
-    studentsHeading.textContent = `Schüler für Thema: ${theme.title}`;
+/* Erfolgs-/Fehler-Feedback für Admin-Aktionen */
+.action-feedback {
+  padding: 10px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-weight: 500;
+}
+
+.action-feedback.success {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.action-feedback.error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+/* NEUE STYLES FÜR THEMEN UND BEWERTUNGSRASTER */
+
+/* Themen-Header mit Filter und Button */
+.themes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.themes-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.theme-filter {
+  min-width: 180px;
+}
+
+/* Assessment-Filter */
+.assessment-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.filter-select {
+  width: 100%;
+  min-width: 200px;
+}
+
+/* Themen-Liste */
+.themes-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Themen-Karte */
+.theme-card {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  border-left: 4px solid var(--primary-color);
+  transition: var(--transition);
+}
+
+.theme-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.theme-card.active {
+  border-left-color: var(--status-active);
+}
+
+.theme-card.completed {
+  border-left-color: var(--status-completed);
+}
+
+.theme-card.overdue {
+  border-left-color: var(--status-overdue);
+}
+
+.theme-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.theme-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--primary-dark);
+}
+
+.theme-description {
+  margin-bottom: 15px;
+  color: #666;
+  font-size: 0.9rem;
+  flex-grow: 1;
+}
+
+.theme-deadline {
+  display: flex;
+  align-items: center;
+  background-color: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.deadline-icon {
+  color: var(--warning-color);
+}
+
+.deadline-text {
+  font-weight: 500;
+}
+
+.deadline-date {
+  margin-left: auto;
+  color: #666;
+}
+
+.theme-deadline.overdue {
+  background-color: #fdeded;
+  color: var(--error-color);
+}
+
+.theme-deadline.due-today, .theme-deadline.due-soon {
+  background-color: #fff8e6;
+  color: var(--warning-color);
+}
+
+.theme-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.theme-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+}
+
+/* Schüler-Container */
+.students-actions {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.students-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.student-card {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: var(--card-shadow);
+  border-left: 4px solid var(--primary-color);
+}
+
+.student-card.pending {
+  border-left-color: var(--status-pending);
+}
+
+.student-card.in_progress {
+  border-left-color: var(--status-in-progress);
+}
+
+.student-card.completed {
+  border-left-color: var(--status-completed);
+}
+
+.student-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.student-details {
+  margin-bottom: 15px;
+}
+
+.student-teacher, .student-grade, .student-class-display {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.label {
+  font-weight: 500;
+  color: #666;
+}
+
+.value {
+  color: var(--primary-dark);
+}
+
+.student-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Status-Badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  color: white;
+}
+
+.status-badge.status-active {
+  background-color: var(--status-active);
+}
+
+.status-badge.status-completed {
+  background-color: var(--status-completed);
+}
+
+.status-badge.status-overdue {
+  background-color: var(--status-overdue);
+}
+
+.status-badge.status-pending {
+  background-color: var(--status-pending);
+}
+
+.status-badge.status-in-progress {
+  background-color: var(--status-in-progress);
+}
+
+/* Deadline-Warnung */
+.deadline-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 12px 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deadline-warning.urgent {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.deadline-warning-icon {
+  font-size: 1.2rem;
+}
+
+.deadline-warning-text {
+  flex-grow: 1;
+}
+
+.deadline-warning-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: inherit;
+  min-height: auto;
+  padding: 0;
+}
+
+/* Fortschrittsbalken */
+.progress-container {
+  margin-bottom: 15px;
+}
+
+.progress-bar {
+  height: 8px;
+  width: 100%;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+  display: flex;
+}
+
+.progress-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.progress-segment.completed {
+  background-color: var(--status-completed);
+}
+
+.progress-segment.in-progress {
+  background-color: var(--status-in-progress);
+}
+
+.progress-segment.pending {
+  background-color: #e0e0e0;
+}
+
+.progress-text {
+  font-size: 0.8rem;
+  color: #666;
+  text-align: right;
+}
+
+.progress-bar-container {
+  width: 100%;
+  position: relative;
+}
+
+.progress-bar {
+  height: 8px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar .progress-bar {
+  height: 100%;
+  background-color: var(--success-color);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* Bewertungsraster */
+.templates-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.templates-info {
+  background: #e8f4f8;
+  border: 1px solid #bee5eb;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: #0c5460;
+}
+
+.templates-count {
+  font-weight: 500;
+}
+
+.template-card {
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.template-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--primary-dark);
+}
+
+.template-description {
+  margin-bottom: 15px;
+  color: #666;
+  font-size: 0.9rem;
+  flex-grow: 1;
+}
+
+.template-categories {
+  margin-bottom: 15px;
+}
+
+.template-category {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.template-category:last-child {
+  border-bottom: none;
+}
+
+.template-category-name {
+  font-weight: 500;
+}
+
+.template-category-weight {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.template-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.categories-list {
+  margin-bottom: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.category-item-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.category-item-name {
+  font-weight: 500;
+}
+
+.category-item-weight {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.category-item-actions {
+  display: flex;
+  gap: 5px;
+}
+
+/* Leerer Zustand */
+.empty-state {
+  text-align: center;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.empty-state p {
+  margin-bottom: 15px;
+  color: #666;
+}
+
+/* Fehler-Zustand */
+.error-state {
+  text-align: center;
+  padding: 30px;
+  background-color: #fdeded;
+  border-radius: 10px;
+  margin: 20px 0;
+  color: var(--error-color);
+}
+
+.error-state p {
+  margin-bottom: 15px;
+}
+
+/* Willkommenskarte */
+.welcome-card {
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.welcome-card h2 {
+  margin-bottom: 15px;
+  color: var(--primary-color);
+}
+
+/* Berechtigungs-Icons */
+.permission-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-right: 5px;
+  font-size: 0.8rem;
+}
+
+.permission-icon.enabled {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.permission-icon.disabled {
+  background-color: #e0e0e0;
+  color: #666;
+}
+
+/* Avatar */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+  margin-right: 10px;
+}
+
+/* Media Queries für Responsive Design */
+@media (max-width: 768px) {
+  .themes-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
   
-  // Zurück-Button hinzufügen, falls noch nicht vorhanden
-  if (!document.getElementById("backToThemesBtn")) {
-    const backBtn = document.createElement("button");
-    backBtn.id = "backToThemesBtn";
-    backBtn.className = "btn-secondary";
-    backBtn.textContent = "Zurück zur Themenübersicht";
-    backBtn.addEventListener("click", () => {
-      elements.themesContainer.style.display = "block";
-      elements.studentsContainer.style.display = "none";
-    });
-    
-    // Button am Anfang des Containers einfügen
-    elements.studentsContainer.insertBefore(backBtn, elements.studentsContainer.firstChild);
+  .themes-actions {
+    width: 100%;
+    flex-direction: column;
   }
   
-  // Schüler-Liste aktualisieren
-  updateStudentsList();
+  .theme-filter {
+    width: 100%;
+  }
   
-  // Add-Student-Button aktualisieren (deaktivieren, wenn Maximum erreicht)
-  if (elements.addStudentBtn) {
-    const maxReached = theme.students && theme.students.length >= THEMES_CONFIG.maxStudentsPerTheme;
-    elements.addStudentBtn.disabled = maxReached;
-    elements.addStudentBtn.title = maxReached ? 
-      `Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt` : 
-      "Neuen Schüler hinzufügen";
-    
-    // Event-Listener für den Add-Button
-    elements.addStudentBtn.onclick = showNewStudentModal;
+  .theme-card {
+    width: 100%;
+  }
+  
+  .student-card {
+    width: 100%;
+  }
+  
+  .theme-actions, .student-actions {
+    flex-direction: column;
+  }
+  
+  .danger-actions {
+    flex-direction: column;
+  }
+  
+  .system-actions {
+    flex-direction: column;
+  }
+  
+  .final-grade-input {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .tabs {
+    flex-wrap: wrap;
+  }
+  
+  .selectors {
+    flex-direction: column;
+  }
+  
+  .export-button-container {
+    margin-left: 0;
+  }
+  
+  .assessment-filters {
+    flex-direction: column;
   }
 }
 
-/**
- * Aktualisiert die Schülerliste
- */
-function updateStudentsList() {
-  if (!elements.studentsList || !selectedTheme) return;
-  
-  // Liste leeren
-  elements.studentsList.innerHTML = "";
-  
-  // Wenn keine Schüler vorhanden sind
-  if (!selectedTheme.students || selectedTheme.students.length === 0) {
-    elements.studentsList.innerHTML = `
-      <div class="empty-state">
-        <p>Keine Schüler für dieses Thema</p>
-        <button id="emptyAddStudentBtn" class="btn-primary">Schüler hinzufügen</button>
-      </div>
-    `;
-    
-    // Event-Listener für den Button in der Empty State
-    const emptyAddStudentBtn = document.getElementById("emptyAddStudentBtn");
-    if (emptyAddStudentBtn) {
-      emptyAddStudentBtn.addEventListener("click", showNewStudentModal);
-    }
-    
-    return;
-  }
-  
-  // Schüler sortieren (alphabetisch)
-  const students = [...selectedTheme.students].sort((a, b) => a.name.localeCompare(b.name));
-  
-  // Schüler in der Liste anzeigen
-  students.forEach(student => {
-    const studentCard = document.createElement("div");
-    studentCard.className = `student-card ${student.status}`;
-    studentCard.dataset.id = student.id;
-    
-    // Lehrer-Info
-    const assignedTeacher = allTeachers.find(t => t.code === student.assigned_teacher);
-    const teacherName = assignedTeacher ? assignedTeacher.name : "Kein Lehrer zugewiesen";
-    
-    // Note (falls vorhanden)
-    const grade = student.assessment && student.assessment.finalGrade ? 
-      student.assessment.finalGrade : 
-      (student.status === STUDENT_STATUS.COMPLETED ? "Bewertet" : "-");
-    
-    studentCard.innerHTML = `
-      <div class="student-header">
-        <h3 class="student-name">${student.name}</h3>
-        ${createStudentStatusBadge(student.status)}
-      </div>
-      <div class="student-details">
-        <div class="student-teacher">
-          <span class="label">Prüfungslehrer:</span>
-          <span class="value">${teacherName}</span>
-        </div>
-        <div class="student-grade">
-          <span class="label">Note:</span>
-          <span class="value grade-${Math.round(grade) || 0}">${grade}</span>
-        </div>
-      </div>
-      <div class="student-actions">
-        <button class="btn-edit" data-id="${student.id}">Bearbeiten</button>
-        <button class="btn-delete" data-id="${student.id}">Entfernen</button>
-      </div>
-    `;
-    
-    // Event-Listener für die Buttons
-    studentCard.querySelector(".btn-edit").addEventListener("click", () => {
-      showEditStudentModal(student);
-    });
-    
-    studentCard.querySelector(".btn-delete").addEventListener("click", () => {
-      confirmRemoveStudent(student);
-    });
-    
-    elements.studentsList.appendChild(studentCard);
-  });
+/* Noten-Farben */
+.grade-1 {
+  background-color: rgba(39, 174, 96, 0.2);
+  color: #219653;
 }
 
-/**
- * Zeigt den Modal für einen neuen Schüler
- */
-function showNewStudentModal() {
-  editMode = false;
-  selectedStudent = null;
-  
-  // Modal-Titel setzen
-  elements.studentModalTitle.textContent = "Neuen Schüler hinzufügen";
-  
-  // Formular zurücksetzen
-  elements.studentForm.reset();
-  
-  // Lehrer-Dropdown befüllen
-  populateTeacherSelect(elements.studentTeacherSelect, allTeachers);
-  
-  // Modal anzeigen
-  elements.studentModal.style.display = "flex";
+.grade-2 {
+  background-color: rgba(46, 204, 113, 0.2);
+  color: #27ae60;
 }
 
-/**
- * Zeigt den Modal zum Bearbeiten eines Schülers
- */
-function showEditStudentModal(student) {
-  editMode = true;
-  selectedStudent = student;
-  
-  // Modal-Titel setzen
-  elements.studentModalTitle.textContent = "Schüler bearbeiten";
-  
-  // Formular mit Daten füllen
-  elements.studentNameInput.value = student.name;
-  
-  // Lehrer-Dropdown befüllen
-  populateTeacherSelect(elements.studentTeacherSelect, allTeachers, student.assigned_teacher);
-  
-  // Modal anzeigen
-  elements.studentModal.style.display = "flex";
+.grade-3 {
+  background-color: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
 }
 
-/**
- * Speichert einen Schüler (neu oder bearbeitet)
- */
-async function saveStudent(event) {
-  event.preventDefault();
-  
-  if (!selectedTheme) {
-    showNotification("Kein Thema ausgewählt.", "error");
-    return;
-  }
-  
-  const name = elements.studentNameInput.value.trim();
-  const assignedTeacher = elements.studentTeacherSelect.value;
-  
-  if (!name) {
-    showNotification("Bitte geben Sie einen Namen ein.", "warning");
-    return;
-  }
-  
-  if (!assignedTeacher) {
-    showNotification("Bitte wählen Sie einen Prüfungslehrer aus.", "warning");
-    return;
-  }
-  
-  showLoader();
-  
-  try {
-    if (editMode && selectedStudent) {
-      // Schüler aktualisieren
-      await updateStudent(selectedTheme.id, selectedStudent.id, {
-        name,
-        assigned_teacher: assignedTeacher
-      });
-      
-      showNotification("Schüler erfolgreich aktualisiert.");
-    } else {
-      // Prüfen, ob Maximum erreicht ist
-      if (selectedTheme.students && selectedTheme.students.length >= THEMES_CONFIG.maxStudentsPerTheme) {
-        throw new Error(`Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt`);
-      }
-      
-      // Neuen Schüler hinzufügen
-      await addStudentToTheme(selectedTheme.id, {
-        name,
-        assigned_teacher: assignedTeacher
-      });
-      
-      showNotification("Schüler erfolgreich hinzugefügt.");
-    }
-    
-    // Modal schließen
-    elements.studentModal.style.display = "none";
-    
-    // Schülerliste aktualisieren
-    updateStudentsList();
-  } catch (error) {
-    console.error("Fehler beim Speichern des Schülers:", error);
-    showNotification("Fehler beim Speichern des Schülers: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
+.grade-4 {
+  background-color: rgba(230, 126, 34, 0.2);
+  color: #e67e22;
 }
 
-/**
- * Bestätigt das Entfernen eines Schülers
- */
-function confirmRemoveStudent(student) {
-  if (confirm(`Möchten Sie den Schüler "${student.name}" wirklich entfernen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-    removeStudentConfirmed(selectedTheme.id, student.id);
-  }
+.grade-5 {
+  background-color: rgba(211, 84, 0, 0.2);
+  color: #d35400;
 }
 
-/**
- * Entfernt einen Schüler nach Bestätigung
- */
-async function removeStudentConfirmed(themeId, studentId) {
-  showLoader();
-  
-  try {
-    await removeStudentFromTheme(themeId, studentId);
-    
-    showNotification("Schüler erfolgreich entfernt.");
-    
-    // Schülerliste aktualisieren
-    updateStudentsList();
-  } catch (error) {
-    console.error("Fehler beim Entfernen des Schülers:", error);
-    showNotification("Fehler beim Entfernen des Schülers: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
+.grade-6 {
+  background-color: rgba(192, 57, 43, 0.2);
+  color: #c0392b;
 }
 
-/**
- * Aktualisiert den Bewertungs-Tab
- */
-function updateAssessmentTab() {
-  if (!elements.assessmentTab) return;
-  
-  // Lade Themen, in denen der Benutzer als Prüfungslehrer eingetragen ist
-  const themes = getThemesForAssessment(currentUser.code);
-  
-  // Studenten-Liste befüllen
-  updateAssessmentStudentList(themes);
+/* Klassen-Badge */
+.class-badge {
+  background-color: var(--info-color);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  display: inline-block;
 }
 
-/**
- * Aktualisiert die Liste der zu bewertenden Schüler
- */
-function updateAssessmentStudentList(themes) {
-  if (!elements.assessmentStudentList) return;
-  
-  // Liste leeren
-  elements.assessmentStudentList.innerHTML = "";
-  
-  // Wenn keine Themen vorhanden sind
-  if (!themes || themes.length === 0) {
-    elements.assessmentStudentList.innerHTML = `
-      <div class="empty-state">
-        <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-      </div>
-    `;
-    
-    // Auch den Inhalt leeren
-    if (elements.assessmentContent) {
-      elements.assessmentContent.innerHTML = `
-        <div class="welcome-card">
-          <h2>Bewertung von Schülern</h2>
-          <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-        </div>
-      `;
-    }
-    
-    return;
-  }
-  
-  // Alle Schüler sammeln, die dem aktuellen Lehrer zugewiesen sind
-  const students = [];
-  
-  themes.forEach(theme => {
-    if (theme.students) {
-      theme.students.forEach(student => {
-        if (student.assigned_teacher === currentUser.code) {
-          students.push({
-            ...student,
-            theme: {
-              id: theme.id,
-              title: theme.title,
-              deadline: theme.deadline,
-              assessment_template_id: theme.assessment_template_id
-            }
-          });
-        }
-      });
-    }
-  });
-  
-  // Wenn keine Schüler vorhanden sind
-  if (students.length === 0) {
-    elements.assessmentStudentList.innerHTML = `
-      <div class="empty-state">
-        <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-      </div>
-    `;
-    
-    // Auch den Inhalt leeren
-    if (elements.assessmentContent) {
-      elements.assessmentContent.innerHTML = `
-        <div class="welcome-card">
-          <h2>Bewertung von Schülern</h2>
-          <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-        </div>
-      `;
-    }
-    
-    return;
-  }
-  
-  // Schüler sortieren (nach Status, dann alphabetisch)
-  students.sort((a, b) => {
-    // Priorität: Offen, In Bearbeitung, Abgeschlossen
-    if (a.status !== b.status) {
-      if (a.status === STUDENT_STATUS.PENDING) return -1;
-      if (b.status === STUDENT_STATUS.PENDING) return 1;
-      if (a.status === STUDENT_STATUS.IN_PROGRESS) return -1;
-      if (b.status === STUDENT_STATUS.IN_PROGRESS) return 1;
-    }
-    
-    // Alphabetisch nach Namen
-    return a.name.localeCompare(b.name);
-  });
-  
-  // Schüler in der Liste anzeigen
-  students.forEach(student => {
-    const li = document.createElement("li");
-    li.className = `student-item ${student.status}`;
-    li.dataset.themeId = student.theme.id;
-    li.dataset.studentId = student.id;
-    
-    // Note (falls vorhanden)
-    const grade = student.assessment && student.assessment.finalGrade ? 
-      student.assessment.finalGrade : 
-      "-";
-    
-    li.innerHTML = `
-      <div class="student-info">
-        <div class="student-name">${student.name}</div>
-        <div class="student-theme">${student.theme.title}</div>
-      </div>
-      <div class="student-status">
-        ${createStudentStatusBadge(student.status)}
-        <div class="student-grade grade-${Math.round(grade) || 0}">${grade}</div>
-      </div>
-    `;
-    
-    // Event-Listener zum Anzeigen des Bewertungsformulars
-    li.addEventListener("click", () => {
-      document.querySelectorAll(".student-item").forEach(item => {
-        item.classList.remove("active");
-      });
-      li.classList.add("active");
-      
-      currentSelectedStudentId = student.id;
-      showAssessmentForm(student);
-    });
-    
-    elements.assessmentStudentList.appendChild(li);
-  });
-  
-  // Wenn noch kein Schüler ausgewählt ist, wähle den ersten aus
-  if (!currentSelectedStudentId && students.length > 0) {
-    elements.assessmentStudentList.querySelector(".student-item").click();
-  } else if (currentSelectedStudentId) {
-    // Wenn ein Schüler ausgewählt war, versuche ihn wieder auszuwählen
-    const selectedItem = elements.assessmentStudentList.querySelector(`.student-item[data-student-id="${currentSelectedStudentId}"]`);
-    if (selectedItem) {
-      selectedItem.click();
-    } else {
-      // Wenn der Schüler nicht mehr existiert, wähle den ersten aus
-      elements.assessmentStudentList.querySelector(".student-item")?.click();
-    }
-  }
+/* Template-Limit-Warnung */
+.template-limit-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
 }
 
-/**
- * Zeigt das Bewertungsformular für einen Schüler
- */
-async function showAssessmentForm(student) {
-  if (!elements.assessmentContent) return;
-  
-  // Ladebalken anzeigen
-  elements.assessmentContent.innerHTML = `
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Bewertungsformular wird geladen...</p>
-    </div>
-  `;
-  
-  try {
-    // Template für das Bewertungsraster laden
-    const templateId = student.theme.assessment_template_id || "standard";
-    const template = assessmentTemplates.find(t => t.id === templateId);
-    
-    if (!template) {
-      throw new Error("Bewertungsraster nicht gefunden");
-    }
-    
-    // Bewertung abrufen
-    const assessment = student.assessment || {};
-    
-    // Durchschnittsnote berechnen
-    const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-    const finalGrade = assessment.finalGrade || avgGrade || "-";
-    const infoText = assessment.infoText || "";
-    
-    // HTML für das Formular erstellen
-    let html = `
-      <div class="assessment-container">
-        <div class="student-header">
-          <h2>${student.name}</h2>
-          <p>Thema: ${student.theme.title}</p>
-          ${student.theme.deadline ? `<p>Abgabefrist: ${formatDate(student.theme.deadline)}</p>` : ""}
-        </div>
-        
-        <div class="info-text-container">
-          <h3>Informationen zum Schüler</h3>
-          <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
-        </div>
-        
-        <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
-        
-        <div class="final-grade-input">
-          <label for="finalGrade">Endnote:</label>
-          <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
-          <button id="saveFinalGradeBtn">Speichern</button>
-          <button id="useAverageBtn">Durchschnitt übernehmen</button>
-        </div>
-    `;
-    
-    // Kategorie-Noten
-    template.categories.forEach(category => {
-      const grade = assessment[category.id] || 0;
-      html += `
-        <div class="assessment-category">
-          <div class="category-header">
-            <h3>${category.name}</h3>
-            ${category.weight !== 1 ? `<span class="weight-badge">Gewichtung: ${category.weight}</span>` : ""}
-          </div>
-          <div class="category-grade">${grade > 0 ? grade.toFixed(1) : "-"}</div>
-          <div class="grade-buttons" data-category="${category.id}">
-      `;
-      
-      for (let i = 1; i <= 6; i++) {
-        for (let decimal of [0, 0.5]) {
-          const currentGrade = i + decimal;
-          if (currentGrade <= 6) {
-            const isSelected = (grade === currentGrade);
-            html += `
-              <button class="grade-button grade-${Math.floor(currentGrade)}${isSelected ? ' selected' : ''}" 
-                      data-grade="${currentGrade}">
-                ${currentGrade.toFixed(1)}
-              </button>
-            `;
-          }
-        }
-      }
-      
-      const isZeroSelected = (grade === 0);
-      html += `
-            <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
-          </div>
-        </div>
-      `;
-    });
-    
-    html += `</div>`;
-    elements.assessmentContent.innerHTML = html;
-    
-    // Event-Listener für die Note-Buttons und weitere Aktionen
-    setupAssessmentEventListeners(student);
-    
-  } catch (error) {
-    console.error("Fehler beim Laden des Bewertungsformulars:", error);
-    elements.assessmentContent.innerHTML = `
-      <div class="error-state">
-        <p>Fehler beim Laden des Bewertungsformulars: ${error.message}</p>
-        <button id="retryBtn" class="btn-primary">Erneut versuchen</button>
-      </div>
-    `;
-    
-    // Event-Listener für den Retry-Button
-    const retryBtn = document.getElementById("retryBtn");
-    if (retryBtn) {
-      retryBtn.addEventListener("click", () => {
-        showAssessmentForm(student);
-      });
-    }
-  }
+.template-limit-reached {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
 }
 
-/**
- * Richtet die Event-Listener für das Bewertungsformular ein
- */
-function setupAssessmentEventListeners(student) {
-  // Note-Buttons
-  document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const categoryId = btn.parentElement.dataset.category;
-      const gradeValue = parseFloat(btn.dataset.grade);
-      
-      // Button-Darstellung aktualisieren
-      const buttons = btn.parentElement.querySelectorAll("button");
-      buttons.forEach(b => b.classList.remove("selected"));
-      btn.classList.add("selected");
-      
-      // Anzeige aktualisieren
-      const gradeDisplay = btn.parentElement.previousElementSibling;
-      gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
-      
-      // Bewertung speichern
-      await saveAssessmentValue(student, categoryId, gradeValue);
-    });
-  });
-  
-  // Endnote speichern
-  const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
-  if (saveFinalGradeBtn) {
-    saveFinalGradeBtn.addEventListener("click", async () => {
-      const inputVal = parseFloat(document.getElementById("finalGrade").value);
-      if (isNaN(inputVal) || inputVal < 1 || inputVal > 6) {
-        showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
-        return;
-      }
-      
-      await saveAssessmentValue(student, "finalGrade", inputVal);
-    });
-  }
-  
-  // Durchschnitt als Endnote übernehmen
-  const useAverageBtn = document.getElementById("useAverageBtn");
-  if (useAverageBtn) {
-    useAverageBtn.addEventListener("click", async () => {
-      const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-      if (!avgGrade) {
-        showNotification("Es ist kein Durchschnitt vorhanden.", "warning");
-        return;
-      }
-      
-      document.getElementById("finalGrade").value = avgGrade;
-      await saveAssessmentValue(student, "finalGrade", parseFloat(avgGrade));
-    });
-  }
-  
-  // Infos speichern
-  const infoTextArea = document.getElementById("studentInfoText");
-  if (infoTextArea) {
-    infoTextArea.addEventListener("input", () => {
-      infoTextArea.dataset.changed = "true";
-    });
-    
-    setupInfoTextAutoSave(student);
-  }
+/* Sortierung Visual Feedback */
+.theme-sort-active {
+  background-color: #e8f4f8;
+  border: 1px solid #bee5eb;
 }
 
-/**
- * Speichert einen Bewertungswert
- */
-async function saveAssessmentValue(student, key, value) {
-  showLoader();
-  
-  try {
-    // Assessment-Objekt erstellen
-    const assessment = {
-      ...student.assessment
-    };
-    
-    // Wert setzen
-    assessment[key] = value;
-    
-    // Bewertung speichern
-    await updateStudentAssessment(student.theme.id, student.id, assessment);
-    
-    // Wenn es sich um die Endnote handelt, aktualisiere die Anzeige in der Liste
-    if (key === "finalGrade") {
-      const listItem = document.querySelector(`.student-item[data-student-id="${student.id}"]`);
-      if (listItem) {
-        const gradeElement = listItem.querySelector(".student-grade");
-        if (gradeElement) {
-          gradeElement.textContent = value;
-          gradeElement.className = `student-grade grade-${Math.round(value)}`;
-        }
-        
-        // Status aktualisieren
-        const statusElement = listItem.querySelector(".student-status");
-        if (statusElement) {
-          listItem.className = `student-item ${STUDENT_STATUS.COMPLETED} active`;
-          statusElement.innerHTML = `
-            ${createStudentStatusBadge(STUDENT_STATUS.COMPLETED)}
-            <div class="student-grade grade-${Math.round(value)}">${value}</div>
-          `;
-        }
-      }
-    }
-    
-    // Durchschnitt neu berechnen
-    const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-    const avgDisplay = document.querySelector(".final-grade-display");
-    if (avgDisplay) {
-      avgDisplay.textContent = `Ø ${avgGrade || "0.0"}`;
-    }
-    
-    showNotification("Bewertung gespeichert.");
-  } catch (error) {
-    console.error("Fehler beim Speichern der Bewertung:", error);
-    showNotification("Fehler beim Speichern der Bewertung: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Richtet die automatische Speicherung des Info-Texts ein
- */
-function setupInfoTextAutoSave(student) {
-  if (infoTextSaveTimer) {
-    clearInterval(infoTextSaveTimer);
-  }
-  
-  infoTextSaveTimer = setInterval(async () => {
-    const area = document.getElementById("studentInfoText");
-    if (area && area.dataset.changed === "true") {
-      const assessment = {
-        ...student.assessment,
-        infoText: area.value
-      };
-      
-      try {
-        await updateStudentAssessment(student.theme.id, student.id, assessment);
-        area.dataset.changed = "false";
-        
-        // Visuelle Rückmeldung
-        area.classList.add("save-flash");
-        setTimeout(() => {
-          area.classList.remove("save-flash");
-        }, 1000);
-      } catch (error) {
-        console.error("Fehler beim Speichern des Info-Texts:", error);
-      }
-    }
-  }, 60000); // Alle 60 Sekunden speichern
-}
-
-/**
- * Aktualisiert den Übersichts-Tab
- */
-function updateOverviewTab() {
-  if (!elements.overviewTab) return;
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.overviewSchoolYearSelect);
-  
-  // Übersichtstabelle aktualisieren
-  updateOverviewTable();
-}
-
-/**
- * Aktualisiert die Übersichtstabelle
- */
-function updateOverviewTable() {
-  if (!elements.overviewTable) return;
-  
-  const tbody = elements.overviewTable.querySelector("tbody");
-  if (!tbody) return;
-  
-  // Tabelle leeren
-  tbody.innerHTML = "";
-  
-  // Filter anwenden
-  const schoolYear = elements.overviewSchoolYearSelect ? elements.overviewSchoolYearSelect.value : "";
-  const status = elements.overviewStatusSelect ? elements.overviewStatusSelect.value : "";
-  
-  // Themen filtern
-  let filteredThemes = [];
-  
-  if (currentUser.permissions && currentUser.permissions.canCreateThemes) {
-    // Themen-Ersteller sieht seine Themen
-    filteredThemes = getThemesCreatedByTeacher(currentUser.code);
-  } else {
-    // Normale Lehrer sehen Schüler, die ihnen zugewiesen sind
-    filteredThemes = getThemesForAssessment(currentUser.code);
-  }
-  
-  // Nach Schuljahr filtern
-  if (schoolYear) {
-    filteredThemes = filteredThemes.filter(theme => theme.school_year === schoolYear);
-  }
-  
-  // Nach Status filtern
-  if (status) {
-    filteredThemes = filteredThemes.filter(theme => theme.status === status);
-  }
-  
-  // Wenn keine Themen vorhanden sind
-  if (filteredThemes.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6">Keine Themen gefunden</td></tr>`;
-    return;
-  }
-  
-  // Themen sortieren (nach Status, dann nach Deadline)
-  filteredThemes.sort((a, b) => {
-    if (a.status !== b.status) {
-      if (a.status === THEME_STATUS.OVERDUE) return -1;
-      if (b.status === THEME_STATUS.OVERDUE) return 1;
-      if (a.status === THEME_STATUS.ACTIVE) return -1;
-      if (b.status === THEME_STATUS.ACTIVE) return 1;
-    }
-    
-    if (a.deadline && b.deadline) {
-      return new Date(a.deadline) - new Date(b.deadline);
-    } else if (a.deadline) {
-      return -1;
-    } else if (b.deadline) {
-      return 1;
-    }
-    
-    return 0;
-  });
-  
-  // Themen in der Tabelle anzeigen
-  filteredThemes.forEach(theme => {
-    const row = document.createElement("tr");
-    row.className = theme.status;
-    
-    // Deadline-Info
-    let deadlineText = "-";
-    let deadlineClass = "";
-    if (theme.deadline) {
-      const daysRemaining = getDaysRemaining(theme.deadline);
-      const { text, className } = formatRemainingDays(daysRemaining);
-      deadlineText = `${formatDate(theme.deadline)}<br><span class="${className}">${text}</span>`;
-      deadlineClass = className;
-    }
-    
-    // Fortschritt berechnen
-    const total = theme.students ? theme.students.length : 0;
-    const completed = theme.students ? theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
-    const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    
-    row.innerHTML = `
-      <td>${theme.title}</td>
-      <td>${theme.school_year || systemSettings.currentSchoolYear || "-"}</td>
-      <td class="${deadlineClass}">${deadlineText}</td>
-      <td>${createStatusBadge(theme.status)}</td>
-      <td>
-        <div class="progress-bar-container" title="${completed}/${total} Schüler bewertet">
-          <div class="progress-bar" style="width: ${progressPercent}%"></div>
-          <span class="progress-text">${progressPercent}%</span>
-        </div>
-      </td>
-      <td>
-        <button class="btn-details" data-id="${theme.id}">Details</button>
-      </td>
-    `;
-    
-    // Event-Listener für den Details-Button
-    row.querySelector(".btn-details").addEventListener("click", () => {
-      showThemeDetails(theme);
-    });
-    
-    tbody.appendChild(row);
-  });
-}
-
-/**
- * Zeigt die Details eines Themas an
- */
-function showThemeDetails(theme) {
-  // Hier könnte ein Modal mit detaillierten Informationen zum Thema angezeigt werden
-  alert(`Details für Thema "${theme.title}" werden noch implementiert.`);
-}
-
-/**
- * Exportiert die Daten
- */
-function exportData() {
-  // Filter anwenden
-  const schoolYear = elements.overviewSchoolYearSelect ? elements.overviewSchoolYearSelect.value : "";
-  const status = elements.overviewStatusSelect ? elements.overviewStatusSelect.value : "";
-  
-  // Themen filtern
-  let filteredThemes = [];
-  
-  if (currentUser.permissions && currentUser.permissions.canCreateThemes) {
-    // Themen-Ersteller sieht seine Themen
-    filteredThemes = getThemesCreatedByTeacher(currentUser.code);
-  } else {
-    // Normale Lehrer sehen Schüler, die ihnen zugewiesen sind
-    filteredThemes = getThemesForAssessment(currentUser.code);
-  }
-  
-  // Nach Schuljahr filtern
-  if (schoolYear) {
-    filteredThemes = filteredThemes.filter(theme => theme.school_year === schoolYear);
-  }
-  
-  // Nach Status filtern
-  if (status) {
-    filteredThemes = filteredThemes.filter(theme => theme.status === status);
-  }
-  
-  // Exportformat JSON
-  const exportData = {
-    exportDate: new Date().toISOString(),
-    teacher: {
-      name: currentUser.name,
-      code: currentUser.code
-    },
-    filters: {
-      schoolYear,
-      status
-    },
-    themes: filteredThemes
-  };
-  
-  const jsonString = JSON.stringify(exportData, null, 2);
-  
-  // Download
-  const blob = new Blob([jsonString], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `WBS_Export_${new Date().toISOString().split("T")[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  
-  showNotification("Daten wurden exportiert.");
+.assessment-sort-active {
+  background-color: #e8f4f8;
+  border: 1px solid #bee5eb;
 }
