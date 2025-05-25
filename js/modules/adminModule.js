@@ -1,5 +1,4 @@
-// ==== FÜR js/modules/adminModule.js ====
-// Ersetzen Sie die Imports am Anfang der Datei mit:
+// js/modules/adminModule.js - Vollständig erweiterte Version
 
 import { 
   showLoader, 
@@ -24,10 +23,11 @@ import {
   updateTeacherPermissions,
   loadSystemSettings,
   saveSystemSettings,
-  systemSettings
+  systemSettings,
+  updateSystemDates
 } from "../adminService.js";
-import { loadAssessmentTemplates } from "../assessmentService.js";
-import { TEACHER_PERMISSIONS } from "../constants.js";
+import { loadAssessmentTemplates, assessmentTemplates } from "../assessmentService.js";
+import { TEACHER_PERMISSIONS, ASSESSMENT_TEMPLATES } from "../constants.js";
 
 /**
  * Referenz auf die DOM-Elemente
@@ -48,14 +48,12 @@ let elements = {
   adminTabs: null,
   teachersTab: null,
   systemTab: null,
-  templatesTab: null,
   
   // Lehrer-Verwaltung
   newTeacherName: null,
   newTeacherCode: null,
   newTeacherPassword: null,
   canCreateThemes: null,
-  canManageTemplates: null,
   addTeacherBtn: null,
   teachersAdminTable: null,
   
@@ -65,7 +63,6 @@ let elements = {
   editTeacherCode: null,
   editTeacherPassword: null,
   editCanCreateThemes: null,
-  editCanManageTemplates: null,
   closeEditTeacherModal: null,
   saveTeacherBtn: null,
   deleteTeacherBtn: null,
@@ -85,6 +82,9 @@ let elements = {
   firebaseStatus: null,
   lastUpdate: null,
   currentSchoolYear: null,
+  schoolYearEnd: null,
+  lastAssessmentDate: null,
+  saveSystemSettingsBtn: null,
   
   // System-Aktionen
   refreshSystemBtn: null,
@@ -103,6 +103,7 @@ let elements = {
  */
 let selectedTeacher = null;
 let teacherToDelete = null;
+let lastSystemStatsUpdate = null;
 
 /**
  * Initialisiert das Admin-Modul
@@ -113,6 +114,9 @@ export function initAdminModule() {
   
   // Event-Listener hinzufügen
   setupEventListeners();
+  
+  // Systemeinstellungen laden
+  loadSystemSettings();
 }
 
 /**
@@ -134,14 +138,12 @@ function loadDOMElements() {
   elements.adminTabs = document.querySelectorAll("#adminSection .tab");
   elements.teachersTab = document.getElementById("teachers-tab");
   elements.systemTab = document.getElementById("system-tab");
-  elements.templatesTab = document.getElementById("templates-tab");
   
   // Lehrer-Verwaltung
   elements.newTeacherName = document.getElementById("newTeacherName");
   elements.newTeacherCode = document.getElementById("newTeacherCode");
   elements.newTeacherPassword = document.getElementById("newTeacherPassword");
   elements.canCreateThemes = document.getElementById("canCreateThemes");
-  elements.canManageTemplates = document.getElementById("canManageTemplates");
   elements.addTeacherBtn = document.getElementById("addTeacherBtn");
   elements.teachersAdminTable = document.getElementById("teachersAdminTable");
   
@@ -151,7 +153,6 @@ function loadDOMElements() {
   elements.editTeacherCode = document.getElementById("editTeacherCode");
   elements.editTeacherPassword = document.getElementById("editTeacherPassword");
   elements.editCanCreateThemes = document.getElementById("editCanCreateThemes");
-  elements.editCanManageTemplates = document.getElementById("editCanManageTemplates");
   elements.closeEditTeacherModal = document.getElementById("closeEditTeacherModal");
   elements.saveTeacherBtn = document.getElementById("saveTeacherBtn");
   elements.deleteTeacherBtn = document.getElementById("deleteTeacherBtn");
@@ -171,6 +172,9 @@ function loadDOMElements() {
   elements.firebaseStatus = document.getElementById("firebaseStatus");
   elements.lastUpdate = document.getElementById("lastUpdate");
   elements.currentSchoolYear = document.getElementById("currentSchoolYear");
+  elements.schoolYearEnd = document.getElementById("schoolYearEnd");
+  elements.lastAssessmentDate = document.getElementById("lastAssessmentDate");
+  elements.saveSystemSettingsBtn = document.getElementById("saveSystemSettingsBtn");
   
   // System-Aktionen
   elements.refreshSystemBtn = document.getElementById("refreshSystemBtn");
@@ -236,8 +240,6 @@ function setupEventListeners() {
         updateTeachersAdminTab();
       } else if (tabId === "system") {
         updateSystemInfoTab();
-      } else if (tabId === "templates") {
-        updateTemplatesTab();
       }
     });
   });
@@ -305,6 +307,26 @@ function setupEventListeners() {
   }
   if (elements.confirmDeleteTeacherBtn) {
     elements.confirmDeleteTeacherBtn.addEventListener("click", confirmDeleteTeacher);
+  }
+
+  // NEU: System-Einstellungen speichern
+  if (elements.saveSystemSettingsBtn) {
+    elements.saveSystemSettingsBtn.addEventListener("click", saveSystemSettingsHandler);
+  }
+
+  // NEU: Event-Listener für Schuljahr-Änderung
+  if (elements.currentSchoolYear) {
+    elements.currentSchoolYear.addEventListener("change", handleSchoolYearChange);
+  }
+
+  // NEU: Event-Listener für Schuljahresende-Änderung
+  if (elements.schoolYearEnd) {
+    elements.schoolYearEnd.addEventListener("change", validateSchoolYearEnd);
+  }
+
+  // NEU: Event-Listener für Bewertungsfrist-Änderung
+  if (elements.lastAssessmentDate) {
+    elements.lastAssessmentDate.addEventListener("change", validateAssessmentDate);
   }
 }
 
@@ -387,23 +409,27 @@ function updateTeachersAdminTab() {
     
     // Berechtigungen anzeigen
     const canCreateThemes = teacher.permissions && teacher.permissions[TEACHER_PERMISSIONS.CREATE_THEMES];
-    const canManageTemplates = teacher.permissions && teacher.permissions[TEACHER_PERMISSIONS.MANAGE_TEMPLATES];
+    
+    // NEU: Anzahl der Bewertungsraster des Lehrers anzeigen
+    const templateCount = getTeacherTemplateCount(teacher.code);
     
     tr.innerHTML = `
       <td>${teacher.name}</td>
       <td><span class="teacher-code">${teacher.code}</span></td>
       <td>
-        <span class="permission-icon ${canCreateThemes ? 'enabled' : 'disabled'}" title="Themen erstellen">
-          ${canCreateThemes ? '✓' : '✗'}
-        </span>
-        <span class="permission-icon ${canManageTemplates ? 'enabled' : 'disabled'}" title="Bewertungsraster verwalten">
-          ${canManageTemplates ? '✓' : '✗'}
-        </span>
+        <div class="teacher-permissions">
+          <span class="permission-icon ${canCreateThemes ? 'enabled' : 'disabled'}" title="Themen erstellen">
+            ${canCreateThemes ? '✓' : '✗'} Themen
+          </span>
+          <div class="template-count" title="Anzahl Bewertungsraster">
+            📝 ${templateCount}/${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher}
+          </div>
+        </div>
       </td>
       <td>${createdDate}</td>
       <td>
         <div class="teacher-actions">
-          <button class="edit-btn" data-code="${teacher.code}">✏️</button>
+          <button class="edit-btn" data-code="${teacher.code}" title="Bearbeiten">✏️</button>
         </div>
       </td>
     `;
@@ -414,6 +440,19 @@ function updateTeachersAdminTab() {
     
     tbody.appendChild(tr);
   });
+}
+
+/**
+ * NEU: Ermittelt die Anzahl der Bewertungsraster für einen Lehrer
+ */
+function getTeacherTemplateCount(teacherCode) {
+  if (!assessmentTemplates || !Array.isArray(assessmentTemplates)) {
+    return 0;
+  }
+  
+  return assessmentTemplates.filter(template => 
+    template.created_by === teacherCode
+  ).length;
 }
 
 /**
@@ -450,38 +489,278 @@ async function updateSystemInfoTab() {
     elements.lastUpdate.textContent = new Date().toLocaleString("de-DE");
   }
   
+  // NEU: Systemeinstellungen in die UI laden
   if (elements.currentSchoolYear) {
     elements.currentSchoolYear.value = systemSettings.currentSchoolYear || "";
     
-    // Event-Listener für Änderungen am Schuljahr
-    elements.currentSchoolYear.addEventListener("change", async () => {
-      const newSchoolYear = elements.currentSchoolYear.value;
-      
-      if (newSchoolYear) {
-        showLoader();
-        try {
-          await saveSystemSettings({
-            ...systemSettings,
-            currentSchoolYear: newSchoolYear
-          });
-          showNotification("Schuljahr aktualisiert.");
-        } catch (error) {
-          console.error("Fehler beim Speichern des Schuljahres:", error);
-          showNotification("Fehler beim Speichern des Schuljahres.", "error");
-        } finally {
-          hideLoader();
-        }
-      }
-    });
+    // Schuljahre-Dropdown befüllen, falls es ein Select ist
+    populateSchoolYearDropdown();
+  }
+  
+  if (elements.schoolYearEnd) {
+    elements.schoolYearEnd.value = systemSettings.schoolYearEnd || "";
+  }
+  
+  if (elements.lastAssessmentDate) {
+    elements.lastAssessmentDate.value = systemSettings.lastAssessmentDate || "";
+  }
+  
+  // NEU: Deadline-Warnungen prüfen
+  checkSystemDeadlineWarnings();
+  
+  lastSystemStatsUpdate = new Date();
+}
+
+/**
+ * NEU: Befüllt das Schuljahr-Dropdown
+ */
+function populateSchoolYearDropdown() {
+  if (!elements.currentSchoolYear || elements.currentSchoolYear.tagName !== "SELECT") return;
+  
+  const currentYear = new Date().getFullYear();
+  const currentValue = elements.currentSchoolYear.value;
+  
+  elements.currentSchoolYear.innerHTML = '<option value="">Bitte wählen...</option>';
+  
+  // Generiere Schuljahre (aktuelles Jahr ± 2 Jahre)
+  for (let i = -2; i <= 2; i++) {
+    const year = currentYear + i;
+    const schoolYear = `${year}/${year + 1}`;
+    
+    const option = document.createElement("option");
+    option.value = schoolYear;
+    option.textContent = schoolYear;
+    
+    if (schoolYear === currentValue) {
+      option.selected = true;
+    }
+    
+    elements.currentSchoolYear.appendChild(option);
   }
 }
 
 /**
- * Bewertungsraster-Tab aktualisieren
+ * NEU: Prüft System-Deadline-Warnungen
  */
-function updateTemplatesTab() {
-  // Diese Funktion wird implementiert, wenn wir das Bewertungsraster-UI erstellen
-  console.log("Bewertungsraster-Tab wird aktualisiert");
+function checkSystemDeadlineWarnings() {
+  const now = new Date();
+  let warnings = [];
+  
+  // Prüfe Schuljahresende
+  if (systemSettings.schoolYearEnd) {
+    const schoolYearEnd = new Date(systemSettings.schoolYearEnd);
+    const daysToEnd = Math.ceil((schoolYearEnd - now) / (1000 * 60 * 60 * 24));
+    
+    if (daysToEnd >= 0 && daysToEnd <= 30) {
+      warnings.push({
+        type: daysToEnd <= 7 ? "urgent" : "warning",
+        message: `Schuljahresende in ${daysToEnd} Tagen (${formatDate(systemSettings.schoolYearEnd)})`
+      });
+    }
+  }
+  
+  // Prüfe letzte Bewertungsfrist
+  if (systemSettings.lastAssessmentDate) {
+    const lastAssessmentDate = new Date(systemSettings.lastAssessmentDate);
+    const daysToAssessment = Math.ceil((lastAssessmentDate - now) / (1000 * 60 * 60 * 24));
+    
+    if (daysToAssessment >= 0 && daysToAssessment <= 14) {
+      warnings.push({
+        type: daysToAssessment <= 3 ? "urgent" : "warning",
+        message: `Letzte Bewertungsfrist in ${daysToAssessment} Tagen (${formatDate(systemSettings.lastAssessmentDate)})`
+      });
+    }
+  }
+  
+  // Warnungen anzeigen
+  displaySystemWarnings(warnings);
+}
+
+/**
+ * NEU: Zeigt System-Warnungen an
+ */
+function displaySystemWarnings(warnings) {
+  // Entferne vorherige Warnungen
+  const existingWarnings = document.querySelectorAll(".system-deadline-warning");
+  existingWarnings.forEach(warning => warning.remove());
+  
+  if (warnings.length === 0) return;
+  
+  const systemTab = elements.systemTab;
+  if (!systemTab) return;
+  
+  warnings.forEach(warning => {
+    const warningDiv = document.createElement("div");
+    warningDiv.className = `system-deadline-warning deadline-warning ${warning.type}`;
+    warningDiv.innerHTML = `
+      <span class="deadline-warning-icon">⚠️</span>
+      <span class="deadline-warning-text">${warning.message}</span>
+      <button class="deadline-warning-close">&times;</button>
+    `;
+    
+    // Event-Listener für Schließen-Button
+    warningDiv.querySelector(".deadline-warning-close").addEventListener("click", () => {
+      warningDiv.remove();
+    });
+    
+    // Warnung am Anfang des System-Tabs einfügen
+    systemTab.insertBefore(warningDiv, systemTab.firstChild);
+  });
+}
+
+/**
+ * NEU: Behandelt Schuljahr-Änderungen
+ */
+async function handleSchoolYearChange() {
+  if (!elements.currentSchoolYear) return;
+  
+  const newSchoolYear = elements.currentSchoolYear.value;
+  
+  if (newSchoolYear && newSchoolYear !== systemSettings.currentSchoolYear) {
+    showLoader();
+    try {
+      const updated = await saveSystemSettings({
+        ...systemSettings,
+        currentSchoolYear: newSchoolYear
+      });
+      
+      if (updated) {
+        showNotification("Schuljahr erfolgreich aktualisiert.");
+        
+        // Event auslösen für andere Module
+        document.dispatchEvent(new CustomEvent("systemSettingsUpdated", { 
+          detail: { ...systemSettings, currentSchoolYear: newSchoolYear }
+        }));
+      } else {
+        throw new Error("Fehler beim Speichern");
+      }
+    } catch (error) {
+      console.error("Fehler beim Speichern des Schuljahres:", error);
+      showNotification("Fehler beim Speichern des Schuljahres.", "error");
+      
+      // Wert zurücksetzen
+      elements.currentSchoolYear.value = systemSettings.currentSchoolYear || "";
+    } finally {
+      hideLoader();
+    }
+  }
+}
+
+/**
+ * NEU: Validiert das Schuljahresende
+ */
+function validateSchoolYearEnd() {
+  if (!elements.schoolYearEnd) return;
+  
+  const schoolYearEnd = elements.schoolYearEnd.value;
+  
+  if (schoolYearEnd) {
+    const endDate = new Date(schoolYearEnd);
+    const now = new Date();
+    
+    // Prüfe, ob das Datum in der Vergangenheit liegt
+    if (endDate < now) {
+      showNotification("Das Schuljahresende sollte in der Zukunft liegen.", "warning");
+    }
+    
+    // Prüfe, ob das Datum zu weit in der Zukunft liegt (mehr als 2 Jahre)
+    const maxDate = new Date(now.getTime() + (2 * 365 * 24 * 60 * 60 * 1000));
+    if (endDate > maxDate) {
+      showNotification("Das Schuljahresende liegt sehr weit in der Zukunft.", "warning");
+    }
+  }
+}
+
+/**
+ * NEU: Validiert die Bewertungsfrist
+ */
+function validateAssessmentDate() {
+  if (!elements.lastAssessmentDate || !elements.schoolYearEnd) return;
+  
+  const assessmentDate = elements.lastAssessmentDate.value;
+  const schoolYearEnd = elements.schoolYearEnd.value;
+  
+  if (assessmentDate && schoolYearEnd) {
+    const assessment = new Date(assessmentDate);
+    const schoolEnd = new Date(schoolYearEnd);
+    
+    // Bewertungsfrist sollte vor Schuljahresende liegen
+    if (assessment > schoolEnd) {
+      showNotification("Die Bewertungsfrist sollte vor dem Schuljahresende liegen.", "warning");
+    }
+  }
+}
+
+/**
+ * NEU: Speichert alle Systemeinstellungen
+ */
+async function saveSystemSettingsHandler() {
+  if (!elements.currentSchoolYear || !elements.schoolYearEnd || !elements.lastAssessmentDate) {
+    showNotification("Nicht alle Systemeinstellungen verfügbar.", "error");
+    return;
+  }
+  
+  const currentSchoolYear = elements.currentSchoolYear.value;
+  const schoolYearEnd = elements.schoolYearEnd.value;
+  const lastAssessmentDate = elements.lastAssessmentDate.value;
+  
+  if (!currentSchoolYear) {
+    showNotification("Bitte wählen Sie ein Schuljahr aus.", "warning");
+    elements.currentSchoolYear.focus();
+    return;
+  }
+  
+  if (!schoolYearEnd) {
+    showNotification("Bitte geben Sie das Schuljahresende an.", "warning");
+    elements.schoolYearEnd.focus();
+    return;
+  }
+  
+  if (!lastAssessmentDate) {
+    showNotification("Bitte geben Sie die letzte Bewertungsfrist an.", "warning");
+    elements.lastAssessmentDate.focus();
+    return;
+  }
+  
+  // Validierung
+  const endDate = new Date(schoolYearEnd);
+  const assessmentDate = new Date(lastAssessmentDate);
+  
+  if (assessmentDate > endDate) {
+    showNotification("Die Bewertungsfrist muss vor dem Schuljahresende liegen.", "error");
+    return;
+  }
+  
+  showLoader();
+  
+  try {
+    const newSettings = {
+      currentSchoolYear,
+      schoolYearEnd,
+      lastAssessmentDate
+    };
+    
+    const success = await updateSystemDates(schoolYearEnd, lastAssessmentDate);
+    
+    if (success) {
+      showNotification("Systemeinstellungen erfolgreich gespeichert.");
+      
+      // UI aktualisieren
+      await updateSystemInfoTab();
+      
+      // Event auslösen
+      document.dispatchEvent(new CustomEvent("systemSettingsUpdated", { 
+        detail: newSettings
+      }));
+    } else {
+      throw new Error("Fehler beim Speichern");
+    }
+  } catch (error) {
+    console.error("Fehler beim Speichern der Systemeinstellungen:", error);
+    showNotification("Fehler beim Speichern der Systemeinstellungen: " + error.message, "error");
+  } finally {
+    hideLoader();
+  }
 }
 
 /**
@@ -508,7 +787,6 @@ async function addNewTeacher() {
   const password = elements.newTeacherPassword ? elements.newTeacherPassword.value.trim() : "";
   
   const canCreateThemes = elements.canCreateThemes ? elements.canCreateThemes.checked : false;
-  const canManageTemplates = elements.canManageTemplates ? elements.canManageTemplates.checked : false;
 
   if (!name || !code || !password) {
     showNotification("Bitte alle Felder ausfüllen.", "warning");
@@ -525,8 +803,7 @@ async function addNewTeacher() {
   try {
     // Berechtigungen zusammenstellen
     const permissions = {
-      [TEACHER_PERMISSIONS.CREATE_THEMES]: canCreateThemes,
-      [TEACHER_PERMISSIONS.MANAGE_TEMPLATES]: canManageTemplates
+      [TEACHER_PERMISSIONS.CREATE_THEMES]: canCreateThemes
     };
     
     await addTeacher(name, code, password, permissions);
@@ -536,7 +813,6 @@ async function addNewTeacher() {
     if (elements.newTeacherCode) elements.newTeacherCode.value = "";
     if (elements.newTeacherPassword) elements.newTeacherPassword.value = "";
     if (elements.canCreateThemes) elements.canCreateThemes.checked = false;
-    if (elements.canManageTemplates) elements.canManageTemplates.checked = false;
     
     updateTeachersAdminTab();
     updateSystemInfoTab();
@@ -566,11 +842,6 @@ function showEditTeacherModal(teacher) {
       teacher.permissions[TEACHER_PERMISSIONS.CREATE_THEMES] === true;
   }
   
-  if (elements.editCanManageTemplates) {
-    elements.editCanManageTemplates.checked = teacher.permissions && 
-      teacher.permissions[TEACHER_PERMISSIONS.MANAGE_TEMPLATES] === true;
-  }
-  
   selectedTeacher = teacher;
   if (elements.editTeacherModal) elements.editTeacherModal.style.display = "flex";
 }
@@ -586,7 +857,6 @@ async function saveEditedTeacher() {
   const password = elements.editTeacherPassword ? elements.editTeacherPassword.value.trim() : "";
   
   const canCreateThemes = elements.editCanCreateThemes ? elements.editCanCreateThemes.checked : false;
-  const canManageTemplates = elements.editCanManageTemplates ? elements.editCanManageTemplates.checked : false;
 
   if (!name || !code || !password) {
     showNotification("Bitte alle Felder ausfüllen.", "warning");
@@ -603,8 +873,7 @@ async function saveEditedTeacher() {
   try {
     // Berechtigungen zusammenstellen
     const permissions = {
-      [TEACHER_PERMISSIONS.CREATE_THEMES]: canCreateThemes,
-      [TEACHER_PERMISSIONS.MANAGE_TEMPLATES]: canManageTemplates
+      [TEACHER_PERMISSIONS.CREATE_THEMES]: canCreateThemes
     };
     
     await updateTeacher(selectedTeacher.code, name, code, password, permissions);
@@ -715,7 +984,7 @@ function confirmDeleteAllSystemData() {
     return;
   }
   
-  if (!confirm("Sollen wirklich ALLE DATEN gelöscht werden?\n\n- Alle Lehrer (außer Standard-Lehrer)\n- Alle Themen und Gruppen\n- Alle Bewertungen\n- Kompletter System-Reset\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!")) {
+  if (!confirm("Sollen wirklich ALLE DATEN gelöscht werden?\n\n- Alle Lehrer (außer Standard-Lehrer)\n- Alle Themen und Gruppen\n- Alle Bewertungen\n- Alle Bewertungsraster\n- Kompletter System-Reset\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!")) {
     return;
   }
   
@@ -752,13 +1021,29 @@ async function performDeleteAllSystemData() {
 }
 
 /**
- * System-Daten exportieren
+ * NEU: System-Daten exportieren (mit neuen Feldern)
  */
 async function exportSystemData() {
   showLoader();
   try {
     const exportData = await exportAllData();
-    const jsonString = JSON.stringify(exportData, null, 2);
+    
+    // NEU: Erweitere Export-Daten mit zusätzlichen Informationen
+    const enhancedExportData = {
+      ...exportData,
+      exportedBy: "Administrator",
+      exportVersion: "2.0",
+      systemInfo: {
+        currentSchoolYear: systemSettings.currentSchoolYear,
+        schoolYearEnd: systemSettings.schoolYearEnd,
+        lastAssessmentDate: systemSettings.lastAssessmentDate,
+        totalTeachers: allTeachers.length,
+        totalTemplates: assessmentTemplates.length
+      },
+      statistics: await getSystemStats()
+    };
+    
+    const jsonString = JSON.stringify(enhancedExportData, null, 2);
     
     downloadFile(
       `WBS_System_Export_${new Date().toISOString().split('T')[0]}.json`, 
@@ -789,7 +1074,21 @@ function handleImportFile(event) {
       const content = e.target.result;
       const importData = JSON.parse(content);
       
-      if (confirm("Sollen die Daten wirklich importiert werden? Bestehende Daten werden überschrieben!")) {
+      // NEU: Validiere Import-Daten
+      if (!validateImportData(importData)) {
+        showNotification("Ungültiges oder inkompatibles Datenformat.", "error");
+        return;
+      }
+      
+      const confirmMessage = `Sollen die Daten wirklich importiert werden?\n\n` +
+        `Exportiert am: ${importData.exportDate ? new Date(importData.exportDate).toLocaleString('de-DE') : 'Unbekannt'}\n` +
+        `Version: ${importData.exportVersion || importData.version || 'Unbekannt'}\n` +
+        `Lehrer: ${importData.teachers ? importData.teachers.length : 0}\n` +
+        `Themen: ${importData.themes ? importData.themes.length : 0}\n` +
+        `Bewertungsraster: ${importData.assessmentTemplates ? importData.assessmentTemplates.length : 0}\n\n` +
+        `ACHTUNG: Bestehende Daten werden überschrieben!`;
+      
+      if (confirm(confirmMessage)) {
         showLoader();
         try {
           await importAllData(importData);
@@ -800,7 +1099,7 @@ function handleImportFile(event) {
           // Event auslösen, dass Lehrer aktualisiert wurden
           document.dispatchEvent(new CustomEvent("teachersUpdated", { detail: { teachers: allTeachers } }));
           
-          showNotification("Systemdaten wurden importiert.");
+          showNotification("Systemdaten wurden erfolgreich importiert.");
         } catch (error) {
           console.error("Fehler beim Importieren:", error);
           showNotification("Fehler beim Importieren der Daten: " + error.message, "error");
@@ -810,7 +1109,7 @@ function handleImportFile(event) {
       }
     } catch (error) {
       console.error("Fehler beim Parsen der Import-Datei:", error);
-      showNotification("Ungültiges Dateiformat.", "error");
+      showNotification("Ungültiges Dateiformat oder beschädigte JSON-Datei.", "error");
     }
     
     // Zurücksetzen des Datei-Inputs
@@ -818,4 +1117,43 @@ function handleImportFile(event) {
   };
   
   reader.readAsText(file);
+}
+
+/**
+ * NEU: Validiert Import-Daten
+ */
+function validateImportData(data) {
+  // Grundlegende Struktur prüfen
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  
+  // Prüfe auf erforderliche Felder
+  const requiredFields = ['teachers'];
+  for (const field of requiredFields) {
+    if (!data[field] || !Array.isArray(data[field])) {
+      console.error(`Fehlendes oder ungültiges Feld: ${field}`);
+      return false;
+    }
+  }
+  
+  // Prüfe Lehrer-Struktur
+  for (const teacher of data.teachers) {
+    if (!teacher.name || !teacher.code || !teacher.password) {
+      console.error("Ungültige Lehrer-Daten:", teacher);
+      return false;
+    }
+  }
+  
+  // Prüfe Themen-Struktur (falls vorhanden)
+  if (data.themes) {
+    for (const theme of data.themes) {
+      if (!theme.title || !theme.created_by) {
+        console.error("Ungültige Themen-Daten:", theme);
+        return false;
+      }
+    }
+  }
+  
+  return true;
 }
