@@ -1,4 +1,4 @@
-// js/modules/themeModule.js - Vollständig erweiterte Version
+// js/modules/themeModule.js - Vollständig erweiterte Version mit Verbesserungen
 
 import { 
   showLoader, 
@@ -38,7 +38,8 @@ import {
   loadAssessmentTemplatesForTeacher,
   createAssessmentTemplate,
   updateAssessmentTemplate,
-  deleteAssessmentTemplate
+  deleteAssessmentTemplate,
+  getAssessmentTemplate
 } from "../assessmentService.js";
 import { 
   THEMES_CONFIG, 
@@ -64,6 +65,7 @@ let elements = {
   newThemeBtn: null,
   themeFilterSelect: null,
   themeSortSelect: null,
+  themeViewToggle: null, // NEU: View Toggle Button
   
   // Thema-Modal
   themeModal: null,
@@ -100,6 +102,7 @@ let elements = {
   assessmentContent: null,
   assessmentFilterSelect: null,
   assessmentSortSelect: null,
+  assessmentTemplateSelect: null, // NEU: Template-Auswahl in Bewertung
   
   // Übersichts-Tab
   overviewContainer: null,
@@ -144,6 +147,8 @@ let currentAssessmentSort = "name";
 let teacherTemplates = [];
 let currentCategoryEdit = null;
 let tempCategories = [];
+let themeViewMode = "cards"; // NEU: cards oder list
+let currentAssessmentTemplate = null; // NEU: Aktuelles Template für Bewertung
 
 /**
  * Initialisiert das Themen-Modul
@@ -405,6 +410,46 @@ function updateUI() {
 }
 
 /**
+ * NEU: Erstelle View-Toggle für Themen-Liste
+ */
+function createThemeViewToggle() {
+  const existingToggle = document.getElementById("themeViewToggle");
+  if (existingToggle) {
+    existingToggle.remove();
+  }
+  
+  const toggle = document.createElement("div");
+  toggle.id = "themeViewToggle";
+  toggle.className = "view-toggle";
+  toggle.innerHTML = `
+    <button class="view-toggle-btn ${themeViewMode === 'cards' ? 'active' : ''}" data-view="cards">
+      <span>📊</span> Karten
+    </button>
+    <button class="view-toggle-btn ${themeViewMode === 'list' ? 'active' : ''}" data-view="list">
+      <span>📋</span> Liste
+    </button>
+  `;
+  
+  // Event-Listener für Toggle
+  toggle.querySelectorAll(".view-toggle-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      themeViewMode = btn.dataset.view;
+      
+      // Toggle-Button States aktualisieren
+      toggle.querySelectorAll(".view-toggle-btn").forEach(b => {
+        b.classList.remove("active");
+      });
+      btn.classList.add("active");
+      
+      // Liste neu rendern
+      updateThemesList();
+    });
+  });
+  
+  return toggle;
+}
+
+/**
  * Prüft und zeigt Deadline-Warnungen an
  */
 function checkDeadlineWarnings() {
@@ -488,6 +533,13 @@ function showDeadlineWarning(message, type = "warning") {
 function updateThemesTab() {
   if (!elements.themesTab) return;
   
+  // View-Toggle hinzufügen, falls noch nicht vorhanden
+  const themesHeader = elements.themesTab.querySelector(".themes-header");
+  if (themesHeader && !document.getElementById("themeViewToggle")) {
+    const toggle = createThemeViewToggle();
+    themesHeader.appendChild(toggle);
+  }
+  
   // Lade nur Themen, die der Benutzer erstellt hat
   const themes = getThemesCreatedByTeacher(currentUser.code);
   
@@ -496,7 +548,7 @@ function updateThemesTab() {
 }
 
 /**
- * Aktualisiert die Themenliste mit Sortierung
+ * Aktualisiert die Themenliste mit Sortierung und verschiedenen Ansichten
  */
 function updateThemesList(themes = null) {
   if (!elements.themesList) return;
@@ -531,7 +583,7 @@ function updateThemesList(themes = null) {
       <div class="empty-state">
         <p>Keine Themen gefunden</p>
         ${currentUser.permissions && currentUser.permissions.canCreateThemes ? 
-          '<button id="emptyNewThemeBtn" class="btn-primary">Neues Thema erstellen</button>' : 
+          '<button id="emptyNewThemeBtn" class="btn-primary btn-large">Neues Thema erstellen</button>' : 
           '<p>Sie haben keine Berechtigung, um Themen zu erstellen.</p>'}
       </div>
     `;
@@ -545,7 +597,20 @@ function updateThemesList(themes = null) {
     return;
   }
   
-  // Themen in der Liste anzeigen
+  // Je nach View-Mode rendern
+  if (themeViewMode === "list") {
+    renderThemesAsList(themes);
+  } else {
+    renderThemesAsCards(themes);
+  }
+}
+
+/**
+ * NEU: Rendert Themen als Kartenlayout
+ */
+function renderThemesAsCards(themes) {
+  elements.themesList.className = "themes-list themes-cards";
+  
   themes.forEach(theme => {
     const themeCard = document.createElement("div");
     themeCard.className = `theme-card ${theme.status}`;
@@ -584,26 +649,128 @@ function updateThemesList(themes = null) {
       </div>
       ${progressHTML}
       <div class="theme-actions">
-        <button class="btn-edit" data-id="${theme.id}">Bearbeiten</button>
-        <button class="btn-manage-students" data-id="${theme.id}">Schüler verwalten</button>
-        <button class="btn-delete" data-id="${theme.id}">Löschen</button>
+        <button class="btn-edit btn-large" data-id="${theme.id}">Bearbeiten</button>
+        <button class="btn-manage-students btn-large" data-id="${theme.id}">Schüler verwalten</button>
+        <button class="btn-delete btn-large" data-id="${theme.id}">Löschen</button>
       </div>
     `;
     
-    // Event-Listener für die Buttons
-    themeCard.querySelector(".btn-edit").addEventListener("click", () => {
-      showEditThemeModal(theme);
-    });
-    
-    themeCard.querySelector(".btn-manage-students").addEventListener("click", () => {
-      showStudentsManagement(theme);
-    });
-    
-    themeCard.querySelector(".btn-delete").addEventListener("click", () => {
-      confirmDeleteTheme(theme);
-    });
-    
+    setupThemeCardEventListeners(themeCard, theme);
     elements.themesList.appendChild(themeCard);
+  });
+}
+
+/**
+ * NEU: Rendert Themen als Tabellenliste
+ */
+function renderThemesAsList(themes) {
+  elements.themesList.className = "themes-list themes-table";
+  
+  const table = document.createElement("table");
+  table.className = "themes-table";
+  
+  // Tabellen-Header
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Titel</th>
+        <th>Status</th>
+        <th>Schuljahr</th>
+        <th>Deadline</th>
+        <th>Schüler</th>
+        <th>Fortschritt</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  
+  const tbody = table.querySelector("tbody");
+  
+  themes.forEach(theme => {
+    const row = document.createElement("tr");
+    row.className = `theme-row ${theme.status}`;
+    row.dataset.id = theme.id;
+    
+    // Deadline-Info
+    let deadlineText = "-";
+    let deadlineClass = "";
+    if (theme.deadline) {
+      const daysRemaining = getDaysRemaining(theme.deadline);
+      const { text, className } = formatRemainingDays(daysRemaining);
+      deadlineText = `${formatDate(theme.deadline)}<br><small class="${className}">${text}</small>`;
+      deadlineClass = className;
+    }
+    
+    // Fortschritt berechnen
+    const total = theme.students ? theme.students.length : 0;
+    const completed = theme.students ? theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
+    const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    row.innerHTML = `
+      <td>
+        <div class="theme-title-cell">
+          <strong>${theme.title}</strong>
+          ${theme.description ? `<br><small>${theme.description}</small>` : ""}
+        </div>
+      </td>
+      <td>${createStatusBadge(theme.status)}</td>
+      <td>${theme.school_year || systemSettings.currentSchoolYear || "-"}</td>
+      <td class="${deadlineClass}">${deadlineText}</td>
+      <td>${total}/${THEMES_CONFIG.maxStudentsPerTheme}</td>
+      <td>
+        <div class="progress-bar-container" title="${completed}/${total} Schüler bewertet">
+          <div class="progress-bar" style="width: ${progressPercent}%"></div>
+          <span class="progress-text">${progressPercent}%</span>
+        </div>
+      </td>
+      <td>
+        <div class="theme-actions-compact">
+          <button class="btn-edit btn-compact" data-id="${theme.id}" title="Bearbeiten">✏️</button>
+          <button class="btn-manage-students btn-compact" data-id="${theme.id}" title="Schüler verwalten">👥</button>
+          <button class="btn-delete btn-compact" data-id="${theme.id}" title="Löschen">🗑️</button>
+        </div>
+      </td>
+    `;
+    
+    setupThemeRowEventListeners(row, theme);
+    tbody.appendChild(row);
+  });
+  
+  elements.themesList.appendChild(table);
+}
+
+/**
+ * NEU: Event-Listener für Themen-Karten
+ */
+function setupThemeCardEventListeners(themeCard, theme) {
+  themeCard.querySelector(".btn-edit").addEventListener("click", () => {
+    showEditThemeModal(theme);
+  });
+  
+  themeCard.querySelector(".btn-manage-students").addEventListener("click", () => {
+    showStudentsManagement(theme);
+  });
+  
+  themeCard.querySelector(".btn-delete").addEventListener("click", () => {
+    confirmDeleteTheme(theme);
+  });
+}
+
+/**
+ * NEU: Event-Listener für Themen-Tabellenzeilen
+ */
+function setupThemeRowEventListeners(row, theme) {
+  row.querySelector(".btn-edit").addEventListener("click", () => {
+    showEditThemeModal(theme);
+  });
+  
+  row.querySelector(".btn-manage-students").addEventListener("click", () => {
+    showStudentsManagement(theme);
+  });
+  
+  row.querySelector(".btn-delete").addEventListener("click", () => {
+    confirmDeleteTheme(theme);
   });
 }
 
@@ -839,8 +1006,8 @@ function showStudentsManagement(theme) {
   if (!document.getElementById("backToThemesBtn")) {
     const backBtn = document.createElement("button");
     backBtn.id = "backToThemesBtn";
-    backBtn.className = "btn-secondary";
-    backBtn.textContent = "Zurück zur Themenübersicht";
+    backBtn.className = "btn-secondary btn-large";
+    backBtn.textContent = "← Zurück zur Themenübersicht";
     backBtn.addEventListener("click", () => {
       elements.themesContainer.style.display = "block";
       elements.studentsContainer.style.display = "none";
@@ -857,6 +1024,7 @@ function showStudentsManagement(theme) {
   if (elements.addStudentBtn) {
     const maxReached = theme.students && theme.students.length >= THEMES_CONFIG.maxStudentsPerTheme;
     elements.addStudentBtn.disabled = maxReached;
+    elements.addStudentBtn.className = maxReached ? "btn-primary btn-large disabled" : "btn-primary btn-large";
     elements.addStudentBtn.title = maxReached ? 
       `Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt` : 
       "Neuen Schüler hinzufügen";
@@ -880,7 +1048,7 @@ function updateStudentsList() {
     elements.studentsList.innerHTML = `
       <div class="empty-state">
         <p>Keine Schüler für dieses Thema</p>
-        <button id="emptyAddStudentBtn" class="btn-primary">Schüler hinzufügen</button>
+        <button id="emptyAddStudentBtn" class="btn-primary btn-large">Schüler hinzufügen</button>
       </div>
     `;
     
@@ -935,8 +1103,8 @@ function updateStudentsList() {
         </div>
       </div>
       <div class="student-actions">
-        <button class="btn-edit" data-id="${student.id}">Bearbeiten</button>
-        <button class="btn-delete" data-id="${student.id}">Entfernen</button>
+        <button class="btn-edit btn-large" data-id="${student.id}">Bearbeiten</button>
+        <button class="btn-delete btn-large" data-id="${student.id}">Entfernen</button>
       </div>
     `;
     
@@ -1133,16 +1301,78 @@ async function removeStudentConfirmed(themeId, studentId) {
 }
 
 /**
- * Aktualisiert den Bewertungs-Tab mit Filter und Sortierung
+ * Aktualisiert den Bewertungs-Tab mit Template-Auswahl
  */
 function updateAssessmentTab() {
   if (!elements.assessmentTab) return;
+  
+  // Template-Auswahl hinzufügen, falls noch nicht vorhanden
+  createAssessmentTemplateSelector();
   
   // Lade Themen, in denen der Benutzer als Prüfungslehrer eingetragen ist
   const themes = getThemesForAssessment(currentUser.code);
   
   // Studenten-Liste befüllen
   updateAssessmentStudentList(themes);
+}
+
+/**
+ * NEU: Erstellt Template-Auswahl für Bewertung
+ */
+function createAssessmentTemplateSelector() {
+  const existingSelector = document.getElementById("assessmentTemplateSelector");
+  if (existingSelector) {
+    return; // Bereits vorhanden
+  }
+  
+  const sidebar = elements.assessmentTab.querySelector(".sidebar");
+  if (!sidebar) return;
+  
+  const selectorDiv = document.createElement("div");
+  selectorDiv.id = "assessmentTemplateSelector";
+  selectorDiv.className = "assessment-template-selector";
+  selectorDiv.innerHTML = `
+    <h4>Bewertungsraster auswählen</h4>
+    <select id="assessmentTemplateSelect" class="filter-select">
+      <option value="standard">Standard-Bewertungsraster</option>
+    </select>
+    <p class="help-text">Wählen Sie das Bewertungsraster für die Schülerbewertung aus.</p>
+  `;
+  
+  // Vor den anderen Filtern einfügen
+  const section = sidebar.querySelector(".section");
+  if (section) {
+    section.insertBefore(selectorDiv, section.firstChild);
+  }
+  
+  // Template-Select befüllen
+  const templateSelect = document.getElementById("assessmentTemplateSelect");
+  if (templateSelect) {
+    elements.assessmentTemplateSelect = templateSelect;
+    
+    // Eigene Templates hinzufügen
+    teacherTemplates.forEach(template => {
+      const option = document.createElement("option");
+      option.value = template.id;
+      option.textContent = template.name;
+      templateSelect.appendChild(option);
+    });
+    
+    // Event-Listener für Template-Wechsel
+    templateSelect.addEventListener("change", (e) => {
+      currentAssessmentTemplate = e.target.value;
+      // Wenn ein Schüler ausgewählt ist, Bewertungsformular neu laden
+      if (currentSelectedStudentId) {
+        const student = getCurrentSelectedStudent();
+        if (student) {
+          showAssessmentForm(student);
+        }
+      }
+    });
+    
+    // Standard-Template setzen
+    currentAssessmentTemplate = "standard";
+  }
 }
 
 /**
@@ -1274,7 +1504,33 @@ function updateAssessmentStudentList(themes) {
 }
 
 /**
- * Zeigt das Bewertungsformular für einen Schüler
+ * NEU: Hilfsfunktion um aktuell ausgewählten Schüler zu finden
+ */
+function getCurrentSelectedStudent() {
+  if (!currentSelectedStudentId) return null;
+  
+  const themes = getThemesForAssessment(currentUser.code);
+  for (const theme of themes) {
+    if (theme.students) {
+      const student = theme.students.find(s => s.id === currentSelectedStudentId && s.assigned_teacher === currentUser.code);
+      if (student) {
+        return {
+          ...student,
+          theme: {
+            id: theme.id,
+            title: theme.title,
+            deadline: theme.deadline,
+            assessment_template_id: theme.assessment_template_id
+          }
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Zeigt das Bewertungsformular für einen Schüler (ÜBERARBEITET)
  */
 async function showAssessmentForm(student) {
   if (!elements.assessmentContent) return;
@@ -1288,20 +1544,18 @@ async function showAssessmentForm(student) {
   `;
   
   try {
-    // Template für das Bewertungsraster laden
-    const templateId = student.theme.assessment_template_id || "standard";
+    // Template für das Bewertungsraster laden - GEÄNDERT: Nutze ausgewähltes Template
+    const templateId = currentAssessmentTemplate || student.theme.assessment_template_id || "standard";
     let template = null;
     
     if (templateId === "standard") {
       // Standard-Raster verwenden
-      const { getAssessmentTemplate } = await import("../assessmentService.js");
       template = await getAssessmentTemplate("standard");
     } else {
       // Lehrer-spezifisches Raster suchen
       template = teacherTemplates.find(t => t.id === templateId);
       if (!template) {
         // Fallback auf Standard-Raster
-        const { getAssessmentTemplate } = await import("../assessmentService.js");
         template = await getAssessmentTemplate("standard");
       }
     }
@@ -1316,20 +1570,15 @@ async function showAssessmentForm(student) {
     // Durchschnittsnote berechnen
     const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
     const finalGrade = assessment.finalGrade || avgGrade || "-";
-    const infoText = assessment.infoText || "";
     
-    // HTML für das Formular erstellen
+    // HTML für das Formular erstellen - GEÄNDERT: Ohne Info-Text
     let html = `
       <div class="assessment-container">
         <div class="student-header">
           <h2>${student.name} ${student.class ? `<span class="class-badge">${student.class}</span>` : ""}</h2>
           <p>Thema: ${student.theme.title}</p>
           ${student.theme.deadline ? `<p>Abgabefrist: ${formatDate(student.theme.deadline)}</p>` : ""}
-        </div>
-        
-        <div class="info-text-container">
-          <h3>Informationen zum Schüler</h3>
-          <textarea id="studentInfoText" rows="4" placeholder="Notizen zum Schüler...">${infoText}</textarea>
+          <p>Bewertungsraster: <strong>${template.name}</strong></p>
         </div>
         
         <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
@@ -1337,8 +1586,8 @@ async function showAssessmentForm(student) {
         <div class="final-grade-input">
           <label for="finalGrade">Endnote:</label>
           <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
-          <button id="saveFinalGradeBtn">Speichern</button>
-          <button id="useAverageBtn">Durchschnitt übernehmen</button>
+          <button id="saveFinalGradeBtn" class="btn-large">Speichern</button>
+          <button id="useAverageBtn" class="btn-large">Durchschnitt übernehmen</button>
         </div>
     `;
     
@@ -1389,7 +1638,7 @@ async function showAssessmentForm(student) {
     elements.assessmentContent.innerHTML = `
       <div class="error-state">
         <p>Fehler beim Laden des Bewertungsformulars: ${error.message}</p>
-        <button id="retryBtn" class="btn-primary">Erneut versuchen</button>
+        <button id="retryBtn" class="btn-primary btn-large">Erneut versuchen</button>
       </div>
     `;
     
@@ -1455,16 +1704,6 @@ function setupAssessmentEventListeners(student) {
       await saveAssessmentValue(student, "finalGrade", parseFloat(avgGrade));
     });
   }
-  
-  // Infos speichern
-  const infoTextArea = document.getElementById("studentInfoText");
-  if (infoTextArea) {
-    infoTextArea.addEventListener("input", () => {
-      infoTextArea.dataset.changed = "true";
-    });
-    
-    setupInfoTextAutoSave(student);
-  }
 }
 
 /**
@@ -1524,39 +1763,7 @@ async function saveAssessmentValue(student, key, value) {
 }
 
 /**
- * Richtet die automatische Speicherung des Info-Texts ein
- */
-function setupInfoTextAutoSave(student) {
-  if (infoTextSaveTimer) {
-    clearInterval(infoTextSaveTimer);
-  }
-  
-  infoTextSaveTimer = setInterval(async () => {
-    const area = document.getElementById("studentInfoText");
-    if (area && area.dataset.changed === "true") {
-      const assessment = {
-        ...student.assessment,
-        infoText: area.value
-      };
-      
-      try {
-        await updateStudentAssessment(student.theme.id, student.id, assessment);
-        area.dataset.changed = "false";
-        
-        // Visuelle Rückmeldung
-        area.classList.add("save-flash");
-        setTimeout(() => {
-          area.classList.remove("save-flash");
-        }, 1000);
-      } catch (error) {
-        console.error("Fehler beim Speichern des Info-Texts:", error);
-      }
-    }
-  }, 60000); // Alle 60 Sekunden speichern
-}
-
-/**
- * Aktualisiert den Übersichts-Tab
+ * Aktualisiert den Übersichts-Tab (GEÄNDERT: Ohne automatischen Sprung zur Bewertung)
  */
 function updateOverviewTab() {
   if (!elements.overviewTab) return;
@@ -1578,7 +1785,7 @@ function updateOverviewTab() {
 }
 
 /**
- * Aktualisiert die Übersichtstabelle
+ * Aktualisiert die Übersichtstabelle (GEÄNDERT)
  */
 function updateOverviewTable() {
   if (!elements.overviewTable) return;
@@ -1672,13 +1879,15 @@ function updateOverviewTable() {
         </div>
       </td>
       <td>
-        <button class="btn-details" data-id="${theme.id}">Details</button>
+        <div class="overview-actions">
+          <button class="btn-details btn-large" data-id="${theme.id}">Details</button>
+        </div>
       </td>
     `;
     
-    // Event-Listener für den Details-Button
+    // Event-Listener für den Details-Button - GEÄNDERT: Kein automatischer Sprung
     row.querySelector(".btn-details").addEventListener("click", () => {
-      showThemeDetails(theme);
+      showThemeDetailsInOverview(theme);
     });
     
     tbody.appendChild(row);
@@ -1686,11 +1895,100 @@ function updateOverviewTable() {
 }
 
 /**
- * Zeigt die Details eines Themas an
+ * NEU: Zeigt Theme-Details in der Übersicht (ohne automatischen Sprung zur Bewertung)
  */
-function showThemeDetails(theme) {
-  // Hier könnte ein Modal mit detaillierten Informationen zum Thema angezeigt werden
-  alert(`Details für Thema "${theme.title}" werden noch implementiert.`);
+function showThemeDetailsInOverview(theme) {
+  // Erstelle ein Modal mit den Theme-Details
+  let modal = document.getElementById("themeDetailsModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "themeDetailsModal";
+    modal.className = "modal";
+    modal.innerHTML = `
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3 id="themeDetailsTitle">Thema-Details</h3>
+          <button class="modal-close" id="closeThemeDetailsModal">&times;</button>
+        </div>
+        <div id="themeDetailsContent"></div>
+        <div class="modal-footer">
+          <button id="closeThemeDetailsBtn" class="btn-large">Schließen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Event-Listener für Modal-Schließung
+    modal.querySelector("#closeThemeDetailsModal").addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+    modal.querySelector("#closeThemeDetailsBtn").addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+  
+  // Modal-Inhalt befüllen
+  const titleEl = modal.querySelector("#themeDetailsTitle");
+  const contentEl = modal.querySelector("#themeDetailsContent");
+  
+  titleEl.textContent = `Details: ${theme.title}`;
+  
+  let studentsHTML = "";
+  if (theme.students && theme.students.length > 0) {
+    studentsHTML = `
+      <h4>Schüler (${theme.students.length})</h4>
+      <div class="students-details-list">
+    `;
+    
+    theme.students.forEach(student => {
+      const teacher = allTeachers.find(t => t.code === student.assigned_teacher);
+      const teacherName = teacher ? teacher.name : "Unbekannt";
+      const grade = student.assessment && student.assessment.finalGrade ? student.assessment.finalGrade : "-";
+      
+      studentsHTML += `
+        <div class="student-detail-item ${student.status}">
+          <div class="student-detail-header">
+            <strong>${student.name}</strong>
+            ${student.class ? `<span class="class-badge">${student.class}</span>` : ""}
+            ${createStudentStatusBadge(student.status)}
+          </div>
+          <div class="student-detail-info">
+            <span>Prüfungslehrer: ${teacherName}</span>
+            <span>Note: <strong class="grade-${Math.round(grade) || 0}">${grade}</strong></span>
+          </div>
+        </div>
+      `;
+    });
+    
+    studentsHTML += `</div>`;
+  } else {
+    studentsHTML = `<p>Keine Schüler zugewiesen.</p>`;
+  }
+  
+  contentEl.innerHTML = `
+    <div class="theme-details-info">
+      <div class="detail-row">
+        <strong>Beschreibung:</strong> ${theme.description || "Keine Beschreibung"}
+      </div>
+      <div class="detail-row">
+        <strong>Schuljahr:</strong> ${theme.school_year || systemSettings.currentSchoolYear || "-"}
+      </div>
+      <div class="detail-row">
+        <strong>Deadline:</strong> ${theme.deadline ? formatDate(theme.deadline) : "Keine Deadline"}
+      </div>
+      <div class="detail-row">
+        <strong>Status:</strong> ${createStatusBadge(theme.status)}
+      </div>
+      <div class="detail-row">
+        <strong>Erstellt von:</strong> ${theme.created_by}
+      </div>
+    </div>
+    <hr>
+    ${studentsHTML}
+  `;
+  
+  // Modal anzeigen
+  modal.style.display = "flex";
 }
 
 /**
@@ -1712,6 +2010,7 @@ function updateTemplatesTab() {
   if (elements.createTemplateBtn) {
     const maxReached = teacherTemplates.length >= ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher;
     elements.createTemplateBtn.disabled = maxReached;
+    elements.createTemplateBtn.className = maxReached ? "btn-primary btn-large disabled" : "btn-primary btn-large";
     
     if (maxReached) {
       // Warnung anzeigen
@@ -1767,8 +2066,8 @@ function updateTemplatesList() {
         ${categoriesHTML}
       </div>
       <div class="template-actions">
-        <button class="btn-edit" data-id="${template.id}">Bearbeiten</button>
-        <button class="btn-delete" data-id="${template.id}">Löschen</button>
+        <button class="btn-edit btn-large" data-id="${template.id}">Bearbeiten</button>
+        <button class="btn-delete btn-large" data-id="${template.id}">Löschen</button>
       </div>
     `;
     
@@ -1857,8 +2156,8 @@ function updateCategoriesList() {
         <div class="category-item-weight">Gewichtung: ${category.weight}</div>
       </div>
       <div class="category-item-actions">
-        <button type="button" class="btn-edit" data-index="${index}">✏️</button>
-        <button type="button" class="btn-delete" data-index="${index}">🗑️</button>
+        <button type="button" class="btn-edit btn-compact" data-index="${index}" title="Bearbeiten">✏️</button>
+        <button type="button" class="btn-delete btn-compact" data-index="${index}" title="Löschen">🗑️</button>
       </div>
     `;
     
