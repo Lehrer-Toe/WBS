@@ -1,10 +1,27 @@
 // js/firebaseClient.js - Erweiterte Version
-import { FIREBASE_CONFIG } from "./firebaseConfig.js";
-import { SYSTEM_SETTINGS, DEFAULT_SYSTEM_SETTINGS, DEFAULT_ASSESSMENT_CATEGORIES } from "./constants.js";
-
-// Diese Variablen werden als named exports exportiert
+// Direkte Firebase-Konfiguration für den Browser
 export let db = null;
 export let auth = null;
+
+// Fallback-Konfiguration falls firebaseConfig.js nicht verfügbar ist
+const FALLBACK_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+let FIREBASE_CONFIG = FALLBACK_CONFIG;
+
+// Versuche firebaseConfig.js zu importieren
+try {
+  const configModule = await import("./firebaseConfig.js");
+  FIREBASE_CONFIG = configModule.FIREBASE_CONFIG || FALLBACK_CONFIG;
+} catch (error) {
+  console.warn("firebaseConfig.js nicht gefunden, verwende Fallback-Konfiguration");
+}
 
 /**
  * Initialisiert die Verbindung zu Firebase
