@@ -1,315 +1,345 @@
 // js/modules/infoModule.js - Informationen für Lehrer
-
 import { 
-  systemSettings, 
-  systemInformations,
-  loadSystemInformations,
-  formatDateForDisplay,
-  getDaysUntil
+    systemSettings, 
+    systemInformations, 
+    loadSystemInformations, 
+    formatDateForDisplay, 
+    getDaysUntil 
 } from "../adminService.js";
-import { 
-  showLoader, 
-  hideLoader, 
-  showNotification
-} from "../uiService.js";
+import { showLoader, hideLoader, showNotification } from "../utils.js";
 
-/**
- * Referenz auf die DOM-Elemente
- */
-let elements = {
-  infoTab: null,
-  currentSchoolYearInfo: null,
-  schoolYearEndInfo: null,
-  assessmentDeadlineInfo: null,
-  teacherInfoList: null
-};
-
-/**
- * Initialisiert das Info-Modul
- */
-export function initInfoModule() {
-  // DOM-Elemente abrufen
-  loadDOMElements();
-  
-  // Event-Listener hinzufügen
-  setupEventListeners();
-  
-  // Initial laden wenn Benutzer eingeloggt ist
-  document.addEventListener("userLoggedIn", async () => {
-    await updateInfoTab();
-  });
-}
-
-/**
- * Lädt alle benötigten DOM-Elemente
- */
-function loadDOMElements() {
-  elements.infoTab = document.getElementById("info-tab");
-  elements.currentSchoolYearInfo = document.getElementById("currentSchoolYearInfo");
-  elements.schoolYearEndInfo = document.getElementById("schoolYearEndInfo");
-  elements.assessmentDeadlineInfo = document.getElementById("assessmentDeadlineInfo");
-  elements.teacherInfoList = document.getElementById("teacherInfoList");
-}
-
-/**
- * Richtet die Event-Listener ein
- */
-function setupEventListeners() {
-  // Event-Listener für Tab-Wechsel
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", function() {
-      const tabId = this.dataset.tab;
-      
-      if (tabId === "info") {
-        updateInfoTab();
-      }
-    });
-  });
-  
-  // Event-Listener für System-Updates
-  document.addEventListener("systemSettingsUpdated", () => {
-    updateSchoolYearInfo();
-  });
-}
-
-/**
- * Aktualisiert den Info-Tab
- */
-export async function updateInfoTab() {
-  if (!elements.infoTab) return;
-  
-  try {
-    showLoader();
-    
-    // Lade System-Informationen
-    await loadSystemInformations();
-    
-    // Aktualisiere Schuljahr-Informationen
-    updateSchoolYearInfo();
-    
-    // Aktualisiere Informationsliste
-    updateTeacherInfoList();
-    
-  } catch (error) {
-    console.error("Fehler beim Laden der Informationen:", error);
-    showNotification("Fehler beim Laden der Informationen.", "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Aktualisiert die Schuljahr-Informationen
- */
-function updateSchoolYearInfo() {
-  if (!elements.currentSchoolYearInfo) return;
-  
-  // Aktuelles Schuljahr
-  const currentSchoolYear = systemSettings.currentSchoolYear || "Nicht festgelegt";
-  elements.currentSchoolYearInfo.innerHTML = `
-    <strong>Aktuelles Schuljahr:</strong> 
-    <span class="school-year-highlight">${currentSchoolYear}</span>
-  `;
-  
-  // Schuljahresende
-  if (elements.schoolYearEndInfo) {
-    if (systemSettings.schoolYearEnd) {
-      const daysToEnd = getDaysUntil(systemSettings.schoolYearEnd);
-      const formattedDate = formatDateForDisplay(systemSettings.schoolYearEnd);
-      
-      let warningClass = "";
-      let warningText = "";
-      
-      if (daysToEnd !== null) {
-        if (daysToEnd < 0) {
-          warningText = ` (${Math.abs(daysToEnd)} Tage überschritten)`;
-          warningClass = "deadline-urgent-small";
-        } else if (daysToEnd <= 7) {
-          warningText = ` (in ${daysToEnd} Tagen)`;
-          warningClass = "deadline-urgent-small";
-        } else if (daysToEnd <= 30) {
-          warningText = ` (in ${daysToEnd} Tagen)`;
-          warningClass = "deadline-warning-small";
-        } else {
-          warningText = ` (in ${daysToEnd} Tagen)`;
-        }
-      }
-      
-      elements.schoolYearEndInfo.innerHTML = `
-        <strong>Schuljahresende:</strong> 
-        ${formattedDate}
-        <span class="${warningClass}">${warningText}</span>
-      `;
-    } else {
-      elements.schoolYearEndInfo.innerHTML = `
-        <strong>Schuljahresende:</strong> Nicht festgelegt
-      `;
-    }
-  }
-  
-  // Bewertungsfrist
-  if (elements.assessmentDeadlineInfo) {
-    if (systemSettings.lastAssessmentDate) {
-      const daysToDeadline = getDaysUntil(systemSettings.lastAssessmentDate);
-      const formattedDate = formatDateForDisplay(systemSettings.lastAssessmentDate);
-      
-      let warningClass = "";
-      let warningText = "";
-      
-      if (daysToDeadline !== null) {
-        if (daysToDeadline < 0) {
-          warningText = ` (${Math.abs(daysToDeadline)} Tage überschritten)`;
-          warningClass = "deadline-urgent-small";
-        } else if (daysToDeadline <= 3) {
-          warningText = ` (in ${daysToDeadline} Tagen)`;
-          warningClass = "deadline-urgent-small";
-        } else if (daysToDeadline <= 14) {
-          warningText = ` (in ${daysToDeadline} Tagen)`;
-          warningClass = "deadline-warning-small";
-        } else {
-          warningText = ` (in ${daysToDeadline} Tagen)`;
-        }
-      }
-      
-      elements.assessmentDeadlineInfo.innerHTML = `
-        <strong>Letzte Bewertungsfrist:</strong> 
-        ${formattedDate}
-        <span class="${warningClass}">${warningText}</span>
-      `;
-    } else {
-      elements.assessmentDeadlineInfo.innerHTML = `
-        <strong>Letzte Bewertungsfrist:</strong> Nicht festgelegt
-      `;
-    }
-  }
-}
-
-/**
- * Aktualisiert die Liste der Informationen für Lehrer
- */
-function updateTeacherInfoList() {
-  if (!elements.teacherInfoList) return;
-  
-  elements.teacherInfoList.innerHTML = "";
-  
-  // Nur aktive Informationen anzeigen
-  const activeInfos = systemInformations.filter(info => info.active);
-  
-  if (!activeInfos || activeInfos.length === 0) {
-    elements.teacherInfoList.innerHTML = `
-      <div class="empty-state">
-        <p>Derzeit keine aktuellen Informationen verfügbar.</p>
-      </div>
+export async function initInfoModule() {
+    const container = document.getElementById("mainContent");
+    container.innerHTML = `
+        <div class="info-container">
+            <h2>Informationen</h2>
+            <div id="infoContent" class="info-content">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Lade Informationen...</p>
+                </div>
+            </div>
+        </div>
     `;
-    return;
-  }
-  
-  // Sortiere nach Priorität und Datum
-  const sortedInfos = activeInfos.sort((a, b) => {
-    // Erst nach Priorität
-    const priorityOrder = { urgent: 0, important: 1, normal: 2 };
-    const aPriority = priorityOrder[a.priority] || 2;
-    const bPriority = priorityOrder[b.priority] || 2;
+
+    await loadInformations();
+}
+
+async function loadInformations() {
+    const contentDiv = document.getElementById("infoContent");
     
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
+    try {
+        showLoader();
+        
+        // Lade System-Informationen
+        await loadSystemInformations();
+        
+        // Aktuelle Systemeinstellungen laden
+        const settings = systemSettings;
+        const infos = systemInformations;
+        
+        let htmlContent = `
+            <div class="info-section">
+                <h3><i class="fas fa-calendar-alt"></i> Aktuelles Schuljahr</h3>
+                <div class="info-card">
+                    <p class="school-year">${settings.currentSchoolYear || 'Nicht definiert'}</p>
+                </div>
+            </div>
+        `;
+        
+        // Admin-Nachrichten anzeigen
+        if (infos && infos.length > 0) {
+            htmlContent += `
+                <div class="info-section">
+                    <h3><i class="fas fa-bullhorn"></i> Aktuelle Mitteilungen</h3>
+                    <div class="messages-container">
+            `;
+            
+            infos.forEach(info => {
+                const isActive = info.active && 
+                    (!info.validFrom || new Date(info.validFrom) <= new Date()) &&
+                    (!info.validUntil || new Date(info.validUntil) >= new Date());
+                
+                if (isActive) {
+                    htmlContent += `
+                        <div class="message-card ${info.priority || 'normal'}">
+                            <div class="message-header">
+                                <h4>${info.title}</h4>
+                                ${info.priority === 'high' ? '<span class="priority-badge">Wichtig</span>' : ''}
+                            </div>
+                            <div class="message-content">
+                                ${info.content}
+                            </div>
+                            <div class="message-footer">
+                                <span class="message-date">
+                                    <i class="fas fa-clock"></i> 
+                                    ${formatDateForDisplay(info.createdAt)}
+                                </span>
+                                ${info.validUntil ? `
+                                    <span class="valid-until">
+                                        <i class="fas fa-calendar-times"></i> 
+                                        Gültig bis: ${formatDateForDisplay(info.validUntil)}
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            htmlContent += `
+                    </div>
+                </div>
+            `;
+        } else {
+            htmlContent += `
+                <div class="info-section">
+                    <h3><i class="fas fa-bullhorn"></i> Aktuelle Mitteilungen</h3>
+                    <div class="no-messages">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Keine aktuellen Mitteilungen vorhanden</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Wichtige Termine (falls vorhanden)
+        if (settings.importantDates && Object.keys(settings.importantDates).length > 0) {
+            htmlContent += `
+                <div class="info-section">
+                    <h3><i class="fas fa-calendar-check"></i> Wichtige Termine</h3>
+                    <div class="dates-container">
+            `;
+            
+            for (const [key, date] of Object.entries(settings.importantDates)) {
+                if (date) {
+                    const daysUntil = getDaysUntil(date);
+                    const isPast = daysUntil < 0;
+                    
+                    htmlContent += `
+                        <div class="date-card ${isPast ? 'past' : ''}">
+                            <div class="date-name">${formatDateLabel(key)}</div>
+                            <div class="date-value">${formatDateForDisplay(date)}</div>
+                            ${!isPast && daysUntil <= 30 ? `
+                                <div class="days-until">
+                                    <i class="fas fa-hourglass-half"></i> 
+                                    Noch ${daysUntil} Tage
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+            }
+            
+            htmlContent += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        contentDiv.innerHTML = htmlContent;
+        
+    } catch (error) {
+        console.error("Fehler beim Laden der Informationen:", error);
+        contentDiv.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Fehler beim Laden der Informationen</p>
+                <button class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-redo"></i> Neu laden
+                </button>
+            </div>
+        `;
+    } finally {
+        hideLoader();
     }
-    
-    // Dann nach Datum (neueste zuerst)
-    const aDate = new Date(a.created_at || 0);
-    const bDate = new Date(b.created_at || 0);
-    return bDate - aDate;
-  });
-  
-  sortedInfos.forEach(info => {
-    const infoItem = document.createElement("div");
-    infoItem.className = `teacher-info-item priority-${info.priority}`;
-    
-    const createdDate = info.created_at ? formatDateForDisplay(info.created_at) : "Unbekannt";
-    
-    infoItem.innerHTML = `
-      <div class="teacher-info-header">
-        <h3 class="teacher-info-title">${info.title}</h3>
-        <div class="teacher-info-date">${createdDate}</div>
-      </div>
-      <div class="teacher-info-content">${formatInfoContent(info.content)}</div>
-      ${info.priority !== 'normal' ? `<div class="info-priority-indicator priority-${info.priority}">${getPriorityText(info.priority)}</div>` : ''}
-    `;
-    
-    elements.teacherInfoList.appendChild(infoItem);
-  });
 }
 
-/**
- * Formatiert den Inhalt einer Information (einfache Zeilenumbrüche)
- */
-function formatInfoContent(content) {
-  if (!content) return "";
-  
-  // Konvertiere Zeilenumbrüche zu HTML
-  return content.replace(/\n/g, '<br>');
+function formatDateLabel(key) {
+    const labels = {
+        semesterStart: "Semesterbeginn",
+        semesterEnd: "Semesterende",
+        gradeDeadline: "Notenschluss",
+        conferenceDate: "Notenkonferenz",
+        reportCardDate: "Zeugnisausgabe"
+    };
+    return labels[key] || key;
 }
 
-/**
- * Gibt Prioritäts-Text zurück
- */
-function getPriorityText(priority) {
-  switch (priority) {
-    case 'important': return 'Wichtig';
-    case 'urgent': return 'Dringend';
-    default: return 'Normal';
-  }
+// CSS für das Info-Modul
+const infoStyles = `
+<style>
+.info-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
 }
 
-/**
- * Lädt und aktualisiert alle Informationen
- */
-export async function refreshInfo() {
-  try {
-    await loadSystemInformations();
-    updateSchoolYearInfo();
-    updateTeacherInfoList();
-    showNotification("Informationen aktualisiert.");
-  } catch (error) {
-    console.error("Fehler beim Aktualisieren der Informationen:", error);
-    showNotification("Fehler beim Aktualisieren der Informationen.", "error");
-  }
+.info-content {
+    margin-top: 20px;
 }
 
-/**
- * Prüft auf wichtige Deadline-Warnungen
- */
-export function checkDeadlineWarnings() {
-  const warnings = [];
-  
-  // Prüfe Schuljahresende
-  if (systemSettings.schoolYearEnd) {
-    const daysToEnd = getDaysUntil(systemSettings.schoolYearEnd);
-    
-    if (daysToEnd !== null && daysToEnd >= 0 && daysToEnd <= 14) {
-      warnings.push({
-        type: daysToEnd <= 7 ? "urgent" : "warning",
-        message: `Schuljahresende in ${daysToEnd} Tagen (${formatDateForDisplay(systemSettings.schoolYearEnd)})`
-      });
-    }
-  }
-  
-  // Prüfe Bewertungsfrist
-  if (systemSettings.lastAssessmentDate) {
-    const daysToDeadline = getDaysUntil(systemSettings.lastAssessmentDate);
-    
-    if (daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7) {
-      warnings.push({
-        type: daysToDeadline <= 3 ? "urgent" : "warning",
-        message: `Bewertungsfrist in ${daysToDeadline} Tagen (${formatDateForDisplay(systemSettings.lastAssessmentDate)})`
-      });
-    }
-  }
-  
-  // Zeige Warnungen als Benachrichtigungen
-  warnings.forEach(warning => {
-    showNotification(warning.message, warning.type === "urgent" ? "error" : "warning");
-  });
-  
-  return warnings;
+.info-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.info-section h3 {
+    color: var(--primary-color);
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.info-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.school-year {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.messages-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message-card {
+    background: #f8f9fa;
+    border-left: 4px solid var(--primary-color);
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.message-card.high {
+    border-left-color: #dc3545;
+    background: #fff5f5;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.message-header h4 {
+    margin: 0;
+    color: #333;
+}
+
+.priority-badge {
+    background: #dc3545;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.message-content {
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #999;
+}
+
+.no-messages {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.no-messages i {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.dates-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.date-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.date-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.date-card.past {
+    opacity: 0.6;
+}
+
+.date-name {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.date-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.days-until {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #28a745;
+}
+
+.error-message {
+    text-align: center;
+    padding: 40px;
+    color: #dc3545;
+}
+
+.error-message i {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.loading-spinner i {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+</style>
+`;
+
+// Füge Styles beim Laden des Moduls hinzu
+if (!document.getElementById('info-module-styles')) {
+    const styleElement = document.createElement('div');
+    styleElement.id = 'info-module-styles';
+    styleElement.innerHTML = infoStyles;
+    document.head.appendChild(styleElement);
 }
