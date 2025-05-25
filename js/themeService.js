@@ -1,4 +1,4 @@
-// js/themeService.js
+// js/themeService.js - Korrigierte Version ohne Duplikate
 
 import { db } from "./firebaseClient.js";
 import { 
@@ -194,7 +194,7 @@ export async function deleteTheme(themeId) {
 }
 
 /**
- * Fügt einen Schüler zu einem Thema hinzu
+ * Fügt einen Schüler zu einem Thema hinzu (KORRIGIERTE EINMALIGE VERSION)
  */
 export async function addStudentToTheme(themeId, studentData) {
   if (!db) {
@@ -204,6 +204,10 @@ export async function addStudentToTheme(themeId, studentData) {
 
   if (!studentData.name) {
     throw new Error("Der Name des Schülers ist erforderlich");
+  }
+
+  if (!studentData.class) {
+    throw new Error("Die Klasse des Schülers ist erforderlich");
   }
 
   try {
@@ -228,6 +232,7 @@ export async function addStudentToTheme(themeId, studentData) {
     const newStudent = {
       id: studentId,
       name: studentData.name,
+      class: studentData.class, // Klasse ist jetzt erforderlich
       assigned_teacher: studentData.assigned_teacher,
       created_at: new Date().toISOString(),
       status: STUDENT_STATUS.PENDING,
@@ -562,70 +567,4 @@ export function getStudentsForTeacher(teacherCode) {
   });
   
   return students;
-}
-export async function addStudentToTheme(themeId, studentData) {
-  if (!db) {
-    console.error("Firestore ist nicht initialisiert!");
-    return false;
-  }
-
-  if (!studentData.name) {
-    throw new Error("Der Name des Schülers ist erforderlich");
-  }
-
-  if (!studentData.class) {
-    throw new Error("Die Klasse des Schülers ist erforderlich");
-  }
-
-  try {
-    const themeRef = db.collection(THEMES_CONFIG.collectionName).doc(themeId);
-    const doc = await themeRef.get();
-    
-    if (!doc.exists) {
-      throw new Error("Thema nicht gefunden");
-    }
-    
-    const theme = doc.data();
-    
-    // Prüfe, ob das Maximum an Schülern erreicht ist
-    if (theme.students && theme.students.length >= THEMES_CONFIG.maxStudentsPerTheme) {
-      throw new Error(`Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt`);
-    }
-    
-    // Generiere eine einzigartige ID für den Schüler
-    const studentId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    
-    // Erstelle den neuen Schüler
-    const newStudent = {
-      id: studentId,
-      name: studentData.name,
-      class: studentData.class, // NEU: Klasse hinzugefügt
-      assigned_teacher: studentData.assigned_teacher,
-      created_at: new Date().toISOString(),
-      status: STUDENT_STATUS.PENDING,
-      assessment: {}
-    };
-    
-    // Füge den Schüler zum Thema hinzu
-    const students = theme.students || [];
-    students.push(newStudent);
-    
-    // Aktualisiere das Thema in der Datenbank
-    await themeRef.update({
-      students: students,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    // Aktualisiere die lokale Kopie
-    const index = allThemes.findIndex(t => t.id === themeId);
-    if (index !== -1) {
-      allThemes[index].students = students;
-    }
-    
-    console.log("Schüler hinzugefügt:", studentData.name);
-    return newStudent;
-  } catch (error) {
-    console.error("Fehler beim Hinzufügen des Schülers:", error);
-    throw error;
-  }
 }
