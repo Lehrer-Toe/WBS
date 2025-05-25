@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Zeig was du kannst</title>
+  <title>Zeig, was du kannst!</title>
   <link rel="icon" href="data:," />
   <link
     href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
@@ -19,7 +19,7 @@
   <!-- Normaler Login-Bereich -->
   <div id="loginSection">
     <header>
-      <h1>Zeig was du kannst</h1>
+      <h1>Zeig, was du kannst!</h1>
       <div class="version">v2.0</div>
     </header>
     
@@ -55,7 +55,7 @@
   <!-- Admin-Login-Bereich -->
   <div id="adminLoginSection" style="display: none;">
     <header>
-      <h1>Zeig was du kannst - Admin</h1>
+      <h1>Zeig, was du kannst! - Admin</h1>
       <div class="version">v2.0</div>
     </header>
     
@@ -86,14 +86,13 @@
         <div class="teacher-avatar">A</div>
         <div class="teacher-name">Administrator</div>
       </div>
-      <h1>WBS Bewertungssystem - Admin</h1>
+      <h1>Zeig, was du kannst! - Admin</h1>
       <button id="adminLogoutBtn" class="logout-btn">Abmelden</button>
     </header>
     
     <div class="container">
       <div class="tabs">
         <div class="tab active" data-tab="teachers">Lehrer verwalten</div>
-        <div class="tab" data-tab="templates">Bewertungsraster</div>
         <div class="tab" data-tab="system">System-Info</div>
       </div>
       
@@ -119,12 +118,6 @@
                 <label class="checkbox-label">
                   <input type="checkbox" id="canCreateThemes">
                   <span class="checkbox-text">Kann Themen erstellen</span>
-                </label>
-              </div>
-              <div class="form-group checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="canManageTemplates">
-                  <span class="checkbox-text">Kann Bewertungsraster verwalten</span>
                 </label>
               </div>
               <button id="addTeacherBtn">Lehrer hinzufügen</button>
@@ -155,46 +148,6 @@
         </div>
       </div>
       
-      <!-- Tab: Bewertungsraster verwalten -->
-      <div class="tab-content" id="templates-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neues Bewertungsraster</h3>
-              <form id="newTemplateForm">
-                <div class="form-group">
-                  <label for="templateName">Name des Rasters</label>
-                  <input type="text" id="templateName" placeholder="z.B. Standard-Bewertung">
-                </div>
-                <div class="form-group">
-                  <label for="templateDescription">Beschreibung (optional)</label>
-                  <textarea id="templateDescription" rows="3" placeholder="Beschreibung des Bewertungsrasters"></textarea>
-                </div>
-                <div id="categoriesContainer">
-                  <h4>Bewertungskategorien</h4>
-                  <div class="categories-list" id="categoriesList">
-                    <!-- Kategorien werden dynamisch hinzugefügt -->
-                  </div>
-                  <button type="button" id="addCategoryBtn" class="btn-secondary">Kategorie hinzufügen</button>
-                </div>
-                <button type="submit" id="createTemplateBtn">Bewertungsraster erstellen</button>
-              </form>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Bewertungsraster</h2>
-            <div class="templates-list" id="templatesList">
-              <!-- Bewertungsraster werden dynamisch geladen -->
-              <div class="loading-container">
-                <span class="loader"></span>
-                <p>Bewertungsraster werden geladen...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
       <!-- Tab: System-Info -->
       <div class="tab-content" id="system-tab">
         <h2>System-Informationen</h2>
@@ -208,6 +161,15 @@
               <!-- Schuljahre werden dynamisch befüllt -->
             </select>
           </div>
+          <div class="form-group">
+            <label for="schoolYearEnd">Schuljahresende</label>
+            <input type="date" id="schoolYearEnd">
+          </div>
+          <div class="form-group">
+            <label for="lastAssessmentDate">Letzte Bewertungsfrist</label>
+            <input type="date" id="lastAssessmentDate">
+          </div>
+          <button id="saveSystemSettingsBtn">Einstellungen speichern</button>
         </div>
         
         <div class="card">
@@ -224,10 +186,6 @@
             <div class="stat-item">
               <span class="stat-label">Schüler insgesamt:</span>
               <span class="stat-value" id="totalStudents">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Bewertungsraster:</span>
-              <span class="stat-value" id="totalTemplates">-</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Firebase Status:</span>
@@ -274,14 +232,6 @@
               💥 Kompletter System-Reset
             </button>
           </div>
-          
-          <div class="danger-explanation">
-            <h4>Was passiert bei den Aktionen:</h4>
-            <ul>
-              <li><strong>Alle Lehrer löschen:</strong> Setzt alle Lehrer auf Standard zurück (KRE, RIF, TOE)</li>
-              <li><strong>Kompletter System-Reset:</strong> Löscht ALLE Lehrer UND alle Themen, Schüler und Bewertungen</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
@@ -294,7 +244,7 @@
         <div class="teacher-avatar" id="teacherAvatar">T</div>
         <div class="teacher-name" id="teacherName">Töllner</div>
       </div>
-      <h1>WBS Bewertungssystem</h1>
+      <h1>Zeig, was du kannst!</h1>
       <button id="logoutBtn" class="logout-btn">Abmelden</button>
     </header>
     
@@ -303,7 +253,7 @@
         <div class="tab active" data-tab="themes">Themen verwalten</div>
         <div class="tab" data-tab="assessment">Bewertung</div>
         <div class="tab" data-tab="overview">Übersicht</div>
-        <div class="tab" data-tab="templates">Bewertungsraster</div>
+        <div class="tab" data-tab="templates">Meine Bewertungsraster</div>
       </div>
       
       <!-- Tab: Themen verwalten -->
@@ -317,6 +267,12 @@
                 <option value="active">Aktive Themen</option>
                 <option value="completed">Abgeschlossene Themen</option>
                 <option value="overdue">Überfällige Themen</option>
+              </select>
+              <select id="themeSortSelect" class="theme-filter">
+                <option value="deadline">Nach Deadline</option>
+                <option value="title">Nach Titel</option>
+                <option value="status">Nach Status</option>
+                <option value="progress">Nach Fortschritt</option>
               </select>
               <button id="newThemeBtn" class="btn-primary">Neues Thema erstellen</button>
             </div>
@@ -354,6 +310,20 @@
           <div class="sidebar">
             <div class="section">
               <h3>Zu bewertende Schüler</h3>
+              <div class="assessment-filters">
+                <select id="assessmentFilterSelect" class="filter-select">
+                  <option value="">Alle Schüler</option>
+                  <option value="pending">Offen</option>
+                  <option value="in_progress">In Bearbeitung</option>
+                  <option value="completed">Bewertet</option>
+                </select>
+                <select id="assessmentSortSelect" class="filter-select">
+                  <option value="name">Nach Name</option>
+                  <option value="class">Nach Klasse</option>
+                  <option value="deadline">Nach Deadline</option>
+                  <option value="status">Nach Status</option>
+                </select>
+              </div>
               <ul class="student-list" id="assessmentStudentList">
                 <li>Keine Schüler zur Bewertung zugewiesen</li>
               </ul>
@@ -392,27 +362,27 @@
             </select>
           </div>
           
-          <div>
-            <button id="exportDataBtn" class="btn-secondary">
+          <div class="export-button-container">
+            <button id="exportDataBtn" class="btn-secondary btn-export">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
                 <line x1="12" y1="15" x2="12" y2="3"></line>
               </svg>
-              Daten exportieren
+              <span>Daten exportieren</span>
             </button>
           </div>
         </div>
         
         <div class="table-container">
-          <table class="overview-table" id="overviewTable">
+          <table class="overview-table sortable" id="overviewTable">
             <thead>
               <tr>
-                <th>Thema</th>
-                <th>Schuljahr</th>
-                <th>Deadline</th>
-                <th>Status</th>
-                <th>Fortschritt</th>
+                <th data-sort="title" class="sortable-header">Thema <span class="sort-icon">↕</span></th>
+                <th data-sort="school_year" class="sortable-header">Schuljahr <span class="sort-icon">↕</span></th>
+                <th data-sort="deadline" class="sortable-header">Deadline <span class="sort-icon">↕</span></th>
+                <th data-sort="status" class="sortable-header">Status <span class="sort-icon">↕</span></th>
+                <th data-sort="progress" class="sortable-header">Fortschritt <span class="sort-icon">↕</span></th>
                 <th>Aktionen</th>
               </tr>
             </thead>
@@ -425,12 +395,13 @@
         </div>
       </div>
       
-      <!-- Tab: Bewertungsraster -->
+      <!-- Tab: Meine Bewertungsraster -->
       <div class="tab-content" id="templates-tab">
         <div class="main-layout">
           <div class="sidebar">
             <div class="section">
               <h3>Neues Bewertungsraster</h3>
+              <p class="info-text">Sie können bis zu <strong>5 Bewertungsraster</strong> erstellen.</p>
               <form id="newTeacherTemplateForm">
                 <div class="form-group">
                   <label for="teacherTemplateName">Name des Rasters</label>
@@ -454,6 +425,9 @@
           
           <div class="content-area">
             <h2>Meine Bewertungsraster</h2>
+            <div class="templates-info">
+              <p id="templatesCount">Sie haben 0 von 5 Bewertungsrastern erstellt.</p>
+            </div>
             <div class="templates-list" id="teacherTemplatesList">
               <!-- Bewertungsraster werden dynamisch geladen -->
               <div class="loading-container">
@@ -494,31 +468,9 @@
           <span class="checkbox-text">Kann Themen erstellen</span>
         </label>
       </div>
-      <div class="form-group checkbox-group">
-        <label class="checkbox-label">
-          <input type="checkbox" id="editCanManageTemplates">
-          <span class="checkbox-text">Kann Bewertungsraster verwalten</span>
-        </label>
-      </div>
       <div class="modal-footer">
         <button class="btn-danger" id="deleteTeacherBtn">Löschen</button>
         <button id="saveTeacherBtn">Speichern</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Confirm Delete Teacher Modal -->
-  <div class="modal" id="confirmDeleteTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer löschen</h3>
-        <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
-      </div>
-      <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
-      <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
-      <div class="modal-footer">
-        <button id="cancelDeleteTeacherBtn">Abbrechen</button>
-        <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
       </div>
     </div>
   </div>
@@ -576,6 +528,10 @@
           <input type="text" id="studentNameInput" placeholder="Vor- und Nachname" required>
         </div>
         <div class="form-group">
+          <label for="studentClassInput">Klasse</label>
+          <input type="text" id="studentClassInput" placeholder="z.B. 10a" required>
+        </div>
+        <div class="form-group">
           <label for="studentTeacherSelect">Prüfungslehrer</label>
           <select id="studentTeacherSelect" required>
             <option value="">Bitte wählen...</option>
@@ -627,6 +583,22 @@
       </div>
       <div class="modal-footer">
         <button id="closeThemeDetailsBtn">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Delete Teacher Modal -->
+  <div class="modal" id="confirmDeleteTeacherModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Lehrer löschen</h3>
+        <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
+      </div>
+      <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
+      <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
+      <div class="modal-footer">
+        <button id="cancelDeleteTeacherBtn">Abbrechen</button>
+        <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
       </div>
     </div>
   </div>
