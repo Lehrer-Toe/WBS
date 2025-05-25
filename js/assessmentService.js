@@ -1,5 +1,3 @@
-// js/assessmentService.js
-
 import { db } from "./firebaseClient.js";
 import { 
   DEFAULT_ASSESSMENT_CATEGORIES, 
@@ -12,83 +10,67 @@ import {
 export let assessmentTemplates = [];
 
 /**
- * Lädt alle Bewertungsraster aus Firebase
+ * Lädt alle Bewertungsraster für einen bestimmten Lehrer
  */
-export async function loadAssessmentTemplates() {
+export async function loadAssessmentTemplatesForTeacher(teacherCode) {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
-    // Fallback auf Standard-Raster
-    assessmentTemplates = [{
-      id: "standard",
-      name: "Standard-Bewertungsraster",
-      isDefault: true,
-      created_by: "SYSTEM",
-      categories: DEFAULT_ASSESSMENT_CATEGORIES
-    }];
+    return [];
+  }
+
+  try {
+    console.log(`Lade Bewertungsraster für Lehrer ${teacherCode}...`);
+    
+    // Lade nur die Raster des spezifischen Lehrers
+    const snapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName)
+      .where("created_by", "==", teacherCode)
+      .get();
+    
+    const templates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log(`${templates.length} Bewertungsraster für ${teacherCode} geladen`);
+    return templates;
+  } catch (error) {
+    console.error("Fehler beim Laden der Bewertungsraster:", error);
+    return [];
+  }
+}
+
+/**
+ * Lädt alle Bewertungsraster (nur für Admin)
+ */
+export async function loadAllAssessmentTemplates() {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    assessmentTemplates = [];
     return true;
   }
 
   try {
-    console.log("Lade Bewertungsraster...");
+    console.log("Lade alle Bewertungsraster...");
     const snapshot = await db.collection(ASSESSMENT_TEMPLATES.collectionName).get();
     
-    if (snapshot.empty) {
-      console.log("Keine Bewertungsraster gefunden, erstelle Standard-Raster");
-      
-      // Erstelle Standard-Raster
-      await db.collection(ASSESSMENT_TEMPLATES.collectionName).doc("standard").set({
-        name: "Standard-Bewertungsraster",
-        isDefault: true,
-        created_by: "SYSTEM",
-        created_at: firebase.firestore.FieldValue.serverTimestamp(),
-        updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-        categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          weight: 1
-        }))
-      });
-      
-      assessmentTemplates = [{
-        id: "standard",
-        name: "Standard-Bewertungsraster",
-        isDefault: true,
-        created_by: "SYSTEM",
-        categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
-          id: cat.id,
-          name: cat.name,
-          weight: 1
-        }))
-      }];
-    } else {
-      assessmentTemplates = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      console.log(`${assessmentTemplates.length} Bewertungsraster geladen`);
-    }
+    assessmentTemplates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
     
+    console.log(`${assessmentTemplates.length} Bewertungsraster insgesamt geladen`);
     return true;
   } catch (error) {
-    console.error("Fehler beim Laden der Bewertungsraster:", error);
-    
-    // Fallback auf Standard-Raster
-    assessmentTemplates = [{
-      id: "standard",
-      name: "Standard-Bewertungsraster",
-      isDefault: true,
-      created_by: "SYSTEM",
-      categories: DEFAULT_ASSESSMENT_CATEGORIES
-    }];
-    
+    console.error("Fehler beim Laden aller Bewertungsraster:", error);
+    assessmentTemplates = [];
     return false;
   }
 }
 
 /**
- * Erstellt ein neues Bewertungsraster
+ * Erstellt ein neues Bewertungsraster für einen Lehrer
  */
-export async function createAssessmentTemplate(templateData) {
+export async function createAssessmentTemplate(templateData, teacherCode) {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
     return null;
@@ -102,16 +84,21 @@ export async function createAssessmentTemplate(templateData) {
     throw new Error("Mindestens eine Bewertungskategorie ist erforderlich");
   }
 
+  // Prüfe, ob der Lehrer bereits das Maximum erreicht hat
+  const existingTemplates = await loadAssessmentTemplatesForTeacher(teacherCode);
+  if (existingTemplates.length >= ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher) {
+    throw new Error(`Sie haben bereits das Maximum von ${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher} Bewertungsrastern erreicht`);
+  }
+
   try {
-    // ID generieren oder verwenden
-    const templateId = templateData.id || Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    // ID generieren
+    const templateId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
     
     // Neues Raster erstellen
     await db.collection(ASSESSMENT_TEMPLATES.collectionName).doc(templateId).set({
       name: templateData.name,
       description: templateData.description || "",
-      isDefault: false,
-      created_by: templateData.created_by,
+      created_by: teacherCode,
       created_at: firebase.firestore.FieldValue.serverTimestamp(),
       updated_at: firebase.firestore.FieldValue.serverTimestamp(),
       categories: templateData.categories.map(cat => ({
@@ -121,20 +108,16 @@ export async function createAssessmentTemplate(templateData) {
       }))
     });
     
-    // ID hinzufügen und Template zurückgeben
     const newTemplate = {
       id: templateId,
       ...templateData,
-      isDefault: false,
+      created_by: teacherCode,
       categories: templateData.categories.map(cat => ({
         id: cat.id || cat.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
         name: cat.name,
         weight: cat.weight || 1
       }))
     };
-    
-    // Zur globalen Liste hinzufügen
-    assessmentTemplates.push(newTemplate);
     
     console.log("Neues Bewertungsraster erstellt:", newTemplate.name);
     return newTemplate;
@@ -147,15 +130,10 @@ export async function createAssessmentTemplate(templateData) {
 /**
  * Aktualisiert ein bestehendes Bewertungsraster
  */
-export async function updateAssessmentTemplate(templateId, templateData) {
+export async function updateAssessmentTemplate(templateId, templateData, teacherCode) {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
     return false;
-  }
-
-  // Standard-Raster darf nicht verändert werden
-  if (templateId === "standard") {
-    throw new Error("Das Standard-Bewertungsraster kann nicht verändert werden");
   }
 
   try {
@@ -166,23 +144,21 @@ export async function updateAssessmentTemplate(templateId, templateData) {
       throw new Error("Bewertungsraster nicht gefunden");
     }
     
+    const existingTemplate = doc.data();
+    
+    // Prüfe, ob der Lehrer der Ersteller ist
+    if (existingTemplate.created_by !== teacherCode) {
+      throw new Error("Sie können nur Ihre eigenen Bewertungsraster bearbeiten");
+    }
+    
     // Entferne ID und andere Felder, die nicht aktualisiert werden sollen
-    const { id, created_at, created_by, isDefault, ...updateData } = templateData;
+    const { id, created_at, created_by, ...updateData } = templateData;
     
     // Aktualisiere das Raster
     await templateRef.update({
       ...updateData,
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
-    
-    // Aktualisiere die lokale Kopie
-    const index = assessmentTemplates.findIndex(t => t.id === templateId);
-    if (index !== -1) {
-      assessmentTemplates[index] = {
-        ...assessmentTemplates[index],
-        ...updateData
-      };
-    }
     
     console.log("Bewertungsraster aktualisiert:", templateId);
     return true;
@@ -195,23 +171,29 @@ export async function updateAssessmentTemplate(templateId, templateData) {
 /**
  * Löscht ein Bewertungsraster
  */
-export async function deleteAssessmentTemplate(templateId) {
+export async function deleteAssessmentTemplate(templateId, teacherCode) {
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
     return false;
   }
 
-  // Standard-Raster darf nicht gelöscht werden
-  if (templateId === "standard") {
-    throw new Error("Das Standard-Bewertungsraster kann nicht gelöscht werden");
-  }
-
   try {
-    // Lösche das Raster
-    await db.collection(ASSESSMENT_TEMPLATES.collectionName).doc(templateId).delete();
+    const templateRef = db.collection(ASSESSMENT_TEMPLATES.collectionName).doc(templateId);
+    const doc = await templateRef.get();
     
-    // Entferne aus der lokalen Liste
-    assessmentTemplates = assessmentTemplates.filter(template => template.id !== templateId);
+    if (!doc.exists) {
+      throw new Error("Bewertungsraster nicht gefunden");
+    }
+    
+    const existingTemplate = doc.data();
+    
+    // Prüfe, ob der Lehrer der Ersteller ist
+    if (existingTemplate.created_by !== teacherCode) {
+      throw new Error("Sie können nur Ihre eigenen Bewertungsraster löschen");
+    }
+    
+    // Lösche das Raster
+    await templateRef.delete();
     
     console.log("Bewertungsraster gelöscht:", templateId);
     return true;
@@ -225,60 +207,59 @@ export async function deleteAssessmentTemplate(templateId) {
  * Gibt ein bestimmtes Bewertungsraster zurück
  */
 export async function getAssessmentTemplate(templateId) {
-  // Suche zuerst in der lokalen Liste
-  let template = assessmentTemplates.find(t => t.id === templateId);
-  
-  if (template) {
-    return template;
-  }
-  
-  // Wenn nicht in der lokalen Liste, lade aus Firebase
   if (!db) {
     console.error("Firestore ist nicht initialisiert!");
-    return null;
+    
+    // Fallback: Standard-Raster zurückgeben
+    return {
+      id: "standard",
+      name: "Standard-Bewertungsraster",
+      categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+        ...cat,
+        weight: 1
+      }))
+    };
   }
 
   try {
     const doc = await db.collection(ASSESSMENT_TEMPLATES.collectionName).doc(templateId).get();
     
     if (doc.exists) {
-      template = {
+      return {
         id: doc.id,
         ...doc.data()
       };
-      
-      // Zur lokalen Liste hinzufügen
-      assessmentTemplates.push(template);
-      
-      return template;
     } else {
       // Wenn nicht gefunden, verwende das Standard-Raster
-      return assessmentTemplates.find(t => t.id === "standard") || null;
+      return {
+        id: "standard",
+        name: "Standard-Bewertungsraster",
+        categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+          ...cat,
+          weight: 1
+        }))
+      };
     }
   } catch (error) {
     console.error("Fehler beim Laden des Bewertungsrasters:", error);
-    return null;
+    
+    // Fallback: Standard-Raster zurückgeben
+    return {
+      id: "standard",
+      name: "Standard-Bewertungsraster",
+      categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+        ...cat,
+        weight: 1
+      }))
+    };
   }
-}
-
-/**
- * Gibt alle Bewertungsraster zurück, die von einem Lehrer erstellt wurden
- */
-export function getTemplatesForTeacher(teacherCode) {
-  return assessmentTemplates.filter(template => 
-    template.created_by === teacherCode || template.isDefault
-  );
 }
 
 /**
  * Berechnet die Durchschnittsnote basierend auf einem Bewertungsraster und den Bewertungen
  */
-export function calculateAverageGrade(templateId, assessment) {
-  if (!assessment) return null;
-  
-  // Finde das Template
-  const template = assessmentTemplates.find(t => t.id === templateId);
-  if (!template) return null;
+export function calculateAverageGrade(template, assessment) {
+  if (!template || !assessment) return null;
   
   let sum = 0;
   let weightSum = 0;
