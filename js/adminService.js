@@ -636,3 +636,31 @@ export function hasTeacherPermission(teacherCode, permission) {
   
   return teacher.permissions && teacher.permissions[permission] === true;
 }
+export async function updateSystemDates(schoolYearEnd, lastAssessmentDate) {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    return false;
+  }
+
+  try {
+    const updatedSettings = {
+      ...systemSettings,
+      schoolYearEnd,
+      lastAssessmentDate
+    };
+    
+    const saved = await saveSystemSettings(updatedSettings);
+    
+    if (saved) {
+      // Event auslösen für UI-Updates
+      document.dispatchEvent(new CustomEvent("systemSettingsUpdated", { 
+        detail: updatedSettings 
+      }));
+    }
+    
+    return saved;
+  } catch (error) {
+    console.error("Fehler beim Aktualisieren der Systemdaten:", error);
+    return false;
+  }
+}
