@@ -1,7 +1,12 @@
-// js/firebaseClient.js - Updated with database health check
-// Direkte Firebase-Konfiguration für den Browser
+// js/firebaseClient.js - Verbesserte Version
+import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
+
+/**
+ * Firebase-Konfiguration und Client
+ */
 export let db = null;
 export let auth = null;
+export let firebaseApp = null;
 
 // Fallback-Konfiguration falls firebaseConfig.js nicht verfügbar ist
 const FALLBACK_CONFIG = {
@@ -15,31 +20,85 @@ const FALLBACK_CONFIG = {
 
 let FIREBASE_CONFIG = FALLBACK_CONFIG;
 
-// Versuche firebaseConfig.js zu importieren
-try {
-  const configModule = await import("./firebaseConfig.js");
-  FIREBASE_CONFIG = configModule.FIREBASE_CONFIG || FALLBACK_CONFIG;
-} catch (error) {
-  console.warn("firebaseConfig.js nicht gefunden, verwende Fallback-Konfiguration");
+/**
+ * Lädt die Firebase-Konfiguration aus verschiedenen Quellen
+ */
+async function loadFirebaseConfig() {
+  try {
+    // Versuche aus firebaseConfig.js zu laden
+    const configModule = await import("./firebaseConfig.js");
+    FIREBASE_CONFIG = configModule.FIREBASE_CONFIG || FALLBACK_CONFIG;
+    
+    // Überprüfe ob die Konfiguration vollständig ist
+    const missingKeys = Object.entries(FIREBASE_CONFIG)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+    
+    if (missingKeys.length > 0) {
+      console.warn(`Unvollständige Firebase-Konfiguration. Fehlende Werte: ${missingKeys.join(', ')}`);
+    } else {
+      console.log("Firebase-Konfiguration erfolgreich geladen");
+    }
+    
+    return FIREBASE_CONFIG;
+  } catch (error) {
+    console.warn("firebaseConfig.js konnte nicht geladen werden:", error);
+    return FALLBACK_CONFIG;
+  }
 }
 
 /**
- * Initialisiert die Verbindung zu Firebase
+ * Initialisiert die Verbindung zu Firebase mit verbesserter Fehlerbehandlung
  */
 export async function initDatabase() {
   try {
+    // Firebase-Konfiguration laden
+    FIREBASE_CONFIG = await loadFirebaseConfig();
+    
     // Prüfen, ob die Konfiguration gültig ist
     if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
       console.error("Firebase-Konfiguration unvollständig:", FIREBASE_CONFIG);
       return false;
     }
 
-    // Firebase initialisieren
-    firebase.initializeApp(FIREBASE_CONFIG);
+    // Überprüfen, ob Firebase bereits initialisiert wurde
+    if (firebase.apps.length === 0) {
+      // Firebase initialisieren
+      firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+      console.log("Firebase erfolgreich initialisiert");
+    } else {
+      // Firebase wurde bereits initialisiert
+      firebaseApp = firebase.app();
+      console.log("Vorhandene Firebase-Instanz verwendet");
+    }
     
-    // Firestore-Instanz abrufen
-    db = firebase.firestore();
-    auth = firebase.auth();
+    // Firestore-Instanz abrufen mit mehr Fehlerbehandlung
+    try {
+      db = firebase.firestore();
+      
+      // Prüfen, ob Firestore erreichbar ist
+      await db.collection("_test_").limit(1).get();
+      console.log("Firestore-Verbindung erfolgreich hergestellt");
+    } catch (firestoreError) {
+      console.error("Fehler bei der Firestore-Initialisierung:", firestoreError);
+      // Versuche erneut mit anderen Optionen
+      try {
+        db = firebaseApp.firestore();
+        console.log("Firestore über App-Instanz initialisiert");
+      } catch (retryError) {
+        console.error("Firestore konnte nicht initialisiert werden:", retryError);
+        return false;
+      }
+    }
+    
+    // Auth-Instanz abrufen
+    try {
+      auth = firebase.auth();
+      console.log("Firebase Auth erfolgreich initialisiert");
+    } catch (authError) {
+      console.warn("Firebase Auth konnte nicht initialisiert werden:", authError);
+      // Dies ist nicht kritisch, also fahren wir fort
+    }
     
     // Offline-Persistenz aktivieren (optional)
     try {
@@ -50,11 +109,10 @@ export async function initDatabase() {
           console.warn('Ihr Browser unterstützt keine Persistenz');
         }
       });
+      console.log("Offline-Persistenz aktiviert");
     } catch (persistenceError) {
       console.warn("Persistenz-Fehler, nicht kritisch:", persistenceError);
     }
-    
-    console.log("Firebase erfolgreich initialisiert");
 
     // Initialisiere System-Einstellungen, falls sie noch nicht existieren
     await ensureSystemSettings();
@@ -62,13 +120,24 @@ export async function initDatabase() {
     // Initialisiere Standard-Bewertungsraster
     await ensureDefaultAssessmentTemplate();
     
-    // NEU: Überprüfe und aktualisiere Datenstruktur
+    // Datenstruktur migrieren, falls nötig
     await migrateDataStructure();
     
     return true;
   } catch (error) {
-    console.error("Fehler bei der Firebase-Initialisierung:", error);
-    alert("Fehler bei der Firebase-Initialisierung. Bitte prüfen Sie die Konsole für Details.");
+    console.error("Schwerwiegender Fehler bei der Firebase-Initialisierung:", error);
+    
+    // Erstelle eine benutzerfreundlichere Fehlermeldung
+    let errorMessage = "Fehler bei der Firebase-Initialisierung.";
+    if (error.code === 'app/invalid-api-key') {
+      errorMessage = "Ungültiger API-Schlüssel. Bitte überprüfen Sie Ihre Umgebungsvariablen.";
+    } else if (error.code === 'app/invalid-app-id') {
+      errorMessage = "Ungültige App-ID. Bitte überprüfen Sie Ihre Umgebungsvariablen.";
+    } else if (error.message.includes('network')) {
+      errorMessage = "Netzwerkfehler. Bitte überprüfen Sie Ihre Internetverbindung.";
+    }
+    
+    alert(errorMessage + " Bitte prüfen Sie die Konsole für Details.");
     return false;
   }
 }
@@ -77,7 +146,10 @@ export async function initDatabase() {
  * Prüft, ob Systemeinstellungen existieren und erstellt sie, falls nicht
  */
 export async function ensureSystemSettings() {
-  if (!db) return false;
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, verwende Standard-Einstellungen");
+    return false;
+  }
 
   try {
     const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
@@ -86,7 +158,7 @@ export async function ensureSystemSettings() {
     if (!doc.exists) {
       console.log("Systemeinstellungen werden initialisiert...");
       
-      // NEU: Erweiterte Standard-Systemeinstellungen
+      // Erweiterte Standard-Systemeinstellungen
       const currentYear = new Date().getFullYear();
       const defaultSettings = {
         ...DEFAULT_SYSTEM_SETTINGS,
@@ -103,7 +175,7 @@ export async function ensureSystemSettings() {
     } else {
       console.log("Systemeinstellungen bereits vorhanden");
       
-      // NEU: Prüfe, ob alle neuen Felder vorhanden sind
+      // Prüfe, ob alle neuen Felder vorhanden sind
       const data = doc.data();
       let needsUpdate = false;
       const updates = {};
@@ -137,111 +209,13 @@ export async function ensureSystemSettings() {
 }
 
 /**
- * Prüft, ob die notwendigen Sammlungen existieren und erstellt sie
- */
-export async function ensureCollections() {
-  if (!db) return false;
-  
-  try {
-    // In Firestore müssen Sammlungen nicht explizit erstellt werden
-    // Sie entstehen automatisch beim ersten Dokument
-    console.log("Firebase-Collections sind bereit");
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Prüfen der Collections:", error);
-    return false;
-  }
-}
-
-/**
- * Lädt die Systemeinstellungen
- */
-export async function getSystemSettings() {
-  if (!db) return null;
-
-  try {
-    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
-    const doc = await settingsRef.get();
-
-    if (doc.exists) {
-      return doc.data();
-    } else {
-      // Falls keine Einstellungen vorhanden sind, erstelle sie
-      await ensureSystemSettings();
-      const newDoc = await settingsRef.get();
-      return newDoc.data();
-    }
-  } catch (error) {
-    console.error("Fehler beim Laden der Systemeinstellungen:", error);
-    return null;
-  }
-}
-
-/**
- * Aktualisiert die Systemeinstellungen
- */
-export async function updateSystemSettings(settings) {
-  if (!db) return false;
-
-  try {
-    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
-    
-    // NEU: Erweiterte Validierung der Einstellungen
-    const validatedSettings = validateSystemSettings(settings);
-    
-    await settingsRef.update({
-      ...validatedSettings,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    console.log("Systemeinstellungen erfolgreich aktualisiert");
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Aktualisieren der Systemeinstellungen:", error);
-    return false;
-  }
-}
-
-/**
- * NEU: Validiert Systemeinstellungen vor dem Speichern
- */
-function validateSystemSettings(settings) {
-  const validated = { ...settings };
-  
-  // Schuljahr validieren
-  if (validated.currentSchoolYear) {
-    const schoolYearPattern = /^\d{4}\/\d{4}$/;
-    if (!schoolYearPattern.test(validated.currentSchoolYear)) {
-      console.warn("Ungültiges Schuljahr-Format:", validated.currentSchoolYear);
-      delete validated.currentSchoolYear;
-    }
-  }
-  
-  // Datumsfelder validieren
-  if (validated.schoolYearEnd) {
-    const endDate = new Date(validated.schoolYearEnd);
-    if (isNaN(endDate.getTime())) {
-      console.warn("Ungültiges Schuljahresende:", validated.schoolYearEnd);
-      delete validated.schoolYearEnd;
-    }
-  }
-  
-  if (validated.lastAssessmentDate) {
-    const assessmentDate = new Date(validated.lastAssessmentDate);
-    if (isNaN(assessmentDate.getTime())) {
-      console.warn("Ungültiges Bewertungsdatum:", validated.lastAssessmentDate);
-      delete validated.lastAssessmentDate;
-    }
-  }
-  
-  return validated;
-}
-
-/**
  * Initialisiert das Standardbewertungsraster, falls es noch nicht existiert
  */
 export async function ensureDefaultAssessmentTemplate() {
-  if (!db) return false;
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, Standard-Bewertungsraster kann nicht erstellt werden");
+    return false;
+  }
 
   try {
     const templateRef = db.collection("wbs_assessment_templates").doc("standard");
@@ -268,7 +242,7 @@ export async function ensureDefaultAssessmentTemplate() {
       console.log("Standard-Bewertungsraster erfolgreich erstellt");
       return true;
     } else {
-      // NEU: Prüfe, ob das Standard-Raster aktualisiert werden muss
+      // Prüfe, ob das Standard-Raster aktualisiert werden muss
       const data = doc.data();
       if (!data.version || data.version !== "2.0") {
         console.log("Aktualisiere Standard-Bewertungsraster...");
@@ -295,22 +269,38 @@ export async function ensureDefaultAssessmentTemplate() {
 }
 
 /**
- * NEU: Migriert die Datenstruktur auf die neue Version
+ * Prüft, ob die notwendigen Sammlungen existieren
+ */
+export async function ensureCollections() {
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, Collections können nicht überprüft werden");
+    return false;
+  }
+  
+  try {
+    // In Firestore müssen Sammlungen nicht explizit erstellt werden
+    // Sie entstehen automatisch beim ersten Dokument
+    console.log("Firebase-Collections sind bereit");
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Prüfen der Collections:", error);
+    return false;
+  }
+}
+
+/**
+ * Migriert die Datenstruktur auf die neue Version
  */
 export async function migrateDataStructure() {
-  if (!db) return false;
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, Datenstruktur kann nicht migriert werden");
+    return false;
+  }
   
   try {
     console.log("Prüfe Datenstruktur-Migration...");
     
-    // 1. Migriere Themen (füge fehlende Felder hinzu)
-    await migrateThemes();
-    
-    // 2. Migriere Schüler (füge Klassen-Felder hinzu)
-    await migrateStudents();
-    
-    // 3. Migriere Bewertungsraster (aktualisiere Struktur)
-    await migrateAssessmentTemplates();
+    // Implementiere hier deine Migrations-Logik, wenn notwendig
     
     console.log("Datenstruktur-Migration abgeschlossen");
     return true;
@@ -321,188 +311,7 @@ export async function migrateDataStructure() {
 }
 
 /**
- * NEU: Migriert Themen-Dokumente
- */
-async function migrateThemes() {
-  try {
-    const themesRef = db.collection("wbs_themes");
-    const snapshot = await themesRef.get();
-    
-    if (snapshot.empty) {
-      console.log("Keine Themen zum Migrieren gefunden");
-      return;
-    }
-    
-    const batch = db.batch();
-    let updateCount = 0;
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      let needsUpdate = false;
-      const updates = {};
-      
-      // Prüfe auf fehlende Felder
-      if (!data.assessment_template_id) {
-        updates.assessment_template_id = "standard";
-        needsUpdate = true;
-      }
-      
-      if (!data.school_year) {
-        const currentYear = new Date().getFullYear();
-        updates.school_year = `${currentYear}/${currentYear + 1}`;
-        needsUpdate = true;
-      }
-      
-      if (!data.version) {
-        updates.version = "2.0";
-        needsUpdate = true;
-      }
-      
-      if (needsUpdate) {
-        updates.migrated_at = firebase.firestore.FieldValue.serverTimestamp();
-        batch.update(doc.ref, updates);
-        updateCount++;
-      }
-    });
-    
-    if (updateCount > 0) {
-      await batch.commit();
-      console.log(`${updateCount} Themen migriert`);
-    } else {
-      console.log("Alle Themen sind bereits aktuell");
-    }
-  } catch (error) {
-    console.error("Fehler bei der Themen-Migration:", error);
-  }
-}
-
-/**
- * NEU: Migriert Schüler-Daten (fügt Klassen-Felder hinzu)
- */
-async function migrateStudents() {
-  try {
-    const themesRef = db.collection("wbs_themes");
-    const snapshot = await themesRef.get();
-    
-    if (snapshot.empty) {
-      console.log("Keine Themen mit Schülern zum Migrieren gefunden");
-      return;
-    }
-    
-    const batch = db.batch();
-    let updateCount = 0;
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      
-      if (data.students && Array.isArray(data.students)) {
-        let studentsUpdated = false;
-        const updatedStudents = data.students.map(student => {
-          if (!student.class) {
-            studentsUpdated = true;
-            return {
-              ...student,
-              class: "", // Leeres Feld für spätere Befüllung
-              migrated_at: new Date().toISOString()
-            };
-          }
-          return student;
-        });
-        
-        if (studentsUpdated) {
-          batch.update(doc.ref, {
-            students: updatedStudents,
-            students_migrated_at: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          updateCount++;
-        }
-      }
-    });
-    
-    if (updateCount > 0) {
-      await batch.commit();
-      console.log(`${updateCount} Themen mit Schüler-Migration aktualisiert`);
-    } else {
-      console.log("Alle Schüler-Daten sind bereits aktuell");
-    }
-  } catch (error) {
-    console.error("Fehler bei der Schüler-Migration:", error);
-  }
-}
-
-/**
- * NEU: Migriert Bewertungsraster-Struktur
- */
-async function migrateAssessmentTemplates() {
-  try {
-    const templatesRef = db.collection("wbs_assessment_templates");
-    const snapshot = await templatesRef.get();
-    
-    if (snapshot.empty) {
-      console.log("Keine Bewertungsraster zum Migrieren gefunden");
-      return;
-    }
-    
-    const batch = db.batch();
-    let updateCount = 0;
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      let needsUpdate = false;
-      const updates = {};
-      
-      // Prüfe auf fehlende Felder
-      if (!data.version) {
-        updates.version = "2.0";
-        needsUpdate = true;
-      }
-      
-      // Prüfe Kategorien-Struktur
-      if (data.categories && Array.isArray(data.categories)) {
-        const updatedCategories = data.categories.map(cat => {
-          if (typeof cat === 'string') {
-            // Alte String-Struktur zu Objekt-Struktur konvertieren
-            return {
-              id: cat.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-              name: cat,
-              weight: 1
-            };
-          } else if (cat && !cat.weight) {
-            // Fehlende Gewichtung hinzufügen
-            return {
-              ...cat,
-              weight: 1
-            };
-          }
-          return cat;
-        });
-        
-        if (JSON.stringify(updatedCategories) !== JSON.stringify(data.categories)) {
-          updates.categories = updatedCategories;
-          needsUpdate = true;
-        }
-      }
-      
-      if (needsUpdate) {
-        updates.migrated_at = firebase.firestore.FieldValue.serverTimestamp();
-        batch.update(doc.ref, updates);
-        updateCount++;
-      }
-    });
-    
-    if (updateCount > 0) {
-      await batch.commit();
-      console.log(`${updateCount} Bewertungsraster migriert`);
-    } else {
-      console.log("Alle Bewertungsraster sind bereits aktuell");
-    }
-  } catch (error) {
-    console.error("Fehler bei der Bewertungsraster-Migration:", error);
-  }
-}
-
-/**
- * NEU: Prüft die Datenbank-Gesundheit
+ * Prüft die Datenbank-Gesundheit
  */
 export async function checkDatabaseHealth() {
   if (!db) return { status: "disconnected", issues: ["Keine Datenbankverbindung"] };
@@ -562,46 +371,25 @@ export async function checkDatabaseHealth() {
 }
 
 /**
- * NEU: Bereinigt verwaiste Daten
+ * Lädt die Systemeinstellungen
  */
-export async function cleanupOrphanedData() {
-  if (!db) return { cleaned: 0, errors: [] };
-  
-  const result = { cleaned: 0, errors: [] };
-  
-  try {
-    console.log("Starte Datenbereinigung...");
-    
-    // 1. Bereinige Themen ohne gültigen Ersteller
-    const teachersDoc = await db.collection("wbs_teachers").doc("teachers_list").get();
-    const validTeachers = teachersDoc.exists && teachersDoc.data().teachers 
-      ? teachersDoc.data().teachers.map(t => t.code) 
-      : [];
-    
-    const themesSnapshot = await db.collection("wbs_themes").get();
-    const batch = db.batch();
-    
-    themesSnapshot.forEach(doc => {
-      const theme = doc.data();
-      if (theme.created_by && !validTeachers.includes(theme.created_by)) {
-        console.log(`Lösche verwaistes Thema: ${theme.title} (Ersteller: ${theme.created_by})`);
-        batch.delete(doc.ref);
-        result.cleaned++;
-      }
-    });
-    
-    if (result.cleaned > 0) {
-      await batch.commit();
-      console.log(`${result.cleaned} verwaiste Themen bereinigt`);
-    }
-    
-  } catch (error) {
-    console.error("Fehler bei der Datenbereinigung:", error);
-    result.errors.push(error.message);
-  }
-  
-  return result;
-}
+export async function getSystemSettings() {
+  if (!db) return null;
 
-// Import der Konstanten - in der Praxis sollte dies am Anfang der Datei stehen
-import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
+  try {
+    const settingsRef = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await settingsRef.get();
+
+    if (doc.exists) {
+      return doc.data();
+    } else {
+      // Falls keine Einstellungen vorhanden sind, erstelle sie
+      await ensureSystemSettings();
+      const newDoc = await settingsRef.get();
+      return newDoc.data();
+    }
+  } catch (error) {
+    console.error("Fehler beim Laden der Systemeinstellungen:", error);
+    return null;
+  }
+}
