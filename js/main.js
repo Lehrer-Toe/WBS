@@ -1,11 +1,18 @@
-// js/main.js
-import { initDatabase, ensureCollections, ensureDefaultAssessmentTemplate } from "./firebaseClient.js";
-import { loadAllTeachers } from "./adminService.js";
+// js/main.js - Updated with enhanced initialization
+import { 
+  initDatabase, 
+  ensureCollections, 
+  ensureDefaultAssessmentTemplate, 
+  checkDatabaseHealth,
+  cleanupOrphanedData
+} from "./firebaseClient.js";
+import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./modules/loginModule.js";  // HIER GEÄNDERT!
-import { initAdminModule } from "./modules/adminModule.js";  // HIER GEÄNDERT!
-import { initThemeModule } from "./modules/themeModule.js";  // HIER GEÄNDERT!
+import { initLoginModule, performLogout } from "./modules/loginModule.js";
+import { initAdminModule } from "./modules/adminModule.js";
+import { initThemeModule } from "./modules/themeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
+import { updateThemeStatuses } from "./themeService.js";
 
 // DOM-Elemente
 let logoutBtn = null;
@@ -17,34 +24,59 @@ document.addEventListener("DOMContentLoaded", async function() {
   
   try {
     // 1. Firebase initialisieren
-    await initDatabase();
+    const dbInitialized = await initDatabase();
+    if (!dbInitialized) {
+      throw new Error("Datenbank konnte nicht initialisiert werden");
+    }
+    
+    // 2. Datenbank-Gesundheits-Check durchführen
+    const dbHealth = await checkDatabaseHealth();
+    console.log("Datenbank-Status:", dbHealth.status);
+    
+    if (dbHealth.status === "warning" || dbHealth.status === "error") {
+      console.warn("Datenbank-Probleme gefunden:", dbHealth.issues);
+      // Zeige Warnung, aber breche nicht ab
+      showNotification("Einige Datenbankprobleme wurden erkannt. Die Anwendung könnte eingeschränkt funktionieren.", "warning");
+    }
+    
+    // 3. Grundlegende Sammlungen und Strukturen sicherstellen
     await ensureCollections();
     await ensureDefaultAssessmentTemplate();
     
-    // 2. Lehrer aus Firebase laden
+    // 4. Verwaiste Daten bereinigen
+    const cleanupResult = await cleanupOrphanedData();
+    if (cleanupResult.cleaned > 0) {
+      console.log(`${cleanupResult.cleaned} verwaiste Datensätze wurden bereinigt`);
+    }
+    
+    // 5. Lehrer aus Firebase laden
     console.log("Lade Lehrer-Daten...");
     await loadAllTeachers();
     
-    // 3. Bewertungsraster laden
+    // 6. System-Einstellungen laden
+    console.log("Lade System-Einstellungen...");
+    await loadSystemSettings();
+    
+    // 7. Bewertungsraster laden
     console.log("Lade Bewertungsraster...");
     await loadAssessmentTemplates();
     
-    // 4. Lehrer-Grid für Anmeldung initialisieren
+    // 8. Lehrer-Grid für Anmeldung initialisieren
     initLoginModule();
     
-    // 5. Admin-Modul initialisieren
+    // 9. Admin-Modul initialisieren
     initAdminModule();
     
-    // 6. Themen-Modul initialisieren
+    // 10. Themen-Modul initialisieren
     await initThemeModule();
     
-    // 7. Event-Listener einrichten
+    // 11. Event-Listener einrichten
     setupGlobalEventListeners();
     
     console.log("Initialisierung abgeschlossen!");
   } catch (error) {
     console.error("Fehler bei der Initialisierung:", error);
-    showNotification("Fehler bei der Initialisierung. Bitte Seite neu laden.", "error");
+    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
   } finally {
     hideLoader();
   }
@@ -76,6 +108,27 @@ function setupGlobalEventListeners() {
       if (tabContent) {
         tabContent.classList.add("active");
       }
+      
+      // Event auslösen für Tab-Wechsel
+      document.dispatchEvent(new CustomEvent("tabChanged", { 
+        detail: { tabId: tabId }
+      }));
     });
+  });
+  
+  // Theme-Status-Update regelmäßig durchführen
+  setInterval(function() {
+    updateThemeStatuses();
+    document.dispatchEvent(new Event("themeStatusesUpdated"));
+  }, 5 * 60 * 1000); // Alle 5 Minuten
+  
+  // Event-Listener für Systemaktualisierungen
+  document.addEventListener("systemSettingsUpdated", function(event) {
+    console.log("Systemeinstellungen wurden aktualisiert:", event.detail);
+  });
+  
+  // Event-Listener für Lehrer-Updates
+  document.addEventListener("teachersUpdated", function(event) {
+    console.log("Lehrer-Daten wurden aktualisiert");
   });
 }
