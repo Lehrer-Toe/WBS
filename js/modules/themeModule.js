@@ -2350,3 +2350,81 @@ function exportData() {
   
   showNotification("Daten wurden exportiert.");
 }
+// Add these event listeners to the end of the setupEventListeners function in themeModule.js
+
+// Event-Listener für Tab-Wechsel
+document.addEventListener("tabChanged", function(event) {
+  const tabId = event.detail.tabId;
+  
+  // Aktualisiere den entsprechenden Tab-Inhalt
+  if (tabId === "themes") {
+    updateThemesTab();
+  } else if (tabId === "assessment") {
+    updateAssessmentTab();
+  } else if (tabId === "overview") {
+    updateOverviewTab();
+  } else if (tabId === "templates") {
+    updateTemplatesTab();
+  }
+});
+
+// Event-Listener für Theme-Status-Updates
+document.addEventListener("themeStatusesUpdated", function() {
+  // Aktualisiere UI-Elemente, die vom Theme-Status abhängen
+  if (document.querySelector(".tab.active[data-tab='themes']")) {
+    updateThemesList();
+  }
+  
+  if (document.querySelector(".tab.active[data-tab='overview']")) {
+    updateOverviewTable();
+  }
+  
+  // Prüfe auf Deadline-Warnungen
+  checkDeadlineWarnings();
+});
+
+// Event-Listener für Theme-Neuladen
+document.addEventListener("reloadThemes", async function() {
+  // Lade Themen neu, wenn sie geändert wurden
+  await loadAllThemes();
+  
+  // Aktualisiere die aktive Ansicht
+  if (document.querySelector(".tab.active[data-tab='themes']")) {
+    updateThemesTab();
+  } else if (document.querySelector(".tab.active[data-tab='assessment']")) {
+    updateAssessmentTab();
+  } else if (document.querySelector(".tab.active[data-tab='overview']")) {
+    updateOverviewTab();
+  }
+  
+  // Prüfe auf Deadline-Warnungen
+  checkDeadlineWarnings();
+});
+
+// Event-Listener für Systemeinstellungs-Updates
+document.addEventListener("systemSettingsUpdated", function(event) {
+  // Aktualisiere UI-Elemente, die von Systemeinstellungen abhängen
+  const updatedSettings = event.detail;
+  
+  // Aktualisiere Schuljahr-Dropdowns
+  const schoolYearSelects = document.querySelectorAll(".school-year-select");
+  schoolYearSelects.forEach(select => {
+    if (select && updatedSettings.currentSchoolYear) {
+      populateSchoolYearSelect(select, updatedSettings.currentSchoolYear);
+    }
+  });
+  
+  // Prüfe auf Deadline-Warnungen basierend auf Schuljahresende
+  if (updatedSettings.schoolYearEnd) {
+    checkDeadlineWarnings();
+  }
+});
+
+// Event-Listener für Teacher-Updates
+document.addEventListener("teachersUpdated", function() {
+  // Aktualisiere Lehrer-Dropdowns
+  updateTeacherSelects();
+  
+  // Aktualisiere die Ansicht, falls der aktuelle Benutzer betroffen ist
+  updateUI();
+});
