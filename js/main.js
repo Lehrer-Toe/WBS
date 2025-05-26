@@ -1,827 +1,130 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Zeig, was du kannst!</title>
-  <link rel="icon" href="data:," />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="loader-container" id="mainLoader">
-    <span class="loader"></span>
-  </div>
+// js/main.js - With debugging output
+import { 
+  initDatabase, 
+  ensureCollections, 
+  ensureDefaultAssessmentTemplate, 
+  checkDatabaseHealth
+} from "./firebaseClient.js";
+import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
+import { showLoader, hideLoader, showNotification } from "./uiService.js";
+import { initLoginModule, performLogout } from "./modules/loginModule.js";
+import { initAdminModule } from "./modules/adminModule.js";
+import { initThemeModule } from "./modules/themeModule.js";
+import { loadAssessmentTemplates } from "./assessmentService.js";
 
-  <!-- Normaler Login-Bereich -->
-  <div id="loginSection">
-    <header>
-      <h1>Zeig, was du kannst!</h1>
-      <div class="version">v2.0</div>
-    </header>
-    
-    <div class="container animate-fade-in">
-      <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
-      
-      <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher cards werden dynamisch erzeugt -->
-      </div>
-      
-      <div class="modal" id="passwordModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Anmeldung</h3>
-            <button class="modal-close" id="closePasswordModal">&times;</button>
-          </div>
-          <p id="loginPrompt">Bitte geben Sie Ihr Passwort ein:</p>
-          <input type="password" id="passwordInput" placeholder="Passwort">
-          <div class="modal-footer">
-            <button class="btn-danger" id="cancelLogin">Abbrechen</button>
-            <button id="confirmLogin">Anmelden</button>
-          </div>
-        </div>
-      </div>
+// DOM-Elemente
+let logoutBtn = null;
 
-      <!-- Admin-Zugang -->
-      <div class="admin-access">
-        <button id="showAdminLoginBtn" class="btn-secondary">Administrator-Bereich</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Admin-Login-Bereich -->
-  <div id="adminLoginSection" style="display: none;">
-    <header>
-      <h1>Zeig, was du kannst! - Admin</h1>
-      <div class="version">v2.0</div>
-    </header>
-    
-    <div class="container animate-fade-in">
-      <h2>Administrator-Anmeldung</h2>
-      
-      <div class="admin-login-form">
-        <div class="form-group">
-          <label for="adminUsername">Benutzername</label>
-          <input type="text" id="adminUsername" placeholder="Admin-Benutzername">
-        </div>
-        <div class="form-group">
-          <label for="adminPassword">Passwort</label>
-          <input type="password" id="adminPassword" placeholder="Admin-Passwort">
-        </div>
-        <div class="admin-buttons">
-          <button id="backToLoginBtn" class="btn-secondary">Zurück zur Anmeldung</button>
-          <button id="adminLoginBtn">Anmelden</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Admin-Panel -->
-  <div id="adminSection" style="display: none;">
-    <header>
-      <div class="teacher-info">
-        <div class="teacher-avatar">A</div>
-        <div class="teacher-name">Administrator</div>
-      </div>
-      <h1>Zeig, was du kannst! - Admin</h1>
-      <button id="adminLogoutBtn" class="logout-btn">Abmelden</button>
-    </header>
-    
-    <div class="container">
-      <div class="tabs">
-        <div class="tab active" data-tab="teachers">Lehrer verwalten</div>
-        <div class="tab" data-tab="system">System-Info</div>
-      </div>
-      
-      <!-- Tab: Lehrer verwalten -->
-      <div class="tab-content active" id="teachers-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neuen Lehrer anlegen</h3>
-              <div class="form-group">
-                <label for="newTeacherName">Vollständiger Name</label>
-                <input type="text" id="newTeacherName" placeholder="z.B. Max Mustermann">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherCode">Kürzel</label>
-                <input type="text" id="newTeacherCode" placeholder="z.B. MUM" maxlength="5">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherPassword">Passwort</label>
-                <input type="password" id="newTeacherPassword" placeholder="Passwort festlegen">
-              </div>
-              <div class="form-group checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="canCreateThemes">
-                  <span class="checkbox-text">Kann Themen erstellen</span>
-                </label>
-              </div>
-              <button id="addTeacherBtn">Lehrer hinzufügen</button>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Alle registrierten Lehrer</h2>
-            <div class="table-container">
-              <table class="teacher-admin-table" id="teachersAdminTable">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Kürzel</th>
-                    <th>Berechtigungen</th>
-                    <th>Erstellt am</th>
-                    <th>Aktionen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colspan="5">Lade Lehrer...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: System-Info -->
-      <div class="tab-content" id="system-tab">
-        <h2>System-Informationen</h2>
-        
-        <div class="card">
-          <h3>Systemeinstellungen</h3>
-          <div class="form-group">
-            <label for="currentSchoolYear">Aktuelles Schuljahr</label>
-            <select id="currentSchoolYear">
-              <option value="">Bitte wählen...</option>
-              <!-- Schuljahre werden dynamisch befüllt -->
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="schoolYearEnd">Schuljahresende</label>
-            <input type="date" id="schoolYearEnd">
-          </div>
-          <div class="form-group">
-            <label for="lastAssessmentDate">Letzte Bewertungsfrist</label>
-            <input type="date" id="lastAssessmentDate">
-          </div>
-          <button id="saveSystemSettingsBtn">Einstellungen speichern</button>
-        </div>
-        
-        <div class="card">
-          <h3>Statistiken</h3>
-          <div id="systemStats">
-            <div class="stat-item">
-              <span class="stat-label">Registrierte Lehrer:</span>
-              <span class="stat-value" id="totalTeachers">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Themen insgesamt:</span>
-              <span class="stat-value" id="totalThemes">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Schüler insgesamt:</span>
-              <span class="stat-value" id="totalStudents">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Firebase Status:</span>
-              <span class="stat-value" id="firebaseStatus">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Letzte Aktualisierung:</span>
-              <span class="stat-value" id="lastUpdate">-</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>System-Aktionen</h3>
-          <div class="system-actions">
-            <button id="refreshSystemBtn">System aktualisieren</button>
-            <button id="exportSystemBtn" class="btn-secondary">Systemdaten exportieren</button>
-            <button id="importSystemBtn" class="btn-secondary">Systemdaten importieren</button>
-            <input type="file" id="importFileInput" accept=".json" style="display: none;">
-          </div>
-        </div>
-
-        <!-- Datenlöschung -->
-        <div class="card danger-zone">
-          <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
-          <p class="warning-text">
-            <strong>Achtung:</strong> Diese Aktionen können nicht rückgängig gemacht werden!
-          </p>
-          
-          <div class="form-group">
-            <label for="adminDeleteVerificationCode">Bestätigungscode eingeben:</label>
-            <input type="text" id="adminDeleteVerificationCode" placeholder='z.B. "delete teachers" oder "delete everything"'>
-            <small class="help-text">
-              • Für Lehrer löschen: "delete teachers"<br>
-              • Für kompletten Reset: "delete everything"
-            </small>
-          </div>
-          
-          <div class="danger-actions">
-            <button id="deleteAllTeachersBtn" class="btn-danger">
-              🧑‍🏫 Alle Lehrer löschen
-            </button>
-            <button id="deleteAllDataBtn" class="btn-danger">
-              💥 Kompletter System-Reset
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+// Start
+document.addEventListener("DOMContentLoaded", async function() {
+  console.log("WBS Bewertungssystem wird initialisiert...");
+  showLoader();
   
-  <!-- Normaler App-Bereich für Lehrer -->
-  <div id="appSection" style="display: none;">
-    <header>
-      <div class="teacher-info">
-        <div class="teacher-avatar" id="teacherAvatar">T</div>
-        <div class="teacher-name" id="teacherName">Töllner</div>
-      </div>
-      <h1>Zeig, was du kannst!</h1>
-      <button id="logoutBtn" class="logout-btn">Abmelden</button>
-    </header>
+  try {
+    // DEBUGGING: Force loader to be visible
+    document.getElementById("mainLoader").style.display = "flex";
+    console.log("Loader sollte sichtbar sein");
     
-    <div class="container">
-      <div class="tabs">
-        <div class="tab active" data-tab="themes">Themen verwalten</div>
-        <div class="tab" data-tab="assessment">Bewertung</div>
-        <div class="tab" data-tab="overview">Übersicht</div>
-        <div class="tab" data-tab="templates">Meine Bewertungsraster</div>
-      </div>
-      
-      <!-- Tab: Themen verwalten -->
-      <div class="tab-content active" id="themes-tab">
-        <div id="themesContainer">
-          <div class="themes-header">
-            <h2>Themen & Gruppen</h2>
-            <div class="themes-actions">
-              <select id="themeFilterSelect" class="theme-filter">
-                <option value="">Alle Themen</option>
-                <option value="active">Aktive Themen</option>
-                <option value="completed">Abgeschlossene Themen</option>
-                <option value="overdue">Überfällige Themen</option>
-              </select>
-              <select id="themeSortSelect" class="theme-filter">
-                <option value="deadline">Nach Deadline</option>
-                <option value="title">Nach Titel</option>
-                <option value="status">Nach Status</option>
-                <option value="progress">Nach Fortschritt</option>
-              </select>
-              <button id="newThemeBtn" class="btn-primary">Neues Thema erstellen</button>
-            </div>
-          </div>
-          
-          <div class="themes-list" id="themesList">
-            <!-- Themen werden dynamisch geladen -->
-            <div class="loading-container">
-              <span class="loader"></span>
-              <p>Themen werden geladen...</p>
-            </div>
-          </div>
-        </div>
-        
-        <div id="studentsContainer" style="display: none;">
-          <h2>Schüler für Thema</h2>
-          
-          <div class="students-actions">
-            <button id="addStudentBtn" class="btn-primary">Schüler hinzufügen</button>
-          </div>
-          
-          <div class="students-list" id="studentsList">
-            <!-- Schüler werden dynamisch geladen -->
-            <div class="loading-container">
-              <span class="loader"></span>
-              <p>Schüler werden geladen...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: Bewertung -->
-      <div class="tab-content" id="assessment-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Zu bewertende Schüler</h3>
-              <div class="assessment-filters">
-                <select id="assessmentFilterSelect" class="filter-select">
-                  <option value="">Alle Schüler</option>
-                  <option value="pending">Offen</option>
-                  <option value="in_progress">In Bearbeitung</option>
-                  <option value="completed">Bewertet</option>
-                </select>
-                <select id="assessmentSortSelect" class="filter-select">
-                  <option value="name">Nach Name</option>
-                  <option value="class">Nach Klasse</option>
-                  <option value="deadline">Nach Deadline</option>
-                  <option value="status">Nach Status</option>
-                </select>
-              </div>
-              <ul class="student-list" id="assessmentStudentList">
-                <li>Keine Schüler zur Bewertung zugewiesen</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div class="content-area" id="assessmentContent">
-            <div class="welcome-card">
-              <h2>Willkommen bei der WBS Bewertungsapp</h2>
-              <p>Bitte wählen Sie einen Schüler aus der Liste aus, um die Bewertung durchzuführen.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Tab: Übersicht -->
-      <div class="tab-content" id="overview-tab">
-        <h2>Übersicht aller Themen und Bewertungen</h2>
-        
-        <div class="selectors">
-          <div class="selector-group">
-            <label for="overviewSchoolYearSelect">Schuljahr</label>
-            <select id="overviewSchoolYearSelect">
-              <option value="">Alle Schuljahre</option>
-              <!-- Schuljahre werden dynamisch befüllt -->
-            </select>
-          </div>
-          
-          <div class="selector-group">
-            <label for="overviewStatusSelect">Status</label>
-            <select id="overviewStatusSelect">
-              <option value="">Alle Status</option>
-              <option value="active">Aktiv</option>
-              <option value="completed">Abgeschlossen</option>
-              <option value="overdue">Überfällig</option>
-            </select>
-          </div>
-          
-          <div class="export-button-container">
-            <button id="exportDataBtn" class="btn-secondary btn-export">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              <span>Daten exportieren</span>
-            </button>
-          </div>
-        </div>
-        
-        <div class="table-container">
-          <table class="overview-table sortable" id="overviewTable">
-            <thead>
-              <tr>
-                <th data-sort="title" class="sortable-header">Thema <span class="sort-icon">↕</span></th>
-                <th data-sort="school_year" class="sortable-header">Schuljahr <span class="sort-icon">↕</span></th>
-                <th data-sort="deadline" class="sortable-header">Deadline <span class="sort-icon">↕</span></th>
-                <th data-sort="status" class="sortable-header">Status <span class="sort-icon">↕</span></th>
-                <th data-sort="progress" class="sortable-header">Fortschritt <span class="sort-icon">↕</span></th>
-                <th>Aktionen</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colspan="6">Keine Themen gefunden</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <!-- Tab: Meine Bewertungsraster -->
-      <div class="tab-content" id="templates-tab">
-        <div class="main-layout">
-          <div class="sidebar">
-            <div class="section">
-              <h3>Neues Bewertungsraster</h3>
-              <p class="info-text">Sie können bis zu <strong>5 Bewertungsraster</strong> erstellen.</p>
-              <form id="newTeacherTemplateForm">
-                <div class="form-group">
-                  <label for="teacherTemplateName">Name des Rasters</label>
-                  <input type="text" id="teacherTemplateName" placeholder="z.B. Meine Bewertung">
-                </div>
-                <div class="form-group">
-                  <label for="teacherTemplateDescription">Beschreibung (optional)</label>
-                  <textarea id="teacherTemplateDescription" rows="3" placeholder="Beschreibung des Bewertungsrasters"></textarea>
-                </div>
-                <div id="teacherCategoriesContainer">
-                  <h4>Bewertungskategorien</h4>
-                  <div class="categories-list" id="teacherCategoriesList">
-                    <!-- Kategorien werden dynamisch hinzugefügt -->
-                  </div>
-                  <button type="button" id="addTeacherCategoryBtn" class="btn-secondary">Kategorie hinzufügen</button>
-                </div>
-                <button type="submit" id="createTeacherTemplateBtn">Bewertungsraster erstellen</button>
-              </form>
-            </div>
-          </div>
-          
-          <div class="content-area">
-            <h2>Meine Bewertungsraster</h2>
-            <div class="templates-info">
-              <p id="templatesCount">Sie haben 0 von 5 Bewertungsrastern erstellt.</p>
-            </div>
-            <div class="templates-list" id="teacherTemplatesList">
-              <!-- Bewertungsraster werden dynamisch geladen -->
-              <div class="loading-container">
-                <span class="loader"></span>
-                <p>Bewertungsraster werden geladen...</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    // 1. Firebase initialisieren
+    console.log("Initialisiere Firebase...");
+    const dbInitialized = await initDatabase();
+    console.log("Firebase initialisiert:", dbInitialized);
+    
+    if (!dbInitialized) {
+      throw new Error("Datenbank konnte nicht initialisiert werden");
+    }
+    
+    // 2. Grundlegende Sammlungen und Strukturen sicherstellen
+    console.log("Stelle Collections sicher...");
+    await ensureCollections();
+    console.log("Collections sind bereit");
+    
+    console.log("Stelle Default Assessment Template sicher...");
+    await ensureDefaultAssessmentTemplate();
+    console.log("Default Assessment Template ist bereit");
+    
+    // 3. Lehrer aus Firebase laden
+    console.log("Lade Lehrer-Daten...");
+    const teachersLoaded = await loadAllTeachers();
+    console.log("Lehrer geladen:", teachersLoaded);
+    
+    // 4. System-Einstellungen laden
+    console.log("Lade System-Einstellungen...");
+    await loadSystemSettings();
+    console.log("System-Einstellungen geladen");
+    
+    // 5. Bewertungsraster laden
+    console.log("Lade Bewertungsraster...");
+    await loadAssessmentTemplates();
+    console.log("Bewertungsraster geladen");
+    
+    // 6. Lehrer-Grid für Anmeldung initialisieren
+    console.log("Initialisiere Login-Modul...");
+    initLoginModule();
+    console.log("Login-Modul initialisiert");
+    
+    // 7. Admin-Modul initialisieren
+    console.log("Initialisiere Admin-Modul...");
+    initAdminModule();
+    console.log("Admin-Modul initialisiert");
+    
+    // 8. Themen-Modul initialisieren
+    console.log("Initialisiere Themen-Modul...");
+    await initThemeModule();
+    console.log("Themen-Modul initialisiert");
+    
+    // 9. Event-Listener einrichten
+    console.log("Richte Event-Listener ein...");
+    setupGlobalEventListeners();
+    console.log("Event-Listener eingerichtet");
+    
+    console.log("Initialisierung abgeschlossen!");
+    
+    // DEBUGGING: Try to force hide the loader
+    document.getElementById("mainLoader").style.display = "none";
+    console.log("Loader sollte jetzt ausgeblendet sein");
+    
+  } catch (error) {
+    console.error("Fehler bei der Initialisierung:", error);
+    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
+    
+    // DEBUGGING: Make sure loader is hidden even on error
+    document.getElementById("mainLoader").style.display = "none";
+    console.log("Loader nach Fehler ausgeblendet");
+  } finally {
+    // DEBUGGING: Double-check that the loader is hidden
+    hideLoader();
+    document.getElementById("mainLoader").style.display = "none";
+    console.log("Loader final ausgeblendet (finally block)");
+  }
+});
 
-  <!-- Modals -->
+// Richtet globale Event-Listener ein
+function setupGlobalEventListeners() {
+  // Logout-Button
+  logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", performLogout);
+  }
   
-  <!-- Edit Teacher Modal -->
-  <div class="modal" id="editTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer bearbeiten</h3>
-        <button class="modal-close" id="closeEditTeacherModal">&times;</button>
-      </div>
-      <div class="form-group">
-        <label for="editTeacherName">Vollständiger Name</label>
-        <input type="text" id="editTeacherName" placeholder="z.B. Max Mustermann">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherCode">Kürzel</label>
-        <input type="text" id="editTeacherCode" placeholder="z.B. MUM" maxlength="5">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherPassword">Passwort</label>
-        <input type="password" id="editTeacherPassword" placeholder="Neues Passwort">
-      </div>
-      <div class="form-group checkbox-group">
-        <label class="checkbox-label">
-          <input type="checkbox" id="editCanCreateThemes">
-          <span class="checkbox-text">Kann Themen erstellen</span>
-        </label>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-danger" id="deleteTeacherBtn">Löschen</button>
-        <button id="saveTeacherBtn">Speichern</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Theme Modal -->
-  <div class="modal" id="themeModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="themeModalTitle">Neues Thema erstellen</h3>
-        <button class="modal-close" id="closeThemeModal">&times;</button>
-      </div>
-      <form id="themeForm">
-        <div class="form-group">
-          <label for="themeNameInput">Titel des Themas</label>
-          <input type="text" id="themeNameInput" placeholder="z.B. Webentwicklung Projekt" required>
-        </div>
-        <div class="form-group">
-          <label for="themeDescriptionInput">Beschreibung (optional)</label>
-          <textarea id="themeDescriptionInput" rows="3" placeholder="Beschreibung des Themas"></textarea>
-        </div>
-        <div class="form-group">
-          <label for="themeDeadlineInput">Deadline</label>
-          <input type="date" id="themeDeadlineInput">
-        </div>
-        <div class="form-group">
-          <label for="themeSchoolYearSelect">Schuljahr</label>
-          <select id="themeSchoolYearSelect" required>
-            <!-- Schuljahre werden dynamisch befüllt -->
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="themeTemplateSelect">Bewertungsraster</label>
-          <select id="themeTemplateSelect" required>
-            <!-- Bewertungsraster werden dynamisch befüllt -->
-          </select>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="cancelThemeBtn" class="btn-secondary">Abbrechen</button>
-          <button type="submit" id="saveThemeBtn">Speichern</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Student Modal -->
-  <div class="modal" id="studentModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="studentModalTitle">Schüler hinzufügen</h3>
-        <button class="modal-close" id="closeStudentModal">&times;</button>
-      </div>
-      <form id="studentForm">
-        <div class="form-group">
-          <label for="studentNameInput">Name des Schülers</label>
-          <input type="text" id="studentNameInput" placeholder="Vor- und Nachname" required>
-        </div>
-        <div class="form-group">
-          <label for="studentClassInput">Klasse</label>
-          <input type="text" id="studentClassInput" placeholder="z.B. 10a" required>
-        </div>
-        <div class="form-group">
-          <label for="studentTeacherSelect">Prüfungslehrer</label>
-          <select id="studentTeacherSelect" required>
-            <option value="">Bitte wählen...</option>
-            <!-- Lehrer werden dynamisch befüllt -->
-          </select>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="cancelStudentBtn" class="btn-secondary">Abbrechen</button>
-          <button type="submit" id="saveStudentBtn">Speichern</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Category Modal -->
-  <div class="modal" id="categoryModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Bewertungskategorie</h3>
-        <button class="modal-close" id="closeCategoryModal">&times;</button>
-      </div>
-      <form id="categoryForm">
-        <div class="form-group">
-          <label for="categoryNameInput">Name der Kategorie</label>
-          <input type="text" id="categoryNameInput" placeholder="z.B. Präsentation" required>
-        </div>
-        <div class="form-group">
-          <label for="categoryWeightInput">Gewichtung</label>
-          <input type="number" id="categoryWeightInput" min="1" max="10" value="1" required>
-          <small>1 = normale Gewichtung, höhere Werte = stärkere Gewichtung</small>
-        </div>
-        <div class="modal-footer">
-          <button type="button" id="cancelCategoryBtn" class="btn-secondary">Abbrechen</button>
-          <button type="submit" id="saveCategoryBtn">Hinzufügen</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Theme Details Modal -->
-  <div class="modal" id="themeDetailsModal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3 id="themeDetailsTitle">Thema-Details</h3>
-        <button class="modal-close" id="closeThemeDetailsModal">&times;</button>
-      </div>
-      <div id="themeDetailsContent">
-        <!-- Wird dynamisch gefüllt -->
-      </div>
-      <div class="modal-footer">
-        <button id="closeThemeDetailsBtn">Schließen</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Confirm Delete Teacher Modal -->
-  <div class="modal" id="confirmDeleteTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer löschen</h3>
-        <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
-      </div>
-      <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
-      <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
-      <div class="modal-footer">
-        <button id="cancelDeleteTeacherBtn">Abbrechen</button>
-        <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Debug Panel -->
-  <div id="debugPanel" style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px; z-index: 9999; font-family: monospace;">
-    <div style="margin-bottom: 10px; font-weight: bold;">Debug Panel</div>
-    <button id="debugHideLoader" style="margin: 5px; padding: 5px;">Hide Loader</button>
-    <button id="debugShowLoader" style="margin: 5px; padding: 5px;">Show Loader</button>
-    <button id="debugInitTeachers" style="margin: 5px; padding: 5px;">Init Teachers</button>
-    <button id="debugTestFirebase" style="margin: 5px; padding: 5px;">Test Firebase</button>
-    <div style="margin-top: 10px;">
-      <input type="checkbox" id="debugShowConsole" checked>
-      <label for="debugShowConsole">Show Console</label>
-    </div>
-    <div id="debugConsole" style="margin-top: 10px; max-height: 150px; overflow-y: auto; background: #222; padding: 5px; border-radius: 3px; font-size: 12px;"></div>
-  </div>
-
-  <!-- Firebase SDK einbinden -->
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
-
-  <!-- Debug Console Logger -->
-  <script>
-    // Debug Console Logger
-    (function() {
-      const debugConsole = document.getElementById('debugConsole');
-      const origConsoleLog = console.log;
-      const origConsoleError = console.error;
-      const origConsoleWarn = console.warn;
+  // Tab-Wechsel
+  const tabs = document.querySelectorAll(".tab");
+  const tabContents = document.querySelectorAll(".tab-content");
+  
+  tabs.forEach(function(tab) {
+    tab.addEventListener("click", function() {
+      const tabId = tab.dataset.tab;
       
-      // Override console methods
-      console.log = function(...args) {
-        origConsoleLog.apply(console, args);
-        addToDebugConsole('LOG', args);
-      };
+      // Tabs deaktivieren
+      tabs.forEach(function(t) { t.classList.remove("active"); });
+      tabContents.forEach(function(c) { c.classList.remove("active"); });
       
-      console.error = function(...args) {
-        origConsoleError.apply(console, args);
-        addToDebugConsole('ERROR', args, 'red');
-      };
-      
-      console.warn = function(...args) {
-        origConsoleWarn.apply(console, args);
-        addToDebugConsole('WARN', args, 'orange');
-      };
-      
-      function addToDebugConsole(type, args, color = null) {
-        if (!debugConsole) return;
-        const line = document.createElement('div');
-        line.style.borderBottom = '1px solid #444';
-        line.style.padding = '2px 0';
-        if (color) line.style.color = color;
-        
-        const timestamp = new Date().toLocaleTimeString();
-        const text = args.map(arg => 
-          typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-        ).join(' ');
-        
-        line.textContent = `[${timestamp}] ${type}: ${text}`;
-        debugConsole.appendChild(line);
-        debugConsole.scrollTop = debugConsole.scrollHeight;
-      }
-      
-      // Toggle debug console
-      document.getElementById('debugShowConsole').addEventListener('change', function() {
-        debugConsole.style.display = this.checked ? 'block' : 'none';
-      });
-    })();
-  </script>
-
-  <!-- Debug Event Handlers -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Debug Panel Event Handlers
-      document.getElementById('debugHideLoader').addEventListener('click', function() {
-        const mainLoader = document.getElementById("mainLoader");
-        if (mainLoader) {
-          mainLoader.style.display = "none";
-          console.log("Loader manually hidden");
-        }
-      });
-      
-      document.getElementById('debugShowLoader').addEventListener('click', function() {
-        const mainLoader = document.getElementById("mainLoader");
-        if (mainLoader) {
-          mainLoader.style.display = "flex";
-          console.log("Loader manually shown");
-        }
-      });
-      
-      document.getElementById('debugInitTeachers').addEventListener('click', async function() {
-        try {
-          console.log("Manually initializing teacher grid...");
-          
-          // Get data service and admin service
-          const adminServiceModule = await import('./js/adminService.js');
-          const uiServiceModule = await import('./js/uiService.js');
-          
-          // Manual teacher loading
-          console.log("Loading teachers manually...");
-          await adminServiceModule.loadAllTeachers();
-          
-          // Display teachers in grid
-          const teacherGrid = document.getElementById("teacherGrid");
-          if (teacherGrid) {
-            const mockShowPasswordModal = (teacher) => {
-              console.log("Teacher selected:", teacher);
-              alert(`Selected teacher: ${teacher.name} (${teacher.code})`);
-            };
-            
-            const teachers = adminServiceModule.allTeachers;
-            console.log(`${teachers.length} teachers loaded`);
-            
-            uiServiceModule.initTeacherGrid(teacherGrid, mockShowPasswordModal, teachers);
-            console.log("Teacher grid initialized manually");
-          } else {
-            console.error("Teacher grid element not found");
-          }
-        } catch (error) {
-          console.error("Error in manual initialization:", error);
-        }
-      });
-      
-      document.getElementById('debugTestFirebase').addEventListener('click', async function() {
-        try {
-          console.log("Testing Firebase connection...");
-          const firebaseClientModule = await import('./js/firebaseClient.js');
-          const result = await firebaseClientModule.initDatabase();
-          console.log("Firebase connection result:", result);
-          
-          if (result) {
-            // Test a simple Firestore operation
-            const db = firebaseClientModule.db;
-            if (db) {
-              try {
-                const testSnapshot = await db.collection("wbs_teachers").limit(1).get();
-                console.log("Firestore test query executed:", !testSnapshot.empty ? "Data found" : "No data found");
-              } catch (dbError) {
-                console.error("Firestore test query failed:", dbError);
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Firebase test failed:", error);
-        }
-      });
-    });
-  </script>
-
-  <!-- Display Firebase Config for Debugging -->
-  <script>
-    // Check and display Firebase config
-    document.addEventListener('DOMContentLoaded', async function() {
-      try {
-        const configModule = await import('./js/firebaseConfig.js');
-        const config = configModule.FIREBASE_CONFIG;
-        
-        // Check if config is valid
-        const isConfigEmpty = !config.apiKey || !config.projectId;
-        console.log("Firebase config loaded:", isConfigEmpty ? "EMPTY/INVALID" : "VALID");
-        
-        if (isConfigEmpty) {
-          console.warn("Firebase configuration is incomplete or missing!");
-          // Display warning in debug console
-          const missingKeys = Object.entries(config)
-            .filter(([_, value]) => !value)
-            .map(([key]) => key);
-          
-          console.warn("Missing Firebase config keys:", missingKeys.join(", "));
-          
-          // Try to help diagnose environment variables
-          console.log("Environment check: Running on Netlify?", 
-            typeof window !== 'undefined' && window.location.hostname.includes('netlify.app'));
-        }
-      } catch (error) {
-        console.error("Error loading Firebase config:", error);
+      // Ausgewählten Tab aktivieren
+      tab.classList.add("active");
+      const tabContent = document.getElementById(`${tabId}-tab`);
+      if (tabContent) {
+        tabContent.classList.add("active");
       }
     });
-  </script>
-
-  <!-- Fix for constants.js import if needed -->
-  <script>
-    // Ensure constants are available if module loading fails
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(async function() {
-        try {
-          // Check if constants were properly loaded
-          const hasConstants = typeof DEFAULT_TEACHERS !== 'undefined';
-          
-          if (!hasConstants) {
-            console.warn("Constants not loaded properly, trying to import manually...");
-            
-            try {
-              const constantsModule = await import('./js/constants.js');
-              
-              // Make constants globally available as fallback
-              window.DEFAULT_TEACHERS = constantsModule.DEFAULT_TEACHERS;
-              window.DEFAULT_ASSESSMENT_CATEGORIES = constantsModule.DEFAULT_ASSESSMENT_CATEGORIES;
-              window.ADMIN_CONFIG = constantsModule.ADMIN_CONFIG;
-              window.SYSTEM_SETTINGS = constantsModule.SYSTEM_SETTINGS;
-              window.THEMES_CONFIG = constantsModule.THEMES_CONFIG;
-              window.ASSESSMENT_TEMPLATES = constantsModule.ASSESSMENT_TEMPLATES;
-              window.STUDENT_STATUS = constantsModule.STUDENT_STATUS;
-              window.THEME_STATUS = constantsModule.THEME_STATUS;
-              window.TEACHER_PERMISSIONS = constantsModule.TEACHER_PERMISSIONS;
-              window.DEFAULT_SYSTEM_SETTINGS = constantsModule.DEFAULT_SYSTEM_SETTINGS;
-              window.AVAILABLE_CLASSES = constantsModule.AVAILABLE_CLASSES;
-              
-              console.log("Constants manually imported and made globally available");
-            } catch (importError) {
-              console.error("Failed to manually import constants:", importError);
-            }
-          }
-        } catch (error) {
-          console.error("Error in constants check:", error);
-        }
-      }, 2000); // Check after 2 seconds
-    });
-  </script>
-
-  <!-- Eigene JS-Module -->
-  <script type="module" src="js/main.js"></script>
-</body>
-</html>
+  });
+}
