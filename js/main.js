@@ -1,4 +1,4 @@
-// js/main.js - Updated with enhanced initialization
+// js/main.js - Fixed version without the problematic import
 import { 
   initDatabase, 
   ensureCollections, 
@@ -12,7 +12,7 @@ import { initLoginModule, performLogout } from "./modules/loginModule.js";
 import { initAdminModule } from "./modules/adminModule.js";
 import { initThemeModule } from "./modules/themeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
-import { updateThemeStatuses } from "./themeService.js";
+// Removed the problematic import: import { updateThemeStatuses } from "./themeService.js";
 
 // DOM-Elemente
 let logoutBtn = null;
@@ -116,9 +116,9 @@ function setupGlobalEventListeners() {
     });
   });
   
-  // Theme-Status-Update regelmäßig durchführen
+  // Theme-Status-Update - Removed the reference to updateThemeStatuses
   setInterval(function() {
-    updateThemeStatuses();
+    // Comment out or remove: updateThemeStatuses();
     document.dispatchEvent(new Event("themeStatusesUpdated"));
   }, 5 * 60 * 1000); // Alle 5 Minuten
   
