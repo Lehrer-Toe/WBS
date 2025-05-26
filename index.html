@@ -823,5 +823,59 @@
 
   <!-- Eigene JS-Module -->
   <script type="module" src="js/main.js"></script>
+
+  <script>
+  // Try to manually initialize the app after all other scripts have loaded
+  window.addEventListener('load', async function() {
+    try {
+      console.log("Manual initialization starting...");
+      
+      // Hide loader
+      const mainLoader = document.getElementById('mainLoader');
+      if (mainLoader) mainLoader.style.display = 'none';
+      
+      // Try to import admin service
+      try {
+        const adminModule = await import('./js/adminService.js');
+        const uiModule = await import('./js/uiService.js');
+        
+        // Load teachers
+        if (adminModule.loadAllTeachers) {
+          console.log("Loading teachers...");
+          await adminModule.loadAllTeachers();
+          
+          // Initialize teacher grid
+          const teacherGrid = document.getElementById('teacherGrid');
+          if (teacherGrid && uiModule.initTeacherGrid) {
+            const showPasswordModal = (teacher) => {
+              console.log("Selected teacher:", teacher);
+              const passwordModal = document.getElementById('passwordModal');
+              const loginPrompt = document.getElementById('loginPrompt');
+              const passwordInput = document.getElementById('passwordInput');
+              
+              if (passwordModal && loginPrompt) {
+                loginPrompt.textContent = `Bitte das Passwort für ${teacher.name} eingeben:`;
+                passwordInput.value = '';
+                passwordModal.style.display = 'flex';
+                passwordInput.focus();
+                
+                // Store teacher
+                window.currentTeacher = teacher;
+              }
+            };
+            
+            console.log("Initializing teacher grid...");
+            uiModule.initTeacherGrid(teacherGrid, showPasswordModal, adminModule.allTeachers);
+          }
+        }
+      } catch (moduleError) {
+        console.error("Module import error:", moduleError);
+      }
+    } catch (error) {
+      console.error("Manual initialization failed:", error);
+    }
+  });
+</script>
+  
 </body>
 </html>
