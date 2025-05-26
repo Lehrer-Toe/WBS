@@ -1,4 +1,4 @@
-// js/firebaseClient.js - Erweiterte Version
+// js/firebaseClient.js - Updated with database health check
 // Direkte Firebase-Konfiguration für den Browser
 export let db = null;
 export let auth = null;
@@ -602,3 +602,6 @@ export async function cleanupOrphanedData() {
   
   return result;
 }
+
+// Import der Konstanten - in der Praxis sollte dies am Anfang der Datei stehen
+import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
