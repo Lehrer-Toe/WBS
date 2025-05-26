@@ -568,3 +568,40 @@ export function getStudentsForTeacher(teacherCode) {
   
   return students;
 }
+/**
+ * Aktualisiert den Status aller Themen basierend auf den Deadlines
+ * Diese Funktion muss zu themeService.js hinzugefügt werden
+ */
+export function updateThemeStatuses() {
+  const now = new Date();
+  let updated = false;
+  
+  allThemes.forEach(theme => {
+    const oldStatus = theme.status;
+    
+    if (theme.deadline) {
+      const deadline = new Date(theme.deadline);
+      
+      // Setze Status basierend auf Deadline und Schülerbewertungen
+      if (theme.students && theme.students.every(s => s.status === STUDENT_STATUS.COMPLETED)) {
+        theme.status = THEME_STATUS.COMPLETED;
+      } else if (deadline < now) {
+        theme.status = THEME_STATUS.OVERDUE;
+      } else {
+        theme.status = THEME_STATUS.ACTIVE;
+      }
+    }
+    
+    if (oldStatus !== theme.status) {
+      updated = true;
+    }
+  });
+  
+  // Event auslösen, wenn sich etwas geändert hat
+  if (updated) {
+    console.log("Theme-Status wurden aktualisiert");
+    document.dispatchEvent(new Event("themeStatusesUpdated"));
+  }
+  
+  return updated;
+}
