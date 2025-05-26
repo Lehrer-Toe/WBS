@@ -20,14 +20,14 @@
   [headers.values]
     Content-Type = "application/javascript"
 
-# ENTFERNEN SIE DIESEN REDIRECT:
-# [[redirects]]
-#   from = "/js/modules/*"
-#   to = "/js/:splat"
-#   status = 200
-
 # Standard-Redirect für SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+# Gesonderte Behandlung für Ping-Anfragen (Network Detector)
+[[redirects]]
+  from = "/ping"
+  to = "/ping-success.txt"
   status = 200
