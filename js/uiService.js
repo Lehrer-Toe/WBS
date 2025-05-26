@@ -6,10 +6,17 @@ import { assessmentTemplates } from "./assessmentService.js";
 /**
  * Zeigt den Ladebildschirm
  */
+/**
+ * Zeigt den Ladebildschirm
+ */
 export function showLoader() {
+  console.log("showLoader called");
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
+    console.log("Setting loader to display:flex");
     mainLoader.style.display = "flex";
+  } else {
+    console.error("Loader element not found");
   }
 }
 
@@ -17,9 +24,13 @@ export function showLoader() {
  * Versteckt den Ladebildschirm
  */
 export function hideLoader() {
+  console.log("hideLoader called");
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
+    console.log("Setting loader to display:none");
     mainLoader.style.display = "none";
+  } else {
+    console.error("Loader element not found");
   }
 }
 
