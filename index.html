@@ -603,10 +603,223 @@
     </div>
   </div>
 
+  <!-- Debug Panel -->
+  <div id="debugPanel" style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 10px; border-radius: 5px; z-index: 9999; font-family: monospace;">
+    <div style="margin-bottom: 10px; font-weight: bold;">Debug Panel</div>
+    <button id="debugHideLoader" style="margin: 5px; padding: 5px;">Hide Loader</button>
+    <button id="debugShowLoader" style="margin: 5px; padding: 5px;">Show Loader</button>
+    <button id="debugInitTeachers" style="margin: 5px; padding: 5px;">Init Teachers</button>
+    <button id="debugTestFirebase" style="margin: 5px; padding: 5px;">Test Firebase</button>
+    <div style="margin-top: 10px;">
+      <input type="checkbox" id="debugShowConsole" checked>
+      <label for="debugShowConsole">Show Console</label>
+    </div>
+    <div id="debugConsole" style="margin-top: 10px; max-height: 150px; overflow-y: auto; background: #222; padding: 5px; border-radius: 3px; font-size: 12px;"></div>
+  </div>
+
   <!-- Firebase SDK einbinden -->
   <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+
+  <!-- Debug Console Logger -->
+  <script>
+    // Debug Console Logger
+    (function() {
+      const debugConsole = document.getElementById('debugConsole');
+      const origConsoleLog = console.log;
+      const origConsoleError = console.error;
+      const origConsoleWarn = console.warn;
+      
+      // Override console methods
+      console.log = function(...args) {
+        origConsoleLog.apply(console, args);
+        addToDebugConsole('LOG', args);
+      };
+      
+      console.error = function(...args) {
+        origConsoleError.apply(console, args);
+        addToDebugConsole('ERROR', args, 'red');
+      };
+      
+      console.warn = function(...args) {
+        origConsoleWarn.apply(console, args);
+        addToDebugConsole('WARN', args, 'orange');
+      };
+      
+      function addToDebugConsole(type, args, color = null) {
+        if (!debugConsole) return;
+        const line = document.createElement('div');
+        line.style.borderBottom = '1px solid #444';
+        line.style.padding = '2px 0';
+        if (color) line.style.color = color;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        const text = args.map(arg => 
+          typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        ).join(' ');
+        
+        line.textContent = `[${timestamp}] ${type}: ${text}`;
+        debugConsole.appendChild(line);
+        debugConsole.scrollTop = debugConsole.scrollHeight;
+      }
+      
+      // Toggle debug console
+      document.getElementById('debugShowConsole').addEventListener('change', function() {
+        debugConsole.style.display = this.checked ? 'block' : 'none';
+      });
+    })();
+  </script>
+
+  <!-- Debug Event Handlers -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Debug Panel Event Handlers
+      document.getElementById('debugHideLoader').addEventListener('click', function() {
+        const mainLoader = document.getElementById("mainLoader");
+        if (mainLoader) {
+          mainLoader.style.display = "none";
+          console.log("Loader manually hidden");
+        }
+      });
+      
+      document.getElementById('debugShowLoader').addEventListener('click', function() {
+        const mainLoader = document.getElementById("mainLoader");
+        if (mainLoader) {
+          mainLoader.style.display = "flex";
+          console.log("Loader manually shown");
+        }
+      });
+      
+      document.getElementById('debugInitTeachers').addEventListener('click', async function() {
+        try {
+          console.log("Manually initializing teacher grid...");
+          
+          // Get data service and admin service
+          const adminServiceModule = await import('./js/adminService.js');
+          const uiServiceModule = await import('./js/uiService.js');
+          
+          // Manual teacher loading
+          console.log("Loading teachers manually...");
+          await adminServiceModule.loadAllTeachers();
+          
+          // Display teachers in grid
+          const teacherGrid = document.getElementById("teacherGrid");
+          if (teacherGrid) {
+            const mockShowPasswordModal = (teacher) => {
+              console.log("Teacher selected:", teacher);
+              alert(`Selected teacher: ${teacher.name} (${teacher.code})`);
+            };
+            
+            const teachers = adminServiceModule.allTeachers;
+            console.log(`${teachers.length} teachers loaded`);
+            
+            uiServiceModule.initTeacherGrid(teacherGrid, mockShowPasswordModal, teachers);
+            console.log("Teacher grid initialized manually");
+          } else {
+            console.error("Teacher grid element not found");
+          }
+        } catch (error) {
+          console.error("Error in manual initialization:", error);
+        }
+      });
+      
+      document.getElementById('debugTestFirebase').addEventListener('click', async function() {
+        try {
+          console.log("Testing Firebase connection...");
+          const firebaseClientModule = await import('./js/firebaseClient.js');
+          const result = await firebaseClientModule.initDatabase();
+          console.log("Firebase connection result:", result);
+          
+          if (result) {
+            // Test a simple Firestore operation
+            const db = firebaseClientModule.db;
+            if (db) {
+              try {
+                const testSnapshot = await db.collection("wbs_teachers").limit(1).get();
+                console.log("Firestore test query executed:", !testSnapshot.empty ? "Data found" : "No data found");
+              } catch (dbError) {
+                console.error("Firestore test query failed:", dbError);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Firebase test failed:", error);
+        }
+      });
+    });
+  </script>
+
+  <!-- Display Firebase Config for Debugging -->
+  <script>
+    // Check and display Firebase config
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        const configModule = await import('./js/firebaseConfig.js');
+        const config = configModule.FIREBASE_CONFIG;
+        
+        // Check if config is valid
+        const isConfigEmpty = !config.apiKey || !config.projectId;
+        console.log("Firebase config loaded:", isConfigEmpty ? "EMPTY/INVALID" : "VALID");
+        
+        if (isConfigEmpty) {
+          console.warn("Firebase configuration is incomplete or missing!");
+          // Display warning in debug console
+          const missingKeys = Object.entries(config)
+            .filter(([_, value]) => !value)
+            .map(([key]) => key);
+          
+          console.warn("Missing Firebase config keys:", missingKeys.join(", "));
+          
+          // Try to help diagnose environment variables
+          console.log("Environment check: Running on Netlify?", 
+            typeof window !== 'undefined' && window.location.hostname.includes('netlify.app'));
+        }
+      } catch (error) {
+        console.error("Error loading Firebase config:", error);
+      }
+    });
+  </script>
+
+  <!-- Fix for constants.js import if needed -->
+  <script>
+    // Ensure constants are available if module loading fails
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(async function() {
+        try {
+          // Check if constants were properly loaded
+          const hasConstants = typeof DEFAULT_TEACHERS !== 'undefined';
+          
+          if (!hasConstants) {
+            console.warn("Constants not loaded properly, trying to import manually...");
+            
+            try {
+              const constantsModule = await import('./js/constants.js');
+              
+              // Make constants globally available as fallback
+              window.DEFAULT_TEACHERS = constantsModule.DEFAULT_TEACHERS;
+              window.DEFAULT_ASSESSMENT_CATEGORIES = constantsModule.DEFAULT_ASSESSMENT_CATEGORIES;
+              window.ADMIN_CONFIG = constantsModule.ADMIN_CONFIG;
+              window.SYSTEM_SETTINGS = constantsModule.SYSTEM_SETTINGS;
+              window.THEMES_CONFIG = constantsModule.THEMES_CONFIG;
+              window.ASSESSMENT_TEMPLATES = constantsModule.ASSESSMENT_TEMPLATES;
+              window.STUDENT_STATUS = constantsModule.STUDENT_STATUS;
+              window.THEME_STATUS = constantsModule.THEME_STATUS;
+              window.TEACHER_PERMISSIONS = constantsModule.TEACHER_PERMISSIONS;
+              window.DEFAULT_SYSTEM_SETTINGS = constantsModule.DEFAULT_SYSTEM_SETTINGS;
+              window.AVAILABLE_CLASSES = constantsModule.AVAILABLE_CLASSES;
+              
+              console.log("Constants manually imported and made globally available");
+            } catch (importError) {
+              console.error("Failed to manually import constants:", importError);
+            }
+          }
+        } catch (error) {
+          console.error("Error in constants check:", error);
+        }
+      }, 2000); // Check after 2 seconds
+    });
+  </script>
 
   <!-- Eigene JS-Module -->
   <script type="module" src="js/main.js"></script>
