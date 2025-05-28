@@ -16,7 +16,7 @@
     <span class="loader"></span>
   </div>
 
-  <!-- Normaler Login-Bereich -->
+  <!-- Neuer Login-Bereich -->
   <div id="loginSection">
     <header>
       <h1>Zeig, was du kannst!</h1>
@@ -24,57 +24,46 @@
     </header>
     
     <div class="container animate-fade-in">
-      <h2>Bitte wählen Sie Ihren Benutzer aus</h2>
+      <h2>Anmeldung</h2>
       
-      <div class="teacher-grid" id="teacherGrid">
-        <!-- Teacher cards werden dynamisch erzeugt -->
-      </div>
-      
-      <div class="modal" id="passwordModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Anmeldung</h3>
-            <button class="modal-close" id="closePasswordModal">&times;</button>
-          </div>
-          <p id="loginPrompt">Bitte geben Sie Ihr Passwort ein:</p>
-          <input type="password" id="passwordInput" placeholder="Passwort">
-          <div class="modal-footer">
-            <button class="btn-danger" id="cancelLogin">Abbrechen</button>
-            <button id="confirmLogin">Anmelden</button>
-          </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label for="loginEmail">E-Mail-Adresse</label>
+          <input type="email" id="loginEmail" placeholder="ihre.email@beispiel.de" required>
         </div>
+        <div class="form-group">
+          <label for="loginPassword">Passwort</label>
+          <input type="password" id="loginPassword" placeholder="Ihr Passwort" required>
+        </div>
+        <div class="form-actions">
+          <button type="submit" id="loginBtn" class="btn-primary btn-large">Anmelden</button>
+        </div>
+      </form>
+      
+      <div class="login-links">
+        <button type="button" id="forgotPasswordBtn" class="link-button">Passwort vergessen?</button>
       </div>
 
-      <!-- Admin-Zugang -->
-      <div class="admin-access">
-        <button id="showAdminLoginBtn" class="btn-secondary">Administrator-Bereich</button>
+      <!-- Admin-Zugang (nur für Admins sichtbar) -->
+      <div class="admin-access" style="display: none;">
+        <button id="adminAccessBtn" class="btn-secondary">Administrator-Bereich</button>
       </div>
     </div>
   </div>
 
-  <!-- Admin-Login-Bereich -->
-  <div id="adminLoginSection" style="display: none;">
-    <header>
-      <h1>Zeig, was du kannst! - Admin</h1>
-      <div class="version">v2.0</div>
-    </header>
-    
-    <div class="container animate-fade-in">
-      <h2>Administrator-Anmeldung</h2>
-      
-      <div class="admin-login-form">
-        <div class="form-group">
-          <label for="adminUsername">Benutzername</label>
-          <input type="text" id="adminUsername" placeholder="Admin-Benutzername">
-        </div>
-        <div class="form-group">
-          <label for="adminPassword">Passwort</label>
-          <input type="password" id="adminPassword" placeholder="Admin-Passwort">
-        </div>
-        <div class="admin-buttons">
-          <button id="backToLoginBtn" class="btn-secondary">Zurück zur Anmeldung</button>
-          <button id="adminLoginBtn">Anmelden</button>
-        </div>
+  <!-- Passwort-Reset-Modal -->
+  <div class="modal" id="resetPasswordModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Passwort zurücksetzen</h3>
+        <button class="modal-close" id="closeResetModal">&times;</button>
+      </div>
+      <div class="form-group">
+        <label for="resetEmailInput">E-Mail-Adresse</label>
+        <input type="email" id="resetEmailInput" placeholder="ihre.email@beispiel.de">
+      </div>
+      <div class="modal-footer">
+        <button id="sendResetBtn" class="btn-primary">E-Mail senden</button>
       </div>
     </div>
   </div>
@@ -83,7 +72,7 @@
   <div id="adminSection" style="display: none;">
     <header>
       <div class="teacher-info">
-        <div class="teacher-avatar">A</div>
+        <div class="teacher-avatar" id="adminAvatar">A</div>
         <div class="teacher-name">Administrator</div>
       </div>
       <h1>Zeig, was du kannst! - Admin</h1>
@@ -92,54 +81,58 @@
     
     <div class="container">
       <div class="tabs">
-        <div class="tab active" data-tab="teachers">Lehrer verwalten</div>
+        <div class="tab active" data-tab="users">Benutzer verwalten</div>
         <div class="tab" data-tab="system">System-Info</div>
       </div>
       
-      <!-- Tab: Lehrer verwalten -->
-      <div class="tab-content active" id="teachers-tab">
+      <!-- Tab: Benutzer verwalten -->
+      <div class="tab-content active" id="users-tab">
         <div class="main-layout">
           <div class="sidebar">
             <div class="section">
-              <h3>Neuen Lehrer anlegen</h3>
-              <div class="form-group">
-                <label for="newTeacherName">Vollständiger Name</label>
-                <input type="text" id="newTeacherName" placeholder="z.B. Max Mustermann">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherCode">Kürzel</label>
-                <input type="text" id="newTeacherCode" placeholder="z.B. MUM" maxlength="5">
-              </div>
-              <div class="form-group">
-                <label for="newTeacherPassword">Passwort</label>
-                <input type="password" id="newTeacherPassword" placeholder="Passwort festlegen">
-              </div>
-              <div class="form-group checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="canCreateThemes">
-                  <span class="checkbox-text">Kann Themen erstellen</span>
-                </label>
-              </div>
-              <button id="addTeacherBtn">Lehrer hinzufügen</button>
+              <h3>Neuen Benutzer anlegen</h3>
+              <form id="newUserForm">
+                <div class="form-group">
+                  <label for="newUserEmail">E-Mail-Adresse</label>
+                  <input type="email" id="newUserEmail" placeholder="z.B. max.mustermann@schule.de" required>
+                </div>
+                <div class="form-group">
+                  <label for="newUserName">Vollständiger Name</label>
+                  <input type="text" id="newUserName" placeholder="z.B. Max Mustermann" required>
+                </div>
+                <div class="form-group">
+                  <label for="newUserPassword">Passwort</label>
+                  <input type="password" id="newUserPassword" placeholder="Temporäres Passwort" required>
+                </div>
+                <div class="form-group">
+                  <label for="newUserRole">Rolle</label>
+                  <select id="newUserRole" required>
+                    <option value="teacher">Lehrer</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn-primary">Benutzer anlegen</button>
+              </form>
             </div>
           </div>
           
           <div class="content-area">
-            <h2>Alle registrierten Lehrer</h2>
+            <h2>Alle Benutzer</h2>
             <div class="table-container">
-              <table class="teacher-admin-table" id="teachersAdminTable">
+              <table class="users-admin-table" id="usersAdminTable">
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Kürzel</th>
-                    <th>Berechtigungen</th>
-                    <th>Erstellt am</th>
+                    <th>E-Mail</th>
+                    <th>Rolle</th>
+                    <th>Status</th>
+                    <th>Letzte Anmeldung</th>
                     <th>Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td colspan="5">Lade Lehrer...</td>
+                    <td colspan="6">Lade Benutzer...</td>
                   </tr>
                 </tbody>
               </table>
@@ -150,89 +143,7 @@
       
       <!-- Tab: System-Info -->
       <div class="tab-content" id="system-tab">
-        <h2>System-Informationen</h2>
-        
-        <div class="card">
-          <h3>Systemeinstellungen</h3>
-          <div class="form-group">
-            <label for="currentSchoolYear">Aktuelles Schuljahr</label>
-            <select id="currentSchoolYear">
-              <option value="">Bitte wählen...</option>
-              <!-- Schuljahre werden dynamisch befüllt -->
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="schoolYearEnd">Schuljahresende</label>
-            <input type="date" id="schoolYearEnd">
-          </div>
-          <div class="form-group">
-            <label for="lastAssessmentDate">Letzte Bewertungsfrist</label>
-            <input type="date" id="lastAssessmentDate">
-          </div>
-          <button id="saveSystemSettingsBtn">Einstellungen speichern</button>
-        </div>
-        
-        <div class="card">
-          <h3>Statistiken</h3>
-          <div id="systemStats">
-            <div class="stat-item">
-              <span class="stat-label">Registrierte Lehrer:</span>
-              <span class="stat-value" id="totalTeachers">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Themen insgesamt:</span>
-              <span class="stat-value" id="totalThemes">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Schüler insgesamt:</span>
-              <span class="stat-value" id="totalStudents">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Firebase Status:</span>
-              <span class="stat-value" id="firebaseStatus">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Letzte Aktualisierung:</span>
-              <span class="stat-value" id="lastUpdate">-</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card">
-          <h3>System-Aktionen</h3>
-          <div class="system-actions">
-            <button id="refreshSystemBtn">System aktualisieren</button>
-            <button id="exportSystemBtn" class="btn-secondary">Systemdaten exportieren</button>
-            <button id="importSystemBtn" class="btn-secondary">Systemdaten importieren</button>
-            <input type="file" id="importFileInput" accept=".json" style="display: none;">
-          </div>
-        </div>
-
-        <!-- Datenlöschung -->
-        <div class="card danger-zone">
-          <h3>⚠️ Gefahrenbereich - Daten löschen</h3>
-          <p class="warning-text">
-            <strong>Achtung:</strong> Diese Aktionen können nicht rückgängig gemacht werden!
-          </p>
-          
-          <div class="form-group">
-            <label for="adminDeleteVerificationCode">Bestätigungscode eingeben:</label>
-            <input type="text" id="adminDeleteVerificationCode" placeholder='z.B. "delete teachers" oder "delete everything"'>
-            <small class="help-text">
-              • Für Lehrer löschen: "delete teachers"<br>
-              • Für kompletten Reset: "delete everything"
-            </small>
-          </div>
-          
-          <div class="danger-actions">
-            <button id="deleteAllTeachersBtn" class="btn-danger">
-              🧑‍🏫 Alle Lehrer löschen
-            </button>
-            <button id="deleteAllDataBtn" class="btn-danger">
-              💥 Kompletter System-Reset
-            </button>
-          </div>
-        </div>
+        <p>System-Informationen werden hier angezeigt...</p>
       </div>
     </div>
   </div>
@@ -241,8 +152,8 @@
   <div id="appSection" style="display: none;">
     <header>
       <div class="teacher-info">
-        <div class="teacher-avatar" id="teacherAvatar">T</div>
-        <div class="teacher-name" id="teacherName">Töllner</div>
+        <div class="teacher-avatar" id="userAvatar">T</div>
+        <div class="teacher-name" id="userName">Lehrer</div>
       </div>
       <h1>Zeig, was du kannst!</h1>
       <button id="logoutBtn" class="logout-btn">Abmelden</button>
@@ -250,14 +161,38 @@
     
     <div class="container">
       <div class="tabs">
-        <div class="tab active" data-tab="themes">Themen verwalten</div>
+        <div class="tab active" data-tab="ideas">Ideen</div>
+        <div class="tab" data-tab="themes">Themen verwalten</div>
         <div class="tab" data-tab="assessment">Bewertung</div>
         <div class="tab" data-tab="overview">Übersicht</div>
         <div class="tab" data-tab="templates">Meine Bewertungsraster</div>
       </div>
       
+      <!-- Tab: Ideen -->
+      <div class="tab-content active" id="ideas-tab">
+        <div class="ideas-header">
+          <h2>Projektideen</h2>
+          <div class="ideas-actions">
+            <input type="text" id="ideasSearchInput" placeholder="Ideen suchen..." class="search-input">
+            <select id="subjectFilter" class="filter-select">
+              <option value="">Alle Fächer</option>
+            </select>
+            <button id="newIdeaBtn" class="btn-primary">
+              <span>💡</span> Neue Idee
+            </button>
+          </div>
+        </div>
+        
+        <div class="ideas-list" id="ideasList">
+          <div class="loading-container">
+            <span class="loader"></span>
+            <p>Ideen werden geladen...</p>
+          </div>
+        </div>
+      </div>
+      
       <!-- Tab: Themen verwalten -->
-      <div class="tab-content active" id="themes-tab">
+      <div class="tab-content" id="themes-tab">
         <div id="themesContainer">
           <div class="themes-header">
             <h2>Themen & Gruppen</h2>
@@ -348,7 +283,6 @@
             <label for="overviewSchoolYearSelect">Schuljahr</label>
             <select id="overviewSchoolYearSelect">
               <option value="">Alle Schuljahre</option>
-              <!-- Schuljahre werden dynamisch befüllt -->
             </select>
           </div>
           
@@ -443,35 +377,34 @@
 
   <!-- Modals -->
   
-  <!-- Edit Teacher Modal -->
-  <div class="modal" id="editTeacherModal">
+  <!-- Ideen Modal -->
+  <div class="modal" id="ideaModal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Lehrer bearbeiten</h3>
-        <button class="modal-close" id="closeEditTeacherModal">&times;</button>
+        <h3>Projektidee</h3>
+        <button class="modal-close" id="closeIdeaModal">&times;</button>
       </div>
-      <div class="form-group">
-        <label for="editTeacherName">Vollständiger Name</label>
-        <input type="text" id="editTeacherName" placeholder="z.B. Max Mustermann">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherCode">Kürzel</label>
-        <input type="text" id="editTeacherCode" placeholder="z.B. MUM" maxlength="5">
-      </div>
-      <div class="form-group">
-        <label for="editTeacherPassword">Passwort</label>
-        <input type="password" id="editTeacherPassword" placeholder="Neues Passwort">
-      </div>
-      <div class="form-group checkbox-group">
-        <label class="checkbox-label">
-          <input type="checkbox" id="editCanCreateThemes">
-          <span class="checkbox-text">Kann Themen erstellen</span>
-        </label>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-danger" id="deleteTeacherBtn">Löschen</button>
-        <button id="saveTeacherBtn">Speichern</button>
-      </div>
+      <form id="ideaForm">
+        <div class="form-group">
+          <label for="ideaTitleInput">Titel der Projektidee *</label>
+          <input type="text" id="ideaTitleInput" placeholder="z.B. Webseite für Schulmensa" required>
+        </div>
+        <div class="form-group">
+          <label for="ideaDescriptionInput">Beschreibung (max. 250 Zeichen) *</label>
+          <textarea id="ideaDescriptionInput" rows="4" placeholder="Kurze Beschreibung der Projektidee..." maxlength="250" required></textarea>
+          <div class="character-counter" id="descriptionCounter">250 Zeichen übrig</div>
+        </div>
+        <div class="form-group">
+          <label>Geeignete Fächer *</label>
+          <div class="subjects-grid" id="ideaSubjectsContainer">
+            <!-- Fächer-Checkboxen werden dynamisch erstellt -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelIdeaBtn" class="btn-secondary">Abbrechen</button>
+          <button type="submit" id="saveIdeaBtn" class="btn-primary">Speichern</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -583,22 +516,6 @@
       </div>
       <div class="modal-footer">
         <button id="closeThemeDetailsBtn">Schließen</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Confirm Delete Teacher Modal -->
-  <div class="modal" id="confirmDeleteTeacherModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Lehrer löschen</h3>
-        <button class="modal-close" id="closeConfirmDeleteTeacherModal">&times;</button>
-      </div>
-      <p>Soll dieser Lehrer wirklich gelöscht werden?</p>
-      <p id="deleteTeacherName" style="font-weight: bold; color: var(--error-color);"></p>
-      <div class="modal-footer">
-        <button id="cancelDeleteTeacherBtn">Abbrechen</button>
-        <button class="btn-danger" id="confirmDeleteTeacherBtn">Endgültig löschen</button>
       </div>
     </div>
   </div>
