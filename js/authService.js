@@ -1,313 +1,282 @@
-// js/authService.js - Neue Firebase Auth Integration
+// js/authService.js - Firebase Authentication Service
 import { auth, db } from "./firebaseClient.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
+import { currentUser } from "./dataService.js";
 
 /**
- * Aktueller Benutzer
+ * Aktueller Firebase Auth-Benutzer
  */
-export let currentUser = {
-  uid: null,
-  email: null,
-  name: null,
-  role: 'teacher', // 'teacher' oder 'admin'
-  permissions: {},
-  isLoggedIn: false
-};
+let firebaseUser = null;
 
 /**
- * Benutzertypen
+ * Initialisiert den Auth-Listener
  */
-export const USER_ROLES = {
-  TEACHER: 'teacher',
-  ADMIN: 'admin'
-};
-
-/**
- * Registriert einen neuen Benutzer (nur für Admins)
- */
-export async function registerUser(email, password, userData) {
+export function initAuthListener() {
   if (!auth) {
-    throw new Error("Firebase Auth ist nicht initialisiert");
+    console.error("Firebase Auth ist nicht initialisiert!");
+    return;
   }
-  
+
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      console.log("Benutzer angemeldet:", user.email);
+      firebaseUser = user;
+      
+      // Lade Benutzerdaten aus Firestore
+      await loadUserDataFromFirestore(user.uid);
+      
+      // Event auslösen
+      document.dispatchEvent(new CustomEvent("authStateChanged", { 
+        detail: { isAuthenticated: true, user } 
+      }));
+    } else {
+      console.log("Kein Benutzer angemeldet");
+      firebaseUser = null;
+      
+      // Event auslösen
+      document.dispatchEvent(new CustomEvent("authStateChanged", { 
+        detail: { isAuthenticated: false } 
+      }));
+    }
+  });
+}
+
+/**
+ * Meldet einen Benutzer mit E-Mail und Passwort an
+ */
+export async function signInWithEmail(email, password) {
+  if (!auth) {
+    throw new Error("Firebase Auth ist nicht initialisiert!");
+  }
+
   try {
     showLoader();
     
-    // Erstelle neuen Benutzer
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    const user = userCredential.user;
+    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    firebaseUser = userCredential.user;
     
-    // Erstelle Benutzerprofil in Firestore
-    const userProfile = {
-      uid: user.uid,
-      email: email,
-      name: userData.name || "",
-      role: userData.role || USER_ROLES.TEACHER,
-      permissions: userData.permissions || {},
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      isActive: true
-    };
-    
-    await db.collection("users").doc(user.uid).set(userProfile);
-    
-    console.log("Neuer Benutzer registriert:", email);
-    return user;
+    console.log("Anmeldung erfolgreich:", firebaseUser.email);
+    return userCredential.user;
   } catch (error) {
-    console.error("Fehler bei der Registrierung:", error);
-    throw error;
+    console.error("Anmeldefehler:", error);
+    
+    // Benutzerfreundliche Fehlermeldungen
+    let message = "Anmeldung fehlgeschlagen";
+    
+    switch (error.code) {
+      case 'auth/invalid-email':
+        message = "Ungültige E-Mail-Adresse";
+        break;
+      case 'auth/user-disabled':
+        message = "Dieser Benutzer wurde deaktiviert";
+        break;
+      case 'auth/user-not-found':
+        message = "Benutzer nicht gefunden";
+        break;
+      case 'auth/wrong-password':
+        message = "Falsches Passwort";
+        break;
+      case 'auth/invalid-credential':
+        message = "Ungültige Anmeldedaten";
+        break;
+      case 'auth/too-many-requests':
+        message = "Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.";
+        break;
+    }
+    
+    throw new Error(message);
   } finally {
     hideLoader();
   }
 }
 
 /**
- * Meldet einen Benutzer an
+ * Registriert einen neuen Benutzer (nur für Admins)
  */
-export async function loginUser(email, password) {
+export async function createUserWithEmail(email, password, userData) {
   if (!auth) {
-    throw new Error("Firebase Auth ist nicht initialisiert");
+    throw new Error("Firebase Auth ist nicht initialisiert!");
   }
-  
+
   try {
-    showLoader();
-    
-    // Anmeldung bei Firebase Auth
-    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    // Neuen Benutzer erstellen
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const user = userCredential.user;
     
-    // Lade Benutzerprofil aus Firestore
-    const userDoc = await db.collection("users").doc(user.uid).get();
-    
-    if (!userDoc.exists) {
-      throw new Error("Benutzerprofil nicht gefunden");
-    }
-    
-    const userData = userDoc.data();
-    
-    // Prüfe, ob Benutzer aktiv ist
-    if (!userData.isActive) {
-      throw new Error("Ihr Konto wurde deaktiviert. Kontaktieren Sie den Administrator.");
-    }
-    
-    // Aktualisiere currentUser
-    currentUser = {
-      uid: user.uid,
-      email: user.email,
-      name: userData.name || user.email,
-      role: userData.role || USER_ROLES.TEACHER,
+    // Benutzerdaten in Firestore speichern
+    await db.collection("users").doc(user.uid).set({
+      email: email,
+      name: userData.name,
+      code: userData.code,
       permissions: userData.permissions || {},
-      isLoggedIn: true
-    };
-    
-    // Letzte Anmeldung aktualisieren
-    await db.collection("users").doc(user.uid).update({
-      lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdBy: firebaseUser ? firebaseUser.uid : 'system'
     });
     
-    console.log("Benutzer angemeldet:", currentUser.email);
-    return currentUser;
+    console.log("Benutzer erfolgreich erstellt:", email);
+    return user;
   } catch (error) {
-    console.error("Fehler bei der Anmeldung:", error);
-    throw error;
-  } finally {
-    hideLoader();
+    console.error("Fehler beim Erstellen des Benutzers:", error);
+    
+    let message = "Fehler beim Erstellen des Benutzers";
+    
+    switch (error.code) {
+      case 'auth/email-already-in-use':
+        message = "Diese E-Mail-Adresse wird bereits verwendet";
+        break;
+      case 'auth/invalid-email':
+        message = "Ungültige E-Mail-Adresse";
+        break;
+      case 'auth/weak-password':
+        message = "Das Passwort ist zu schwach (mindestens 6 Zeichen)";
+        break;
+    }
+    
+    throw new Error(message);
   }
 }
 
 /**
  * Meldet den aktuellen Benutzer ab
  */
-export async function logoutUser() {
-  if (!auth) return;
-  
+export async function signOut() {
+  if (!auth) {
+    throw new Error("Firebase Auth ist nicht initialisiert!");
+  }
+
   try {
     await auth.signOut();
+    firebaseUser = null;
     
-    // Setze currentUser zurück
-    currentUser = {
-      uid: null,
-      email: null,
-      name: null,
-      role: 'teacher',
-      permissions: {},
-      isLoggedIn: false
-    };
+    // Benutzerdaten zurücksetzen
+    currentUser.name = null;
+    currentUser.code = null;
+    currentUser.email = null;
+    currentUser.permissions = {};
+    currentUser.uid = null;
     
     console.log("Benutzer abgemeldet");
-    return true;
   } catch (error) {
-    console.error("Fehler bei der Abmeldung:", error);
+    console.error("Fehler beim Abmelden:", error);
     throw error;
   }
 }
 
 /**
- * Überwacht den Authentifizierungsstatus
+ * Lädt Benutzerdaten aus Firestore
  */
-export function initAuthStateListener() {
-  if (!auth) return;
-  
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      try {
-        // Lade Benutzerprofil
-        const userDoc = await db.collection("users").doc(user.uid).get();
-        
-        if (userDoc.exists) {
-          const userData = userDoc.data();
-          
-          currentUser = {
-            uid: user.uid,
-            email: user.email,
-            name: userData.name || user.email,
-            role: userData.role || USER_ROLES.TEACHER,
-            permissions: userData.permissions || {},
-            isLoggedIn: true
-          };
-          
-          // Event für erfolgreiche Anmeldung
-          document.dispatchEvent(new CustomEvent('userLoggedIn', {
-            detail: currentUser
-          }));
-        }
-      } catch (error) {
-        console.error("Fehler beim Laden des Benutzerprofils:", error);
-      }
-    } else {
-      // Benutzer abgemeldet
-      currentUser = {
-        uid: null,
-        email: null,
-        name: null,
-        role: 'teacher',
-        permissions: {},
-        isLoggedIn: false
-      };
+async function loadUserDataFromFirestore(uid) {
+  if (!db) {
+    console.error("Firestore ist nicht initialisiert!");
+    return;
+  }
+
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    
+    if (userDoc.exists) {
+      const userData = userDoc.data();
       
-      // Event für Abmeldung
-      document.dispatchEvent(new Event('userLoggedOut'));
+      // Aktualisiere currentUser
+      currentUser.uid = uid;
+      currentUser.email = userData.email;
+      currentUser.name = userData.name;
+      currentUser.code = userData.code;
+      currentUser.permissions = userData.permissions || {};
+      
+      console.log("Benutzerdaten geladen:", currentUser);
+    } else {
+      console.warn("Keine Benutzerdaten in Firestore gefunden");
+      
+      // Fallback: Verwende E-Mail als Namen
+      currentUser.uid = uid;
+      currentUser.email = firebaseUser.email;
+      currentUser.name = firebaseUser.email.split('@')[0];
+      currentUser.code = firebaseUser.email.substring(0, 3).toUpperCase();
+      currentUser.permissions = {};
     }
-  });
-}
-
-/**
- * Aktualisiert das Benutzerprofil
- */
-export async function updateUserProfile(userId, userData) {
-  if (!db) {
-    throw new Error("Firestore ist nicht initialisiert");
-  }
-  
-  try {
-    const userRef = db.collection("users").doc(userId);
-    const updates = {
-      ...userData,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    
-    await userRef.update(updates);
-    
-    // Aktualisiere currentUser, falls es der aktuelle Benutzer ist
-    if (currentUser.uid === userId) {
-      currentUser = {
-        ...currentUser,
-        ...userData
-      };
-    }
-    
-    return true;
   } catch (error) {
-    console.error("Fehler beim Aktualisieren des Profils:", error);
-    throw error;
+    console.error("Fehler beim Laden der Benutzerdaten:", error);
   }
 }
 
 /**
- * Lädt alle Benutzer (nur für Admins)
+ * Aktualisiert das Passwort des aktuellen Benutzers
  */
-export async function loadAllUsers() {
-  if (!db) {
-    throw new Error("Firestore ist nicht initialisiert");
-  }
-  
-  if (currentUser.role !== USER_ROLES.ADMIN) {
-    throw new Error("Keine Berechtigung");
-  }
-  
-  try {
-    const snapshot = await db.collection("users").orderBy("name").get();
-    
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error("Fehler beim Laden der Benutzer:", error);
-    throw error;
-  }
-}
-
-/**
- * Deaktiviert/Aktiviert einen Benutzer (nur für Admins)
- */
-export async function toggleUserStatus(userId, isActive) {
-  if (currentUser.role !== USER_ROLES.ADMIN) {
-    throw new Error("Keine Berechtigung");
-  }
-  
-  try {
-    await db.collection("users").doc(userId).update({
-      isActive: isActive,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    return true;
-  } catch (error) {
-    console.error("Fehler beim Ändern des Benutzerstatus:", error);
-    throw error;
-  }
-}
-
-/**
- * Ändert das Passwort des aktuellen Benutzers
- */
-export async function changePassword(newPassword) {
-  if (!auth.currentUser) {
+export async function updatePassword(newPassword) {
+  if (!firebaseUser) {
     throw new Error("Kein Benutzer angemeldet");
   }
-  
+
   try {
-    await auth.currentUser.updatePassword(newPassword);
-    return true;
+    await firebaseUser.updatePassword(newPassword);
+    console.log("Passwort erfolgreich geändert");
   } catch (error) {
     console.error("Fehler beim Ändern des Passworts:", error);
-    throw error;
+    
+    let message = "Fehler beim Ändern des Passworts";
+    
+    switch (error.code) {
+      case 'auth/weak-password':
+        message = "Das neue Passwort ist zu schwach (mindestens 6 Zeichen)";
+        break;
+      case 'auth/requires-recent-login':
+        message = "Bitte melden Sie sich erneut an, um das Passwort zu ändern";
+        break;
+    }
+    
+    throw new Error(message);
   }
 }
 
 /**
- * Sendet eine Passwort-Reset-E-Mail
+ * Sendet eine E-Mail zum Zurücksetzen des Passworts
  */
 export async function sendPasswordResetEmail(email) {
   if (!auth) {
-    throw new Error("Firebase Auth ist nicht initialisiert");
+    throw new Error("Firebase Auth ist nicht initialisiert!");
   }
-  
+
   try {
     await auth.sendPasswordResetEmail(email);
-    return true;
+    console.log("Passwort-Reset-E-Mail gesendet an:", email);
   } catch (error) {
-    console.error("Fehler beim Senden der Passwort-Reset-E-Mail:", error);
-    throw error;
+    console.error("Fehler beim Senden der Reset-E-Mail:", error);
+    
+    let message = "Fehler beim Senden der E-Mail";
+    
+    switch (error.code) {
+      case 'auth/invalid-email':
+        message = "Ungültige E-Mail-Adresse";
+        break;
+      case 'auth/user-not-found':
+        message = "Kein Benutzer mit dieser E-Mail-Adresse gefunden";
+        break;
+    }
+    
+    throw new Error(message);
   }
+}
+
+/**
+ * Prüft, ob ein Benutzer angemeldet ist
+ */
+export function isAuthenticated() {
+  return firebaseUser !== null;
+}
+
+/**
+ * Gibt den aktuellen Firebase-Benutzer zurück
+ */
+export function getCurrentFirebaseUser() {
+  return firebaseUser;
 }
 
 /**
  * Prüft, ob der aktuelle Benutzer Admin ist
  */
 export function isAdmin() {
-  return currentUser.role === USER_ROLES.ADMIN;
+  return currentUser.permissions && currentUser.permissions.isAdmin === true;
 }
 
 /**
@@ -318,8 +287,78 @@ export function hasPermission(permission) {
 }
 
 /**
- * Gibt die aktuellen Benutzerdaten zurück
+ * Aktualisiert Benutzerberechtigungen (nur für Admins)
  */
-export function getUserData() {
-  return { ...currentUser };
+export async function updateUserPermissions(uid, permissions) {
+  if (!db) {
+    throw new Error("Firestore ist nicht initialisiert!");
+  }
+
+  if (!isAdmin()) {
+    throw new Error("Keine Berechtigung für diese Aktion");
+  }
+
+  try {
+    await db.collection("users").doc(uid).update({
+      permissions: permissions,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log("Benutzerberechtigungen aktualisiert");
+  } catch (error) {
+    console.error("Fehler beim Aktualisieren der Berechtigungen:", error);
+    throw error;
+  }
+}
+
+/**
+ * Lädt alle Benutzer (nur für Admins)
+ */
+export async function loadAllUsers() {
+  if (!db) {
+    throw new Error("Firestore ist nicht initialisiert!");
+  }
+
+  if (!isAdmin()) {
+    throw new Error("Keine Berechtigung für diese Aktion");
+  }
+
+  try {
+    const snapshot = await db.collection("users").get();
+    const users = [];
+    
+    snapshot.forEach(doc => {
+      users.push({
+        uid: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return users;
+  } catch (error) {
+    console.error("Fehler beim Laden der Benutzer:", error);
+    throw error;
+  }
+}
+
+/**
+ * Löscht einen Benutzer (nur für Admins)
+ * Hinweis: Dies löscht nur die Firestore-Daten, nicht den Auth-Benutzer
+ */
+export async function deleteUserData(uid) {
+  if (!db) {
+    throw new Error("Firestore ist nicht initialisiert!");
+  }
+
+  if (!isAdmin()) {
+    throw new Error("Keine Berechtigung für diese Aktion");
+  }
+
+  try {
+    await db.collection("users").doc(uid).delete();
+    console.log("Benutzerdaten gelöscht");
+  } catch (error) {
+    console.error("Fehler beim Löschen der Benutzerdaten:", error);
+    throw error;
+  }
 }
