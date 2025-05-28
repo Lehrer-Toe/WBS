@@ -1,4 +1,4 @@
-// js/firebaseClient.js - Verbesserte Version
+// js/firebaseClient.js - Erweiterte Version mit Auth-Unterstützung
 import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
 
 /**
@@ -48,7 +48,7 @@ async function loadFirebaseConfig() {
 }
 
 /**
- * Initialisiert die Verbindung zu Firebase mit verbesserter Fehlerbehandlung
+ * Initialisiert die Verbindung zu Firebase mit Auth-Unterstützung
  */
 export async function initDatabase() {
   try {
@@ -72,7 +72,7 @@ export async function initDatabase() {
       console.log("Vorhandene Firebase-Instanz verwendet");
     }
     
-    // Firestore-Instanz abrufen mit mehr Fehlerbehandlung
+    // Firestore-Instanz abrufen
     try {
       db = firebase.firestore();
       
@@ -81,7 +81,6 @@ export async function initDatabase() {
       console.log("Firestore-Verbindung erfolgreich hergestellt");
     } catch (firestoreError) {
       console.error("Fehler bei der Firestore-Initialisierung:", firestoreError);
-      // Versuche erneut mit anderen Optionen
       try {
         db = firebaseApp.firestore();
         console.log("Firestore über App-Instanz initialisiert");
@@ -91,13 +90,17 @@ export async function initDatabase() {
       }
     }
     
-    // Auth-Instanz abrufen
+    // Auth-Instanz abrufen - WICHTIG für das neue Login-System
     try {
       auth = firebase.auth();
       console.log("Firebase Auth erfolgreich initialisiert");
+      
+      // Auth-Persistenz konfigurieren
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      console.log("Auth-Persistenz konfiguriert");
     } catch (authError) {
-      console.warn("Firebase Auth konnte nicht initialisiert werden:", authError);
-      // Dies ist nicht kritisch, also fahren wir fort
+      console.error("Firebase Auth konnte nicht initialisiert werden:", authError);
+      return false; // Auth ist kritisch für das neue System
     }
     
     // Offline-Persistenz aktivieren (optional)
@@ -114,11 +117,17 @@ export async function initDatabase() {
       console.warn("Persistenz-Fehler, nicht kritisch:", persistenceError);
     }
 
-    // Initialisiere System-Einstellungen, falls sie noch nicht existieren
+    // Initialisiere System-Einstellungen
     await ensureSystemSettings();
     
     // Initialisiere Standard-Bewertungsraster
     await ensureDefaultAssessmentTemplate();
+    
+    // Erstelle users-Collection, falls sie nicht existiert
+    await ensureUsersCollection();
+    
+    // Erstelle project_ideas-Collection, falls sie nicht existiert
+    await ensureProjectIdeasCollection();
     
     // Datenstruktur migrieren, falls nötig
     await migrateDataStructure();
@@ -138,6 +147,60 @@ export async function initDatabase() {
     }
     
     alert(errorMessage + " Bitte prüfen Sie die Konsole für Details.");
+    return false;
+  }
+}
+
+/**
+ * NEU: Stellt sicher, dass die users-Collection existiert
+ */
+export async function ensureUsersCollection() {
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, users-Collection kann nicht überprüft werden");
+    return false;
+  }
+
+  try {
+    // Prüfe, ob bereits Benutzer existieren
+    const usersSnapshot = await db.collection("users").limit(1).get();
+    
+    if (usersSnapshot.empty) {
+      console.log("Keine Benutzer gefunden. users-Collection wird initialisiert...");
+      // Die Collection wird automatisch erstellt, wenn der erste Benutzer hinzugefügt wird
+    } else {
+      console.log("users-Collection bereits vorhanden");
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Prüfen der users-Collection:", error);
+    return false;
+  }
+}
+
+/**
+ * NEU: Stellt sicher, dass die project_ideas-Collection existiert
+ */
+export async function ensureProjectIdeasCollection() {
+  if (!db) {
+    console.warn("Firestore nicht initialisiert, project_ideas-Collection kann nicht überprüft werden");
+    return false;
+  }
+
+  try {
+    // Prüfe, ob bereits Projektideen existieren
+    const ideasSnapshot = await db.collection("project_ideas").limit(1).get();
+    
+    if (ideasSnapshot.empty) {
+      console.log("Keine Projektideen gefunden. project_ideas-Collection wird initialisiert...");
+      // Die Collection wird automatisch erstellt, wenn die erste Idee hinzugefügt wird
+    } else {
+      console.log("project_ideas-Collection bereits vorhanden");
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Fehler beim Prüfen der project_ideas-Collection:", error);
     return false;
   }
 }
@@ -280,6 +343,9 @@ export async function ensureCollections() {
   try {
     // In Firestore müssen Sammlungen nicht explizit erstellt werden
     // Sie entstehen automatisch beim ersten Dokument
+    await ensureUsersCollection();
+    await ensureProjectIdeasCollection();
+    
     console.log("Firebase-Collections sind bereit");
     return true;
   } catch (error) {
@@ -300,12 +366,39 @@ export async function migrateDataStructure() {
   try {
     console.log("Prüfe Datenstruktur-Migration...");
     
-    // Implementiere hier deine Migrations-Logik, wenn notwendig
+    // Migration von altem Lehrer-System zu neuem User-System
+    await migrateOldTeachersToUsers();
     
     console.log("Datenstruktur-Migration abgeschlossen");
     return true;
   } catch (error) {
     console.error("Fehler bei der Datenstruktur-Migration:", error);
+    return false;
+  }
+}
+
+/**
+ * NEU: Migriert alte Lehrer-Daten zu neuen Benutzer-Daten
+ */
+async function migrateOldTeachersToUsers() {
+  try {
+    // Prüfe, ob alte Lehrer-Daten existieren
+    const teachersDoc = await db.collection("wbs_teachers").doc("teachers_list").get();
+    
+    if (teachersDoc.exists) {
+      const teachersData = teachersDoc.data();
+      const teachers = teachersData.teachers || [];
+      
+      console.log(`Migriere ${teachers.length} Lehrer zu neuen Benutzerdaten...`);
+      
+      // Diese Migration würde normalerweise die Lehrer zu users umwandeln
+      // Da wir aber auf E-Mail/Passwort-System umstellen, wird dies manuell gemacht
+      console.log("Hinweis: Alte Lehrer-Daten gefunden. Diese müssen manuell als neue Benutzer angelegt werden.");
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Fehler bei der Lehrer-Migration:", error);
     return false;
   }
 }
@@ -320,10 +413,25 @@ export async function checkDatabaseHealth() {
     status: "healthy",
     issues: [],
     collections: {},
+    auth: {},
     lastChecked: new Date().toISOString()
   };
   
   try {
+    // Prüfe Auth-Status
+    if (auth) {
+      health.auth = {
+        initialized: true,
+        currentUser: auth.currentUser ? {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email
+        } : null
+      };
+    } else {
+      health.issues.push("Firebase Auth nicht initialisiert");
+      health.status = "warning";
+    }
+    
     // Prüfe System-Einstellungen
     const systemSettings = await getSystemSettings();
     if (!systemSettings) {
@@ -336,11 +444,18 @@ export async function checkDatabaseHealth() {
       };
     }
     
-    // Prüfe Lehrer-Collection
-    const teachersDoc = await db.collection("wbs_teachers").doc("teachers_list").get();
-    health.collections.teachers = {
-      exists: teachersDoc.exists,
-      count: teachersDoc.exists && teachersDoc.data().teachers ? teachersDoc.data().teachers.length : 0
+    // Prüfe Users-Collection
+    const usersSnapshot = await db.collection("users").limit(1).get();
+    health.collections.users = {
+      exists: !usersSnapshot.empty,
+      accessible: true
+    };
+    
+    // Prüfe Projektideen-Collection
+    const ideasSnapshot = await db.collection("project_ideas").limit(1).get();
+    health.collections.projectIdeas = {
+      exists: !ideasSnapshot.empty,
+      accessible: true
     };
     
     // Prüfe Themen-Collection
