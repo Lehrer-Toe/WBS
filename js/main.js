@@ -302,3 +302,141 @@ const createFirstAdmin = async () => {
 
 // Uncomment this line to create first admin:
 // createFirstAdmin();
+// Temporärer Setup-Code für main.js
+// Fügen Sie diesen Code am Ende Ihrer bestehenden main.js hinzu:
+
+// Import der neuen Module (fügen Sie diese Imports am Anfang der Datei hinzu)
+import { initNewLoginModule, performEnhancedLogout } from "./modules/newLoginModule.js";
+import { initNewAdminModule } from "./modules/newAdminModule.js";
+
+// Erweiterte Initialisierung (ersetzen Sie den bestehenden DOMContentLoaded Event-Listener)
+document.addEventListener("DOMContentLoaded", async function() {
+  console.log("WBS Bewertungssystem wird mit erweiterten Funktionen initialisiert...");
+  showLoader();
+  
+  try {
+    // Bestehende Initialisierung...
+    const dbInitialized = await initDatabase();
+    if (!dbInitialized) {
+      throw new Error("Datenbank konnte nicht initialisiert werden");
+    }
+    
+    await ensureCollections();
+    await ensureDefaultAssessmentTemplate();
+    const teachersLoaded = await loadAllTeachers();
+    await loadSystemSettings();
+    await loadAssessmentTemplates();
+    
+    // NEUE ERWEITERTE INITIALISIERUNG:
+    // 1. Erweiterte Login-Module initialisieren
+    console.log("Initialisiere erweiterte Module...");
+    initNewLoginModule();  // Ersetzt initLoginModule()
+    initNewAdminModule();  // Erweitert initAdminModule()
+    
+    // 2. Original-Module weiterhin initialisieren
+    initAdminModule();  // Bestehende Funktionalität beibehalten
+    await initThemeModule();
+    
+    // 3. Erweiterte Event-Listener
+    setupEnhancedEventListeners();
+    
+    console.log("Erweiterte Initialisierung abgeschlossen!");
+    
+  } catch (error) {
+    console.error("Fehler bei der erweiterten Initialisierung:", error);
+    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
+  } finally {
+    hideLoader();
+  }
+});
+
+// Erweiterte Event-Listener Setup
+function setupEnhancedEventListeners() {
+  // Bestehende Event-Listener...
+  setupGlobalEventListeners();
+  
+  // Neue erweiterte Event-Listener:
+  
+  // Enhanced Logout für Lehrer
+  const logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    // Entferne bestehende Event-Listener
+    logoutBtn.replaceWith(logoutBtn.cloneNode(true));
+    const newLogoutBtn = document.getElementById("logoutBtn");
+    newLogoutBtn.addEventListener("click", performEnhancedLogout);
+  }
+  
+  // Keyboard-Shortcuts
+  document.addEventListener('keydown', (e) => {
+    // F12 für Admin-Dashboard (wenn Admin eingeloggt)
+    if (e.key === 'F12' && e.ctrlKey) {
+      e.preventDefault();
+      toggleAdminDashboard();
+    }
+    
+    // Escape für schnelles Modal schließen
+    if (e.key === 'Escape') {
+      closeAllModals();
+    }
+  });
+  
+  // System-Status-Überwachung
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // Seite wieder sichtbar - prüfe System-Status
+      checkSystemStatus();
+    }
+  });
+  
+  // Unload-Event für Cleanup
+  window.addEventListener('beforeunload', (e) => {
+    // Cleanup vor dem Schließen der Seite
+    performCleanup();
+  });
+}
+
+// Hilfsfunktionen für erweiterte Funktionalität
+function toggleAdminDashboard() {
+  const dashboard = document.getElementById("systemDashboard");
+  if (dashboard) {
+    if (dashboard.style.display === "none") {
+      dashboard.style.display = "block";
+      console.log("Admin-Dashboard geöffnet");
+    } else {
+      dashboard.style.display = "none";
+      console.log("Admin-Dashboard geschlossen");
+    }
+  }
+}
+
+function closeAllModals() {
+  const modals = document.querySelectorAll('.modal');
+  modals.forEach(modal => {
+    if (modal.style.display === 'flex' || modal.style.display === 'block') {
+      modal.style.display = 'none';
+    }
+  });
+}
+
+function checkSystemStatus() {
+  // Placeholder für System-Status-Check
+  console.log("System-Status wird überprüft...");
+}
+
+function performCleanup() {
+  // Cleanup-Logik vor dem Schließen
+  console.log("Cleanup wird durchgeführt...");
+}
+
+// Erweiterte Fehlerbehandlung
+window.addEventListener('error', (event) => {
+  console.error('Globaler Fehler:', event.error);
+  // Hier könnte erweiterte Fehlerbehandlung implementiert werden
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unbehandelte Promise-Rejection:', event.reason);
+  // Hier könnte erweiterte Promise-Fehlerbehandlung implementiert werden
+});
+
+console.log("Erweiterte Setup-Funktionen geladen");
