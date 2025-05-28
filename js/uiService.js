@@ -6,17 +6,19 @@ import { assessmentTemplates } from "./assessmentService.js";
 /**
  * Zeigt den Ladebildschirm
  */
-/**
- * Zeigt den Ladebildschirm
- */
 export function showLoader() {
-  console.log("showLoader called");
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    console.log("Setting loader to display:flex");
-    mainLoader.style.display = "flex";
-  } else {
-    console.error("Loader element not found");
+  try {
+    const mainLoader = document.getElementById("mainLoader");
+    if (mainLoader) {
+      mainLoader.style.display = "flex";
+      
+      // Force-Reflow um sicherzustellen, dass der Loader angezeigt wird
+      void mainLoader.offsetHeight;
+    } else {
+      console.error("Loader-Element nicht gefunden");
+    }
+  } catch (error) {
+    console.error("Fehler beim Anzeigen des Loaders:", error);
   }
 }
 
@@ -24,13 +26,18 @@ export function showLoader() {
  * Versteckt den Ladebildschirm
  */
 export function hideLoader() {
-  console.log("hideLoader called");
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    console.log("Setting loader to display:none");
-    mainLoader.style.display = "none";
-  } else {
-    console.error("Loader element not found");
+  try {
+    const mainLoader = document.getElementById("mainLoader");
+    if (mainLoader) {
+      mainLoader.style.display = "none";
+      
+      // Force-Reflow um sicherzustellen, dass der Loader ausgeblendet wird
+      void mainLoader.offsetHeight;
+    } else {
+      console.error("Loader-Element nicht gefunden");
+    }
+  } catch (error) {
+    console.error("Fehler beim Ausblenden des Loaders:", error);
   }
 }
 
@@ -40,14 +47,23 @@ export function hideLoader() {
  * @param {string} type - Art der Benachrichtigung (success, warning, error)
  */
 export function showNotification(message, type = "success") {
-  const notification = document.createElement("div");
-  notification.className = `notification ${type}`;
-  notification.textContent = message;
-  document.body.appendChild(notification);
-
-  setTimeout(() => {
-    notification.remove();
-  }, 3000);
+  try {
+    const notification = document.createElement("div");
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    // Automatisch nach 3 Sekunden entfernen
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 3000);
+  } catch (error) {
+    console.error("Fehler beim Anzeigen der Benachrichtigung:", error);
+    // Fallback: Alert
+    alert(message);
+  }
 }
 
 /**
