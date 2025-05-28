@@ -274,3 +274,31 @@ window.jumpToAssessment = function(studentId, themeId) {
  */
 window.setActiveTab = setActiveTab;
 window.getCurrentActiveTab = () => currentActiveTab;
+
+// TEMPORÄR: Ersten Admin erstellen - NACH SETUP ENTFERNEN!
+const createFirstAdmin = async () => {
+  try {
+    const adminEmail = "tilama@mail.de";
+    const adminPassword = "sohran17";
+    
+    const userCredential = await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
+    const user = userCredential.user;
+    
+    await db.collection("users").doc(user.uid).set({
+      email: adminEmail,
+      name: "Administrator",
+      role: "admin",
+      isActive: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      permissions: {}
+    });
+    
+    console.log("Erster Admin erstellt:", adminEmail);
+    alert("Erster Admin erstellt. Bitte entfernen Sie diesen Code aus main.js!");
+  } catch (error) {
+    console.error("Fehler beim Erstellen des Admins:", error);
+  }
+};
+
+// Uncomment this line to create first admin:
+// createFirstAdmin();
