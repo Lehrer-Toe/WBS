@@ -1,2430 +1,876 @@
-// js/modules/themeModule.js - Vollständig erweiterte Version mit Verbesserungen
-
+// js/modules/updatedThemeModule.js - Aktualisiertes Themen-Modul mit Auth-Integration
+import { currentUser, getUserData, hasPermission } from "../authService.js";
+import { showLoader, hideLoader, showNotification, formatDate } from "../uiService.js";
 import { 
-  showLoader, 
-  hideLoader, 
-  showNotification,
-  formatDate,
-  getDaysRemaining,
-  formatRemainingDays,
-  createStatusBadge,
-  createStudentStatusBadge,
-  createThemeProgressHTML,
-  populateSchoolYearSelect,
-  populateAssessmentTemplateSelect,
-  populateTeacherSelect,
-  filterAndSortStudents,
-  downloadFile
-} from "../uiService.js";
-import {
-  allThemes,
-  loadAllThemes,
-  createTheme,
-  updateTheme,
-  deleteTheme,
-  addStudentToTheme,
-  updateStudent,
-  removeStudentFromTheme,
-  updateStudentAssessment,
-  calculateStudentAverage,
-  filterThemes,
-  getThemesForAssessment,
-  getThemesCreatedByTeacher
+    allThemes,
+    loadAllThemes,
+    createTheme,
+    updateTheme,
+    deleteTheme,
+    addStudentToTheme,
+    updateStudent,
+    removeStudentFromTheme,
+    updateStudentAssessment,
+    calculateStudentAverage,
+    getThemesForAssessment
 } from "../themeService.js";
-import { currentUser } from "../dataService.js";
-import { allTeachers, systemSettings } from "../adminService.js";
 import { 
-  assessmentTemplates,
-  loadAssessmentTemplatesForTeacher,
-  createAssessmentTemplate,
-  updateAssessmentTemplate,
-  deleteAssessmentTemplate,
-  getAssessmentTemplate
+    assessmentTemplates,
+    loadAssessmentTemplatesForTeacher,
+    getAssessmentTemplate
 } from "../assessmentService.js";
-import { 
-  THEMES_CONFIG, 
-  STUDENT_STATUS, 
-  THEME_STATUS,
-  ASSESSMENT_TEMPLATES,
-  AVAILABLE_CLASSES
-} from "../constants.js";
+import { THEMES_CONFIG, STUDENT_STATUS, THEME_STATUS } from "../constants.js";
 
 /**
- * Referenz auf die DOM-Elemente
+ * DOM-Elemente
  */
 let elements = {
-  // Tabs
-  themesTab: null,
-  assessmentTab: null,
-  overviewTab: null,
-  templatesTab: null,
-  
-  // Themen-Verwaltung
-  themesContainer: null,
-  themesList: null,
-  newThemeBtn: null,
-  themeFilterSelect: null,
-  themeSortSelect: null,
-  themeViewToggle: null, // NEU: View Toggle Button
-  
-  // Thema-Modal
-  themeModal: null,
-  themeModalTitle: null,
-  themeForm: null,
-  themeNameInput: null,
-  themeDescriptionInput: null,
-  themeDeadlineInput: null,
-  themeSchoolYearSelect: null,
-  themeTemplateSelect: null,
-  saveThemeBtn: null,
-  cancelThemeBtn: null,
-  closeThemeModal: null,
-  
-  // Schüler-Verwaltung
-  studentsContainer: null,
-  studentsList: null,
-  addStudentBtn: null,
-  
-  // Schüler-Modal
-  studentModal: null,
-  studentModalTitle: null,
-  studentForm: null,
-  studentNameInput: null,
-  studentClassInput: null,
-  studentTeacherSelect: null,
-  saveStudentBtn: null,
-  cancelStudentBtn: null,
-  closeStudentModal: null,
-  
-  // Bewertungs-Tab
-  assessmentContainer: null,
-  assessmentStudentList: null,
-  assessmentContent: null,
-  assessmentFilterSelect: null,
-  assessmentSortSelect: null,
-  assessmentTemplateSelect: null, // NEU: Template-Auswahl in Bewertung
-  
-  // Übersichts-Tab
-  overviewContainer: null,
-  overviewSchoolYearSelect: null,
-  overviewStatusSelect: null,
-  overviewTable: null,
-  exportDataBtn: null,
-  
-  // Bewertungsraster-Tab
-  templatesContainer: null,
-  templatesList: null,
-  newTemplateForm: null,
-  templateNameInput: null,
-  templateDescriptionInput: null,
-  categoriesContainer: null,
-  categoriesList: null,
-  addCategoryBtn: null,
-  createTemplateBtn: null,
-  templatesCount: null,
-  
-  // Category Modal
-  categoryModal: null,
-  categoryForm: null,
-  categoryNameInput: null,
-  categoryWeightInput: null,
-  saveCategoryBtn: null,
-  cancelCategoryBtn: null,
-  closeCategoryModal: null
+    // Themen-Tab
+    themesContainer: null,
+    themesList: null,
+    newThemeBtn: null,
+    themeFilterSelect: null,
+    themeSortSelect: null,
+    
+    // Assessment-Tab
+    assessmentStudentList: null,
+    assessmentContent: null,
+    assessmentFilterSelect: null,
+    assessmentSortSelect: null,
+    
+    // Übersicht-Tab
+    overviewTable: null,
+    overviewSchoolYearSelect: null,
+    overviewStatusSelect: null,
+    exportDataBtn: null,
+    
+    // Templates-Tab
+    templatesList: null,
+    templatesCount: null,
+    newTemplateForm: null,
+    
+    // Modals
+    themeModal: null,
+    studentModal: null
 };
 
 /**
- * Zustand für die Themen-/Schülerbearbeitung
+ * Zustand
  */
-let selectedTheme = null;
-let selectedStudent = null;
-let editMode = false;
 let currentSelectedStudentId = null;
-let infoTextSaveTimer = null;
-let currentThemeSort = "deadline";
-let currentAssessmentFilter = "";
-let currentAssessmentSort = "name";
+let userThemes = [];
+let userAssignedStudents = [];
 let teacherTemplates = [];
-let currentCategoryEdit = null;
-let tempCategories = [];
-let themeViewMode = "cards"; // NEU: cards oder list
-let currentAssessmentTemplate = null; // NEU: Aktuelles Template für Bewertung
 
 /**
- * Initialisiert das Themen-Modul
+ * Initialisiert das aktualisierte Themen-Modul
  */
-export async function initThemeModule() {
-  // DOM-Elemente abrufen
-  loadDOMElements();
-  
-  // Event-Listener hinzufügen
-  setupEventListeners();
-  
-  // Themen laden
-  await loadAllThemes();
-  
-  // Wenn der Benutzer eingeloggt ist, aktualisiere die Ansicht
-  document.addEventListener("userLoggedIn", async (event) => {
-    await loadTeacherTemplates();
-    updateUI();
-    checkDeadlineWarnings();
-  });
-  
-  // Event-Listener für aktualisierte Lehrer
-  document.addEventListener("teachersUpdated", () => {
-    updateTeacherSelects();
-  });
+export async function initUpdatedThemeModule() {
+    if (!currentUser.isLoggedIn) {
+        console.log("Benutzer nicht angemeldet, Themen-Modul wird nicht initialisiert");
+        return;
+    }
+    
+    loadDOMElements();
+    setupEventListeners();
+    
+    // Lade Themen und benutzerspezifische Daten
+    await loadUserData();
+    
+    // Initialisiere Tabs
+    updateThemesTab();
+    updateAssessmentTab();
+    updateOverviewTab();
+    updateTemplatesTab();
 }
 
 /**
- * Lädt alle benötigten DOM-Elemente
+ * Lädt DOM-Elemente
  */
 function loadDOMElements() {
-  // Tabs
-  elements.themesTab = document.getElementById("themes-tab");
-  elements.assessmentTab = document.getElementById("assessment-tab");
-  elements.overviewTab = document.getElementById("overview-tab");
-  elements.templatesTab = document.getElementById("templates-tab");
-  
-  // Themen-Verwaltung
-  elements.themesContainer = document.getElementById("themesContainer");
-  elements.themesList = document.getElementById("themesList");
-  elements.newThemeBtn = document.getElementById("newThemeBtn");
-  elements.themeFilterSelect = document.getElementById("themeFilterSelect");
-  elements.themeSortSelect = document.getElementById("themeSortSelect");
-  
-  // Thema-Modal
-  elements.themeModal = document.getElementById("themeModal");
-  elements.themeModalTitle = document.getElementById("themeModalTitle");
-  elements.themeForm = document.getElementById("themeForm");
-  elements.themeNameInput = document.getElementById("themeNameInput");
-  elements.themeDescriptionInput = document.getElementById("themeDescriptionInput");
-  elements.themeDeadlineInput = document.getElementById("themeDeadlineInput");
-  elements.themeSchoolYearSelect = document.getElementById("themeSchoolYearSelect");
-  elements.themeTemplateSelect = document.getElementById("themeTemplateSelect");
-  elements.saveThemeBtn = document.getElementById("saveThemeBtn");
-  elements.cancelThemeBtn = document.getElementById("cancelThemeBtn");
-  elements.closeThemeModal = document.getElementById("closeThemeModal");
-  
-  // Schüler-Verwaltung
-  elements.studentsContainer = document.getElementById("studentsContainer");
-  elements.studentsList = document.getElementById("studentsList");
-  elements.addStudentBtn = document.getElementById("addStudentBtn");
-  
-  // Schüler-Modal
-  elements.studentModal = document.getElementById("studentModal");
-  elements.studentModalTitle = document.getElementById("studentModalTitle");
-  elements.studentForm = document.getElementById("studentForm");
-  elements.studentNameInput = document.getElementById("studentNameInput");
-  elements.studentClassInput = document.getElementById("studentClassInput");
-  elements.studentTeacherSelect = document.getElementById("studentTeacherSelect");
-  elements.saveStudentBtn = document.getElementById("saveStudentBtn");
-  elements.cancelStudentBtn = document.getElementById("cancelStudentBtn");
-  elements.closeStudentModal = document.getElementById("closeStudentModal");
-  
-  // Bewertungs-Tab
-  elements.assessmentContainer = document.getElementById("assessmentContent");
-  elements.assessmentStudentList = document.getElementById("assessmentStudentList");
-  elements.assessmentContent = document.getElementById("assessmentContent");
-  elements.assessmentFilterSelect = document.getElementById("assessmentFilterSelect");
-  elements.assessmentSortSelect = document.getElementById("assessmentSortSelect");
-  
-  // Übersichts-Tab
-  elements.overviewContainer = document.getElementById("overview-tab");
-  elements.overviewSchoolYearSelect = document.getElementById("overviewSchoolYearSelect");
-  elements.overviewStatusSelect = document.getElementById("overviewStatusSelect");
-  elements.overviewTable = document.getElementById("overviewTable");
-  elements.exportDataBtn = document.getElementById("exportDataBtn");
-  
-  // Bewertungsraster-Tab
-  elements.templatesContainer = document.getElementById("templates-tab");
-  elements.templatesList = document.getElementById("teacherTemplatesList");
-  elements.newTemplateForm = document.getElementById("newTeacherTemplateForm");
-  elements.templateNameInput = document.getElementById("teacherTemplateName");
-  elements.templateDescriptionInput = document.getElementById("teacherTemplateDescription");
-  elements.categoriesContainer = document.getElementById("teacherCategoriesContainer");
-  elements.categoriesList = document.getElementById("teacherCategoriesList");
-  elements.addCategoryBtn = document.getElementById("addTeacherCategoryBtn");
-  elements.createTemplateBtn = document.getElementById("createTeacherTemplateBtn");
-  elements.templatesCount = document.getElementById("templatesCount");
-  
-  // Category Modal
-  elements.categoryModal = document.getElementById("categoryModal");
-  elements.categoryForm = document.getElementById("categoryForm");
-  elements.categoryNameInput = document.getElementById("categoryNameInput");
-  elements.categoryWeightInput = document.getElementById("categoryWeightInput");
-  elements.saveCategoryBtn = document.getElementById("saveCategoryBtn");
-  elements.cancelCategoryBtn = document.getElementById("cancelCategoryBtn");
-  elements.closeCategoryModal = document.getElementById("closeCategoryModal");
+    // Themen-Tab
+    elements.themesContainer = document.getElementById("themesContainer");
+    elements.themesList = document.getElementById("themesList");
+    elements.newThemeBtn = document.getElementById("newThemeBtn");
+    elements.themeFilterSelect = document.getElementById("themeFilterSelect");
+    elements.themeSortSelect = document.getElementById("themeSortSelect");
+    
+    // Assessment-Tab
+    elements.assessmentStudentList = document.getElementById("assessmentStudentList");
+    elements.assessmentContent = document.getElementById("assessmentContent");
+    elements.assessmentFilterSelect = document.getElementById("assessmentFilterSelect");
+    elements.assessmentSortSelect = document.getElementById("assessmentSortSelect");
+    
+    // Übersicht-Tab
+    elements.overviewTable = document.getElementById("overviewTable");
+    elements.overviewSchoolYearSelect = document.getElementById("overviewSchoolYearSelect");
+    elements.overviewStatusSelect = document.getElementById("overviewStatusSelect");
+    elements.exportDataBtn = document.getElementById("exportDataBtn");
+    
+    // Templates-Tab
+    elements.templatesList = document.getElementById("teacherTemplatesList");
+    elements.templatesCount = document.getElementById("templatesCount");
+    elements.newTemplateForm = document.getElementById("newTeacherTemplateForm");
+    
+    // Modals
+    elements.themeModal = document.getElementById("themeModal");
+    elements.studentModal = document.getElementById("studentModal");
 }
 
 /**
- * Richtet die Event-Listener ein
+ * Richtet Event-Listener ein
  */
 function setupEventListeners() {
-  // Tab-Wechsel
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", function() {
-      const tabId = this.dataset.tab;
-      
-      // Wenn der Tab gewechselt wird, aktualisiere die Ansicht
-      if (tabId === "themes") {
-        updateThemesTab();
-      } else if (tabId === "assessment") {
-        updateAssessmentTab();
-      } else if (tabId === "overview") {
-        updateOverviewTab();
-      } else if (tabId === "templates") {
-        updateTemplatesTab();
-      }
-    });
-  });
-  
-  // Neues Thema erstellen
-  if (elements.newThemeBtn) {
-    elements.newThemeBtn.addEventListener("click", showNewThemeModal);
-  }
-  
-  // Themen filtern und sortieren
-  if (elements.themeFilterSelect) {
-    elements.themeFilterSelect.addEventListener("change", updateThemesList);
-  }
-  
-  if (elements.themeSortSelect) {
-    elements.themeSortSelect.addEventListener("change", (e) => {
-      currentThemeSort = e.target.value;
-      updateThemesList();
-    });
-  }
-  
-  // Bewertungs-Filter und Sortierung
-  if (elements.assessmentFilterSelect) {
-    elements.assessmentFilterSelect.addEventListener("change", (e) => {
-      currentAssessmentFilter = e.target.value;
-      updateAssessmentTab();
-    });
-  }
-  
-  if (elements.assessmentSortSelect) {
-    elements.assessmentSortSelect.addEventListener("change", (e) => {
-      currentAssessmentSort = e.target.value;
-      updateAssessmentTab();
-    });
-  }
-  
-  // Thema-Modal
-  if (elements.cancelThemeBtn) {
-    elements.cancelThemeBtn.addEventListener("click", () => {
-      elements.themeModal.style.display = "none";
-    });
-  }
-  if (elements.closeThemeModal) {
-    elements.closeThemeModal.addEventListener("click", () => {
-      elements.themeModal.style.display = "none";
-    });
-  }
-  if (elements.themeForm) {
-    elements.themeForm.addEventListener("submit", saveTheme);
-  }
-  
-  // Schüler-Modal
-  if (elements.cancelStudentBtn) {
-    elements.cancelStudentBtn.addEventListener("click", () => {
-      elements.studentModal.style.display = "none";
-    });
-  }
-  if (elements.closeStudentModal) {
-    elements.closeStudentModal.addEventListener("click", () => {
-      elements.studentModal.style.display = "none";
-    });
-  }
-  if (elements.studentForm) {
-    elements.studentForm.addEventListener("submit", saveStudent);
-  }
-  
-  // Daten exportieren
-  if (elements.exportDataBtn) {
-    elements.exportDataBtn.addEventListener("click", exportData);
-  }
-  
-  // Bewertungsraster-Events
-  if (elements.addCategoryBtn) {
-    elements.addCategoryBtn.addEventListener("click", showNewCategoryModal);
-  }
-  
-  if (elements.newTemplateForm) {
-    elements.newTemplateForm.addEventListener("submit", createNewTemplate);
-  }
-  
-  // Category Modal Events
-  if (elements.closeCategoryModal) {
-    elements.closeCategoryModal.addEventListener("click", () => {
-      elements.categoryModal.style.display = "none";
-    });
-  }
-  
-  if (elements.cancelCategoryBtn) {
-    elements.cancelCategoryBtn.addEventListener("click", () => {
-      elements.categoryModal.style.display = "none";
-    });
-  }
-  
-  if (elements.categoryForm) {
-    elements.categoryForm.addEventListener("submit", saveCategory);
-  }
-}
-
-/**
- * Lädt die Bewertungsraster für den aktuellen Lehrer
- */
-async function loadTeacherTemplates() {
-  if (!currentUser.code) return;
-  
-  try {
-    teacherTemplates = await loadAssessmentTemplatesForTeacher(currentUser.code);
-    console.log(`${teacherTemplates.length} Bewertungsraster für ${currentUser.code} geladen`);
-  } catch (error) {
-    console.error("Fehler beim Laden der Bewertungsraster:", error);
-    teacherTemplates = [];
-  }
-}
-
-/**
- * Aktualisiert die Benutzeroberfläche basierend auf den Berechtigungen
- */
-function updateUI() {
-  // Prüfen, ob der Benutzer Themen erstellen darf
-  const canCreateThemes = currentUser.permissions && 
-                         currentUser.permissions.canCreateThemes === true;
-  
-  // Neue-Thema-Button anzeigen/verstecken
-  if (elements.newThemeBtn) {
-    elements.newThemeBtn.style.display = canCreateThemes ? "block" : "none";
-  }
-  
-  // Tabs aktualisieren
-  updateThemesTab();
-  updateAssessmentTab();
-  updateOverviewTab();
-  updateTemplatesTab();
-}
-
-/**
- * NEU: Erstelle View-Toggle für Themen-Liste
- */
-function createThemeViewToggle() {
-  const existingToggle = document.getElementById("themeViewToggle");
-  if (existingToggle) {
-    existingToggle.remove();
-  }
-  
-  const toggle = document.createElement("div");
-  toggle.id = "themeViewToggle";
-  toggle.className = "view-toggle";
-  toggle.innerHTML = `
-    <button class="view-toggle-btn ${themeViewMode === 'cards' ? 'active' : ''}" data-view="cards">
-      <span>📊</span> Karten
-    </button>
-    <button class="view-toggle-btn ${themeViewMode === 'list' ? 'active' : ''}" data-view="list">
-      <span>📋</span> Liste
-    </button>
-  `;
-  
-  // Event-Listener für Toggle
-  toggle.querySelectorAll(".view-toggle-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      themeViewMode = btn.dataset.view;
-      
-      // Toggle-Button States aktualisieren
-      toggle.querySelectorAll(".view-toggle-btn").forEach(b => {
-        b.classList.remove("active");
-      });
-      btn.classList.add("active");
-      
-      // Liste neu rendern
-      updateThemesList();
-    });
-  });
-  
-  return toggle;
-}
-
-/**
- * Prüft und zeigt Deadline-Warnungen an
- */
-function checkDeadlineWarnings() {
-  const themes = getThemesCreatedByTeacher(currentUser.code);
-  const now = new Date();
-  const urgentThemes = [];
-  const warningThemes = [];
-  
-  // Prüfe auf nahe Deadlines
-  themes.forEach(theme => {
-    if (theme.deadline) {
-      const deadline = new Date(theme.deadline);
-      const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-      
-      if (daysRemaining >= 0 && daysRemaining <= 3) {
-        urgentThemes.push({ ...theme, daysRemaining });
-      } else if (daysRemaining >= 0 && daysRemaining <= 7) {
-        warningThemes.push({ ...theme, daysRemaining });
-      }
+    // Neues Thema erstellen
+    if (elements.newThemeBtn) {
+        elements.newThemeBtn.addEventListener("click", showNewThemeModal);
     }
-  });
-  
-  // Prüfe auf Schuljahresende-Warnung
-  if (systemSettings.schoolYearEnd) {
-    const schoolYearEnd = new Date(systemSettings.schoolYearEnd);
-    const daysToEnd = Math.ceil((schoolYearEnd - now) / (1000 * 60 * 60 * 24));
     
-    if (daysToEnd >= 0 && daysToEnd <= 14) {
-      showDeadlineWarning(`Schuljahresende in ${daysToEnd} Tagen!`, "urgent");
+    // Filter und Sortierung
+    if (elements.themeFilterSelect) {
+        elements.themeFilterSelect.addEventListener("change", updateThemesList);
     }
-  }
-  
-  // Zeige Warnungen an
-  if (urgentThemes.length > 0) {
-    const message = urgentThemes.length === 1 
-      ? `Dringend: Thema "${urgentThemes[0].title}" läuft in ${urgentThemes[0].daysRemaining} Tag(en) ab!`
-      : `Dringend: ${urgentThemes.length} Themen laufen in den nächsten 3 Tagen ab!`;
-    showDeadlineWarning(message, "urgent");
-  } else if (warningThemes.length > 0) {
-    const message = warningThemes.length === 1 
-      ? `Warnung: Thema "${warningThemes[0].title}" läuft in ${warningThemes[0].daysRemaining} Tag(en) ab!`
-      : `Warnung: ${warningThemes.length} Themen laufen in der nächsten Woche ab!`;
-    showDeadlineWarning(message, "warning");
-  }
+    
+    if (elements.themeSortSelect) {
+        elements.themeSortSelect.addEventListener("change", updateThemesList);
+    }
+    
+    // Assessment-Filter
+    if (elements.assessmentFilterSelect) {
+        elements.assessmentFilterSelect.addEventListener("change", updateAssessmentTab);
+    }
+    
+    if (elements.assessmentSortSelect) {
+        elements.assessmentSortSelect.addEventListener("change", updateAssessmentTab);
+    }
+    
+    // Export-Button
+    if (elements.exportDataBtn) {
+        elements.exportDataBtn.addEventListener("click", exportUserData);
+    }
 }
 
 /**
- * Zeigt eine Deadline-Warnung an
+ * Lädt benutzerspezifische Daten
  */
-function showDeadlineWarning(message, type = "warning") {
-  // Entferne vorherige Warnungen
-  const existingWarning = document.querySelector(".deadline-warning");
-  if (existingWarning) {
-    existingWarning.remove();
-  }
-  
-  // Erstelle neue Warnung
-  const warning = document.createElement("div");
-  warning.className = `deadline-warning ${type}`;
-  warning.innerHTML = `
-    <span class="deadline-warning-icon">⚠️</span>
-    <span class="deadline-warning-text">${message}</span>
-    <button class="deadline-warning-close">&times;</button>
-  `;
-  
-  // Event-Listener für Schließen-Button
-  warning.querySelector(".deadline-warning-close").addEventListener("click", () => {
-    warning.remove();
-  });
-  
-  // Warnung einfügen
-  const container = document.querySelector("#themes-tab .container, .container");
-  if (container) {
-    container.insertBefore(warning, container.firstChild);
-  }
+async function loadUserData() {
+    try {
+        showLoader();
+        
+        // Lade alle Themen
+        await loadAllThemes();
+        
+        // Filtere Themen für den aktuellen Benutzer
+        userThemes = allThemes.filter(theme => theme.created_by === currentUser.uid);
+        
+        // Lade Schüler, die dem Benutzer zugewiesen sind
+        userAssignedStudents = [];
+        allThemes.forEach(theme => {
+            if (theme.students) {
+                theme.students.forEach(student => {
+                    if (student.assigned_teacher === currentUser.uid) {
+                        userAssignedStudents.push({
+                            ...student,
+                            theme: {
+                                id: theme.id,
+                                title: theme.title,
+                                deadline: theme.deadline,
+                                assessment_template_id: theme.assessment_template_id
+                            }
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Lade Bewertungsraster des Benutzers
+        teacherTemplates = await loadAssessmentTemplatesForTeacher(currentUser.uid);
+        
+        console.log(`${userThemes.length} Themen und ${userAssignedStudents.length} Schüler geladen`);
+        
+    } catch (error) {
+        console.error("Fehler beim Laden der Benutzerdaten:", error);
+        showNotification("Fehler beim Laden der Daten: " + error.message, "error");
+    } finally {
+        hideLoader();
+    }
 }
 
 /**
  * Aktualisiert den Themen-Tab
  */
-function updateThemesTab() {
-  if (!elements.themesTab) return;
-  
-  // View-Toggle hinzufügen, falls noch nicht vorhanden
-  const themesHeader = elements.themesTab.querySelector(".themes-header");
-  if (themesHeader && !document.getElementById("themeViewToggle")) {
-    const toggle = createThemeViewToggle();
-    themesHeader.appendChild(toggle);
-  }
-  
-  // Lade nur Themen, die der Benutzer erstellt hat
-  const themes = getThemesCreatedByTeacher(currentUser.code);
-  
-  // Themen in der Liste anzeigen
-  updateThemesList(themes);
+export function updateThemesTab() {
+    if (!elements.themesList) return;
+    
+    // Prüfe Berechtigungen
+    const canCreateThemes = hasPermission('canCreateThemes') || currentUser.role === 'admin';
+    
+    if (elements.newThemeBtn) {
+        elements.newThemeBtn.style.display = canCreateThemes ? "block" : "none";
+    }
+    
+    updateThemesList();
 }
 
 /**
- * Aktualisiert die Themenliste mit Sortierung und verschiedenen Ansichten
+ * Aktualisiert die Themenliste
  */
-function updateThemesList(themes = null) {
-  if (!elements.themesList) return;
-  
-  // Wenn keine Themen übergeben wurden, hole alle für den aktuellen Benutzer
-  if (!themes) {
-    themes = getThemesCreatedByTeacher(currentUser.code);
-  }
-  
-  // Filter anwenden, wenn ausgewählt
-  if (elements.themeFilterSelect && elements.themeFilterSelect.value) {
-    const filterValue = elements.themeFilterSelect.value;
+function updateThemesList() {
+    if (!elements.themesList) return;
     
-    if (filterValue === "active") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.ACTIVE);
-    } else if (filterValue === "completed") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.COMPLETED);
-    } else if (filterValue === "overdue") {
-      themes = themes.filter(theme => theme.status === THEME_STATUS.OVERDUE);
-    }
-  }
-  
-  // Sortierung anwenden
-  themes = sortThemes(themes, currentThemeSort);
-  
-  // Liste leeren
-  elements.themesList.innerHTML = "";
-  
-  // Wenn keine Themen vorhanden sind
-  if (themes.length === 0) {
-    elements.themesList.innerHTML = `
-      <div class="empty-state">
-        <p>Keine Themen gefunden</p>
-        ${currentUser.permissions && currentUser.permissions.canCreateThemes ? 
-          '<button id="emptyNewThemeBtn" class="btn-primary btn-large">Neues Thema erstellen</button>' : 
-          '<p>Sie haben keine Berechtigung, um Themen zu erstellen.</p>'}
-      </div>
-    `;
+    let filteredThemes = [...userThemes];
     
-    // Event-Listener für den Button in der Empty State
-    const emptyNewThemeBtn = document.getElementById("emptyNewThemeBtn");
-    if (emptyNewThemeBtn) {
-      emptyNewThemeBtn.addEventListener("click", showNewThemeModal);
+    // Filter anwenden
+    const filterValue = elements.themeFilterSelect ? elements.themeFilterSelect.value : "";
+    if (filterValue) {
+        filteredThemes = filteredThemes.filter(theme => theme.status === filterValue);
     }
     
-    return;
-  }
-  
-  // Je nach View-Mode rendern
-  if (themeViewMode === "list") {
-    renderThemesAsList(themes);
-  } else {
-    renderThemesAsCards(themes);
-  }
+    // Sortierung anwenden
+    const sortValue = elements.themeSortSelect ? elements.themeSortSelect.value : "deadline";
+    filteredThemes = sortThemes(filteredThemes, sortValue);
+    
+    // Liste leeren
+    elements.themesList.innerHTML = "";
+    
+    if (filteredThemes.length === 0) {
+        elements.themesList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">📚</div>
+                <h3>Keine Themen gefunden</h3>
+                <p>Sie haben noch keine Themen erstellt oder die Filter zeigen keine Ergebnisse.</p>
+                ${hasPermission('canCreateThemes') || currentUser.role === 'admin' ? 
+                    '<button onclick="window.showNewThemeModal()" class="btn-primary btn-large">Erstes Thema erstellen</button>' : 
+                    '<p>Sie haben keine Berechtigung, um Themen zu erstellen.</p>'}
+            </div>
+        `;
+        
+        // Global verfügbar machen
+        window.showNewThemeModal = showNewThemeModal;
+        
+        return;
+    }
+    
+    // Themen als Karten anzeigen
+    filteredThemes.forEach(theme => {
+        const themeCard = createThemeCard(theme);
+        elements.themesList.appendChild(themeCard);
+    });
 }
 
 /**
- * NEU: Rendert Themen als Kartenlayout
+ * Erstellt eine Themen-Karte
  */
-function renderThemesAsCards(themes) {
-  elements.themesList.className = "themes-list themes-cards";
-  
-  themes.forEach(theme => {
-    const themeCard = document.createElement("div");
-    themeCard.className = `theme-card ${theme.status}`;
-    themeCard.dataset.id = theme.id;
-    
-    // Fortschrittsbalken erstellen
-    const progressHTML = createThemeProgressHTML(theme);
+function createThemeCard(theme) {
+    const card = document.createElement("div");
+    card.className = `theme-card ${theme.status}`;
+    card.dataset.themeId = theme.id;
     
     // Deadline-Info
     let deadlineHTML = "";
     if (theme.deadline) {
-      const daysRemaining = getDaysRemaining(theme.deadline);
-      const { text, className } = formatRemainingDays(daysRemaining);
-      
-      deadlineHTML = `
-        <div class="theme-deadline ${className}">
-          <span class="deadline-icon">⏰</span>
-          <span class="deadline-text">${text}</span>
-          <span class="deadline-date">${formatDate(theme.deadline)}</span>
-        </div>
-      `;
-    }
-    
-    themeCard.innerHTML = `
-      <div class="theme-header">
-        <h3 class="theme-title">${theme.title}</h3>
-        ${createStatusBadge(theme.status)}
-      </div>
-      <div class="theme-description">
-        ${theme.description || "Keine Beschreibung"}
-      </div>
-      ${deadlineHTML}
-      <div class="theme-meta">
-        <span class="theme-school-year">${theme.school_year || systemSettings.currentSchoolYear || ""}</span>
-        <span class="theme-students-count">${theme.students ? theme.students.length : 0}/${THEMES_CONFIG.maxStudentsPerTheme} Schüler</span>
-      </div>
-      ${progressHTML}
-      <div class="theme-actions">
-        <button class="btn-edit btn-large" data-id="${theme.id}">Bearbeiten</button>
-        <button class="btn-manage-students btn-large" data-id="${theme.id}">Schüler verwalten</button>
-        <button class="btn-delete btn-large" data-id="${theme.id}">Löschen</button>
-      </div>
-    `;
-    
-    setupThemeCardEventListeners(themeCard, theme);
-    elements.themesList.appendChild(themeCard);
-  });
-}
-
-/**
- * NEU: Rendert Themen als Tabellenliste
- */
-function renderThemesAsList(themes) {
-  elements.themesList.className = "themes-list themes-table";
-  
-  const table = document.createElement("table");
-  table.className = "themes-table";
-  
-  // Tabellen-Header
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th>Titel</th>
-        <th>Status</th>
-        <th>Schuljahr</th>
-        <th>Deadline</th>
-        <th>Schüler</th>
-        <th>Fortschritt</th>
-        <th>Aktionen</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  `;
-  
-  const tbody = table.querySelector("tbody");
-  
-  themes.forEach(theme => {
-    const row = document.createElement("tr");
-    row.className = `theme-row ${theme.status}`;
-    row.dataset.id = theme.id;
-    
-    // Deadline-Info
-    let deadlineText = "-";
-    let deadlineClass = "";
-    if (theme.deadline) {
-      const daysRemaining = getDaysRemaining(theme.deadline);
-      const { text, className } = formatRemainingDays(daysRemaining);
-      deadlineText = `${formatDate(theme.deadline)}<br><small class="${className}">${text}</small>`;
-      deadlineClass = className;
+        const deadline = new Date(theme.deadline);
+        const now = new Date();
+        const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+        
+        let deadlineClass = "";
+        let deadlineText = "";
+        
+        if (daysRemaining < 0) {
+            deadlineClass = "overdue";
+            deadlineText = `${Math.abs(daysRemaining)} Tage überfällig`;
+        } else if (daysRemaining === 0) {
+            deadlineClass = "due-today";
+            deadlineText = "Heute fällig";
+        } else if (daysRemaining <= 7) {
+            deadlineClass = "due-soon";
+            deadlineText = `${daysRemaining} Tage verbleibend`;
+        } else {
+            deadlineClass = "due-later";
+            deadlineText = `${daysRemaining} Tage verbleibend`;
+        }
+        
+        deadlineHTML = `
+            <div class="theme-deadline ${deadlineClass}">
+                <span class="deadline-icon">⏰</span>
+                <span class="deadline-text">${deadlineText}</span>
+                <span class="deadline-date">${formatDate(theme.deadline)}</span>
+            </div>
+        `;
     }
     
     // Fortschritt berechnen
-    const total = theme.students ? theme.students.length : 0;
-    const completed = theme.students ? theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
-    const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const totalStudents = theme.students ? theme.students.length : 0;
+    const completedStudents = theme.students ? 
+        theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
+    const progressPercent = totalStudents > 0 ? Math.round((completedStudents / totalStudents) * 100) : 0;
     
-    row.innerHTML = `
-      <td>
-        <div class="theme-title-cell">
-          <strong>${theme.title}</strong>
-          ${theme.description ? `<br><small>${theme.description}</small>` : ""}
+    // Status-Badge
+    let statusBadge = "";
+    let statusText = "";
+    
+    switch (theme.status) {
+        case THEME_STATUS.ACTIVE:
+            statusBadge = "status-active";
+            statusText = "Aktiv";
+            break;
+        case THEME_STATUS.COMPLETED:
+            statusBadge = "status-completed";
+            statusText = "Abgeschlossen";
+            break;
+        case THEME_STATUS.OVERDUE:
+            statusBadge = "status-overdue";
+            statusText = "Überfällig";
+            break;
+        default:
+            statusBadge = "status-unknown";
+            statusText = "Unbekannt";
+    }
+    
+    card.innerHTML = `
+        <div class="theme-header">
+            <h3 class="theme-title">${theme.title}</h3>
+            <span class="status-badge ${statusBadge}">${statusText}</span>
         </div>
-      </td>
-      <td>${createStatusBadge(theme.status)}</td>
-      <td>${theme.school_year || systemSettings.currentSchoolYear || "-"}</td>
-      <td class="${deadlineClass}">${deadlineText}</td>
-      <td>${total}/${THEMES_CONFIG.maxStudentsPerTheme}</td>
-      <td>
-        <div class="progress-bar-container" title="${completed}/${total} Schüler bewertet">
-          <div class="progress-bar" style="width: ${progressPercent}%"></div>
-          <span class="progress-text">${progressPercent}%</span>
+        <div class="theme-description">
+            ${theme.description || "Keine Beschreibung"}
         </div>
-      </td>
-      <td>
-        <div class="theme-actions-compact">
-          <button class="btn-edit btn-compact" data-id="${theme.id}" title="Bearbeiten">✏️</button>
-          <button class="btn-manage-students btn-compact" data-id="${theme.id}" title="Schüler verwalten">👥</button>
-          <button class="btn-delete btn-compact" data-id="${theme.id}" title="Löschen">🗑️</button>
+        ${deadlineHTML}
+        <div class="theme-meta">
+            <span class="theme-school-year">${theme.school_year || "Kein Schuljahr"}</span>
+            <span class="theme-students-count">${totalStudents}/${THEMES_CONFIG.maxStudentsPerTheme} Schüler</span>
         </div>
-      </td>
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progressPercent}%"></div>
+            </div>
+            <div class="progress-text">${completedStudents}/${totalStudents} bewertet (${progressPercent}%)</div>
+        </div>
+        <div class="theme-actions">
+            <button class="btn-edit btn-large" data-theme-id="${theme.id}">Bearbeiten</button>
+            <button class="btn-manage-students btn-large" data-theme-id="${theme.id}">Schüler verwalten</button>
+            <button class="btn-delete btn-large" data-theme-id="${theme.id}">Löschen</button>
+        </div>
     `;
     
-    setupThemeRowEventListeners(row, theme);
-    tbody.appendChild(row);
-  });
-  
-  elements.themesList.appendChild(table);
+    // Event-Listener für Aktions-Buttons
+    const editBtn = card.querySelector(".btn-edit");
+    const manageBtn = card.querySelector(".btn-manage-students");
+    const deleteBtn = card.querySelector(".btn-delete");
+    
+    if (editBtn) {
+        editBtn.addEventListener("click", () => showEditThemeModal(theme));
+    }
+    
+    if (manageBtn) {
+        manageBtn.addEventListener("click", () => showStudentsManagement(theme));
+    }
+    
+    if (deleteBtn) {
+        deleteBtn.addEventListener("click", () => confirmDeleteTheme(theme));
+    }
+    
+    return card;
 }
 
 /**
- * NEU: Event-Listener für Themen-Karten
+ * Aktualisiert den Assessment-Tab
  */
-function setupThemeCardEventListeners(themeCard, theme) {
-  themeCard.querySelector(".btn-edit").addEventListener("click", () => {
-    showEditThemeModal(theme);
-  });
-  
-  themeCard.querySelector(".btn-manage-students").addEventListener("click", () => {
-    showStudentsManagement(theme);
-  });
-  
-  themeCard.querySelector(".btn-delete").addEventListener("click", () => {
-    confirmDeleteTheme(theme);
-  });
-}
-
-/**
- * NEU: Event-Listener für Themen-Tabellenzeilen
- */
-function setupThemeRowEventListeners(row, theme) {
-  row.querySelector(".btn-edit").addEventListener("click", () => {
-    showEditThemeModal(theme);
-  });
-  
-  row.querySelector(".btn-manage-students").addEventListener("click", () => {
-    showStudentsManagement(theme);
-  });
-  
-  row.querySelector(".btn-delete").addEventListener("click", () => {
-    confirmDeleteTheme(theme);
-  });
-}
-
-/**
- * Sortiert Themen nach dem angegebenen Kriterium
- */
-function sortThemes(themes, sortBy) {
-  return [...themes].sort((a, b) => {
-    switch (sortBy) {
-      case "title":
-        return a.title.localeCompare(b.title);
-      
-      case "status":
-        const statusOrder = { 
-          [THEME_STATUS.OVERDUE]: 0,
-          [THEME_STATUS.ACTIVE]: 1,
-          [THEME_STATUS.COMPLETED]: 2
-        };
-        return statusOrder[a.status] - statusOrder[b.status];
-      
-      case "progress":
-        const aProgress = a.students ? 
-          a.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length / a.students.length : 0;
-        const bProgress = b.students ? 
-          b.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length / b.students.length : 0;
-        return bProgress - aProgress; // Höchste zuerst
-      
-      case "deadline":
-      default:
-        // Deadline-Sortierung (überfällige zuerst, dann nach Datum)
-        if (a.status !== b.status) {
-          if (a.status === THEME_STATUS.OVERDUE) return -1;
-          if (b.status === THEME_STATUS.OVERDUE) return 1;
-          if (a.status === THEME_STATUS.ACTIVE) return -1;
-          if (b.status === THEME_STATUS.ACTIVE) return 1;
+export function updateAssessmentTab() {
+    if (!elements.assessmentStudentList) return;
+    
+    // Filtere und sortiere Schüler
+    let filteredStudents = [...userAssignedStudents];
+    
+    const filterValue = elements.assessmentFilterSelect ? elements.assessmentFilterSelect.value : "";
+    if (filterValue) {
+        filteredStudents = filteredStudents.filter(student => student.status === filterValue);
+    }
+    
+    const sortValue = elements.assessmentSortSelect ? elements.assessmentSortSelect.value : "name";
+    filteredStudents = sortStudents(filteredStudents, sortValue);
+    
+    // Liste leeren
+    elements.assessmentStudentList.innerHTML = "";
+    
+    if (filteredStudents.length === 0) {
+        elements.assessmentStudentList.innerHTML = `
+            <li class="empty-message">
+                Keine Schüler zur Bewertung zugewiesen
+            </li>
+        `;
+        
+        // Inhalt-Bereich leeren
+        if (elements.assessmentContent) {
+            elements.assessmentContent.innerHTML = `
+                <div class="welcome-card">
+                    <h2>Bewertung von Schülern</h2>
+                    <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
+                </div>
+            `;
         }
         
-        if (a.deadline && b.deadline) {
-          return new Date(a.deadline) - new Date(b.deadline);
-        } else if (a.deadline) {
-          return -1;
-        } else if (b.deadline) {
-          return 1;
-        }
+        return;
+    }
+    
+    // Schüler-Liste erstellen
+    filteredStudents.forEach(student => {
+        const listItem = createStudentListItem(student);
+        elements.assessmentStudentList.appendChild(listItem);
+    });
+    
+    // Ersten Schüler auswählen, falls noch keiner ausgewählt ist
+    if (!currentSelectedStudentId && filteredStudents.length > 0) {
+        elements.assessmentStudentList.querySelector(".student-item").click();
+    }
+}
+
+/**
+ * Erstellt ein Schüler-Listen-Element
+ */
+function createStudentListItem(student) {
+    const listItem = document.createElement("li");
+    listItem.className = `student-item ${student.status}`;
+    listItem.dataset.studentId = student.id;
+    listItem.dataset.themeId = student.theme.id;
+    
+    // Note anzeigen
+    const grade = student.assessment && student.assessment.finalGrade ? 
+        student.assessment.finalGrade : "-";
+    
+    listItem.innerHTML = `
+        <div class="student-info">
+            <div class="student-name">${student.name}</div>
+            <div class="student-theme">${student.theme.title}</div>
+            ${student.class ? `<div class="student-class">${student.class}</div>` : ""}
+        </div>
+        <div class="student-status">
+            <span class="status-badge status-${student.status}">
+                ${getStatusText(student.status)}
+            </span>
+            <div class="student-grade ${grade !== "-" ? `grade-${Math.round(grade)}` : ""}">${grade}</div>
+        </div>
+    `;
+    
+    // Event-Listener für Auswahl
+    listItem.addEventListener("click", () => {
+        // Alle anderen deaktivieren
+        document.querySelectorAll(".student-item").forEach(item => {
+            item.classList.remove("active");
+        });
         
-        return new Date(b.created_at) - new Date(a.created_at);
-    }
-  });
-}
-
-/**
- * Zeigt den Modal für ein neues Thema
- */
-function showNewThemeModal() {
-  editMode = false;
-  selectedTheme = null;
-  
-  // Modal-Titel setzen
-  elements.themeModalTitle.textContent = "Neues Thema erstellen";
-  
-  // Formular zurücksetzen
-  elements.themeForm.reset();
-  
-  // Standardwerte setzen
-  const today = new Date();
-  const twoWeeksLater = new Date(today);
-  twoWeeksLater.setDate(today.getDate() + 14);
-  
-  elements.themeDeadlineInput.value = twoWeeksLater.toISOString().split('T')[0];
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.themeSchoolYearSelect, systemSettings.currentSchoolYear);
-  
-  // Bewertungsraster-Dropdown befüllen (nur eigene Raster)
-  populateTeacherAssessmentTemplateSelect();
-  
-  // Modal anzeigen
-  elements.themeModal.style.display = "flex";
-}
-
-/**
- * Befüllt das Bewertungsraster-Dropdown mit den Rastern des aktuellen Lehrers
- */
-function populateTeacherAssessmentTemplateSelect() {
-  if (!elements.themeTemplateSelect) return;
-  
-  elements.themeTemplateSelect.innerHTML = '<option value="standard">Standard-Bewertungsraster</option>';
-  
-  // Füge nur die Raster des aktuellen Lehrers hinzu
-  teacherTemplates.forEach(template => {
-    const option = document.createElement("option");
-    option.value = template.id;
-    option.textContent = template.name;
-    elements.themeTemplateSelect.appendChild(option);
-  });
-}
-
-/**
- * Zeigt den Modal zum Bearbeiten eines Themas
- */
-function showEditThemeModal(theme) {
-  editMode = true;
-  selectedTheme = theme;
-  
-  // Modal-Titel setzen
-  elements.themeModalTitle.textContent = "Thema bearbeiten";
-  
-  // Formular mit Daten füllen
-  elements.themeNameInput.value = theme.title;
-  elements.themeDescriptionInput.value = theme.description || "";
-  elements.themeDeadlineInput.value = theme.deadline || "";
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.themeSchoolYearSelect, theme.school_year || systemSettings.currentSchoolYear);
-  
-  // Bewertungsraster-Dropdown befüllen
-  populateTeacherAssessmentTemplateSelect();
-  elements.themeTemplateSelect.value = theme.assessment_template_id || "standard";
-  
-  // Modal anzeigen
-  elements.themeModal.style.display = "flex";
-}
-
-/**
- * Speichert ein Thema (neu oder bearbeitet)
- */
-async function saveTheme(event) {
-  event.preventDefault();
-  
-  const title = elements.themeNameInput.value.trim();
-  const description = elements.themeDescriptionInput.value.trim();
-  const deadline = elements.themeDeadlineInput.value;
-  const schoolYear = elements.themeSchoolYearSelect.value;
-  const templateId = elements.themeTemplateSelect.value;
-  
-  if (!title) {
-    showNotification("Bitte geben Sie einen Titel ein.", "warning");
-    return;
-  }
-  
-  showLoader();
-  
-  try {
-    if (editMode && selectedTheme) {
-      // Thema aktualisieren
-      await updateTheme(selectedTheme.id, {
-        title,
-        description,
-        deadline,
-        school_year: schoolYear,
-        assessment_template_id: templateId,
-        updated_at: new Date().toISOString()
-      });
-      
-      showNotification("Thema erfolgreich aktualisiert.");
-    } else {
-      // Neues Thema erstellen
-      await createTheme({
-        title,
-        description,
-        deadline,
-        created_by: currentUser.code,
-        school_year: schoolYear,
-        assessment_template_id: templateId
-      });
-      
-      showNotification("Thema erfolgreich erstellt.");
-    }
-    
-    // Modal schließen
-    elements.themeModal.style.display = "none";
-    
-    // Themenliste aktualisieren
-    updateThemesList();
-    
-    // Deadline-Warnungen prüfen
-    checkDeadlineWarnings();
-  } catch (error) {
-    console.error("Fehler beim Speichern des Themas:", error);
-    showNotification("Fehler beim Speichern des Themas: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Bestätigt das Löschen eines Themas
- */
-function confirmDeleteTheme(theme) {
-  if (confirm(`Möchten Sie das Thema "${theme.title}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-    deleteThemeConfirmed(theme.id);
-  }
-}
-
-/**
- * Löscht ein Thema nach Bestätigung
- */
-async function deleteThemeConfirmed(themeId) {
-  showLoader();
-  
-  try {
-    await deleteTheme(themeId);
-    
-    showNotification("Thema erfolgreich gelöscht.");
-    
-    // Themenliste aktualisieren
-    updateThemesList();
-  } catch (error) {
-    console.error("Fehler beim Löschen des Themas:", error);
-    showNotification("Fehler beim Löschen des Themas: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Zeigt die Schüler-Verwaltung für ein Thema
- */
-function showStudentsManagement(theme) {
-  selectedTheme = theme;
-  
-  // Studenten-Container anzeigen, Themen-Container ausblenden
-  elements.themesContainer.style.display = "none";
-  elements.studentsContainer.style.display = "block";
-  
-  // Überschrift aktualisieren
-  const studentsHeading = document.querySelector("#studentsContainer h2");
-  if (studentsHeading) {
-    studentsHeading.textContent = `Schüler für Thema: ${theme.title}`;
-  }
-  
-  // Zurück-Button hinzufügen, falls noch nicht vorhanden
-  if (!document.getElementById("backToThemesBtn")) {
-    const backBtn = document.createElement("button");
-    backBtn.id = "backToThemesBtn";
-    backBtn.className = "btn-secondary btn-large";
-    backBtn.textContent = "← Zurück zur Themenübersicht";
-    backBtn.addEventListener("click", () => {
-      elements.themesContainer.style.display = "block";
-      elements.studentsContainer.style.display = "none";
+        // Diesen aktivieren
+        listItem.classList.add("active");
+        
+        currentSelectedStudentId = student.id;
+        showAssessmentForm(student);
     });
     
-    // Button am Anfang des Containers einfügen
-    elements.studentsContainer.insertBefore(backBtn, elements.studentsContainer.firstChild);
-  }
-  
-  // Schüler-Liste aktualisieren
-  updateStudentsList();
-  
-  // Add-Student-Button aktualisieren (deaktivieren, wenn Maximum erreicht)
-  if (elements.addStudentBtn) {
-    const maxReached = theme.students && theme.students.length >= THEMES_CONFIG.maxStudentsPerTheme;
-    elements.addStudentBtn.disabled = maxReached;
-    elements.addStudentBtn.className = maxReached ? "btn-primary btn-large disabled" : "btn-primary btn-large";
-    elements.addStudentBtn.title = maxReached ? 
-      `Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt` : 
-      "Neuen Schüler hinzufügen";
-    
-    // Event-Listener für den Add-Button
-    elements.addStudentBtn.onclick = showNewStudentModal;
-  }
+    return listItem;
 }
 
 /**
- * Aktualisiert die Schülerliste mit Klassen-Anzeige
- */
-function updateStudentsList() {
-  if (!elements.studentsList || !selectedTheme) return;
-  
-  // Liste leeren
-  elements.studentsList.innerHTML = "";
-  
-  // Wenn keine Schüler vorhanden sind
-  if (!selectedTheme.students || selectedTheme.students.length === 0) {
-    elements.studentsList.innerHTML = `
-      <div class="empty-state">
-        <p>Keine Schüler für dieses Thema</p>
-        <button id="emptyAddStudentBtn" class="btn-primary btn-large">Schüler hinzufügen</button>
-      </div>
-    `;
-    
-    // Event-Listener für den Button in der Empty State
-    const emptyAddStudentBtn = document.getElementById("emptyAddStudentBtn");
-    if (emptyAddStudentBtn) {
-      emptyAddStudentBtn.addEventListener("click", showNewStudentModal);
-    }
-    
-    return;
-  }
-  
-  // Schüler sortieren (alphabetisch)
-  const students = [...selectedTheme.students].sort((a, b) => a.name.localeCompare(b.name));
-  
-  // Schüler in der Liste anzeigen
-  students.forEach(student => {
-    const studentCard = document.createElement("div");
-    studentCard.className = `student-card ${student.status}`;
-    studentCard.dataset.id = student.id;
-    
-    // Lehrer-Info
-    const assignedTeacher = allTeachers.find(t => t.code === student.assigned_teacher);
-    const teacherName = assignedTeacher ? assignedTeacher.name : "Kein Lehrer zugewiesen";
-    
-    // Note (falls vorhanden)
-    const grade = student.assessment && student.assessment.finalGrade ? 
-      student.assessment.finalGrade : 
-      (student.status === STUDENT_STATUS.COMPLETED ? "Bewertet" : "-");
-    
-    // Klassen-Anzeige
-    const classDisplay = student.class ? 
-      `<div class="student-class-display">
-        <span class="label">Klasse:</span>
-        <span class="value"><span class="class-badge">${student.class}</span></span>
-      </div>` : "";
-    
-    studentCard.innerHTML = `
-      <div class="student-header">
-        <h3 class="student-name">${student.name}</h3>
-        ${createStudentStatusBadge(student.status)}
-      </div>
-      <div class="student-details">
-        ${classDisplay}
-        <div class="student-teacher">
-          <span class="label">Prüfungslehrer:</span>
-          <span class="value">${teacherName}</span>
-        </div>
-        <div class="student-grade">
-          <span class="label">Note:</span>
-          <span class="value grade-${Math.round(grade) || 0}">${grade}</span>
-        </div>
-      </div>
-      <div class="student-actions">
-        <button class="btn-edit btn-large" data-id="${student.id}">Bearbeiten</button>
-        <button class="btn-delete btn-large" data-id="${student.id}">Entfernen</button>
-      </div>
-    `;
-    
-    // Event-Listener für die Buttons
-    studentCard.querySelector(".btn-edit").addEventListener("click", () => {
-      showEditStudentModal(student);
-    });
-    
-    studentCard.querySelector(".btn-delete").addEventListener("click", () => {
-      confirmRemoveStudent(student);
-    });
-    
-    elements.studentsList.appendChild(studentCard);
-  });
-}
-
-/**
- * Zeigt den Modal für einen neuen Schüler
- */
-function showNewStudentModal() {
-  editMode = false;
-  selectedStudent = null;
-  
-  // Modal-Titel setzen
-  elements.studentModalTitle.textContent = "Neuen Schüler hinzufügen";
-  
-  // Formular zurücksetzen
-  elements.studentForm.reset();
-  
-  // Klassen-Dropdown befüllen
-  populateClassSelect();
-  
-  // Lehrer-Dropdown befüllen
-  populateTeacherSelect(elements.studentTeacherSelect, allTeachers);
-  
-  // Modal anzeigen
-  elements.studentModal.style.display = "flex";
-}
-
-/**
- * Befüllt das Klassen-Dropdown
- */
-function populateClassSelect() {
-  if (!elements.studentClassInput) return;
-  
-  // Wandle Input in Select um, falls noch nicht geschehen
-  if (elements.studentClassInput.tagName !== "SELECT") {
-    const select = document.createElement("select");
-    select.id = elements.studentClassInput.id;
-    select.name = elements.studentClassInput.name;
-    select.className = elements.studentClassInput.className;
-    select.required = elements.studentClassInput.required;
-    
-    elements.studentClassInput.parentNode.replaceChild(select, elements.studentClassInput);
-    elements.studentClassInput = select;
-  }
-  
-  // Select befüllen
-  elements.studentClassInput.innerHTML = '<option value="">Klasse wählen...</option>';
-  
-  AVAILABLE_CLASSES.forEach(className => {
-    const option = document.createElement("option");
-    option.value = className;
-    option.textContent = className;
-    elements.studentClassInput.appendChild(option);
-  });
-}
-
-/**
- * Zeigt den Modal zum Bearbeiten eines Schülers
- */
-function showEditStudentModal(student) {
-  editMode = true;
-  selectedStudent = student;
-  
-  // Modal-Titel setzen
-  elements.studentModalTitle.textContent = "Schüler bearbeiten";
-  
-  // Formular mit Daten füllen
-  elements.studentNameInput.value = student.name;
-  
-  // Klassen-Dropdown befüllen
-  populateClassSelect();
-  if (elements.studentClassInput && student.class) {
-    elements.studentClassInput.value = student.class;
-  }
-  
-  // Lehrer-Dropdown befüllen
-  populateTeacherSelect(elements.studentTeacherSelect, allTeachers, student.assigned_teacher);
-  
-  // Modal anzeigen
-  elements.studentModal.style.display = "flex";
-}
-
-/**
- * Speichert einen Schüler (neu oder bearbeitet)
- */
-async function saveStudent(event) {
-  event.preventDefault();
-  
-  if (!selectedTheme) {
-    showNotification("Kein Thema ausgewählt.", "error");
-    return;
-  }
-  
-  const name = elements.studentNameInput.value.trim();
-  const studentClass = elements.studentClassInput.value;
-  const assignedTeacher = elements.studentTeacherSelect.value;
-  
-  if (!name) {
-    showNotification("Bitte geben Sie einen Namen ein.", "warning");
-    return;
-  }
-  
-  if (!studentClass) {
-    showNotification("Bitte wählen Sie eine Klasse aus.", "warning");
-    return;
-  }
-  
-  if (!assignedTeacher) {
-    showNotification("Bitte wählen Sie einen Prüfungslehrer aus.", "warning");
-    return;
-  }
-  
-  showLoader();
-  
-  try {
-    if (editMode && selectedStudent) {
-      // Schüler aktualisieren
-      await updateStudent(selectedTheme.id, selectedStudent.id, {
-        name,
-        class: studentClass,
-        assigned_teacher: assignedTeacher
-      });
-      
-      showNotification("Schüler erfolgreich aktualisiert.");
-    } else {
-      // Prüfen, ob Maximum erreicht ist
-      if (selectedTheme.students && selectedTheme.students.length >= THEMES_CONFIG.maxStudentsPerTheme) {
-        throw new Error(`Maximal ${THEMES_CONFIG.maxStudentsPerTheme} Schüler pro Thema erlaubt`);
-      }
-      
-      // Neuen Schüler hinzufügen
-      await addStudentToTheme(selectedTheme.id, {
-        name,
-        class: studentClass,
-        assigned_teacher: assignedTeacher
-      });
-      
-      showNotification("Schüler erfolgreich hinzugefügt.");
-    }
-    
-    // Modal schließen
-    elements.studentModal.style.display = "none";
-    
-    // Schülerliste aktualisieren
-    updateStudentsList();
-  } catch (error) {
-    console.error("Fehler beim Speichern des Schülers:", error);
-    showNotification("Fehler beim Speichern des Schülers: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Bestätigt das Entfernen eines Schülers
- */
-function confirmRemoveStudent(student) {
-  if (confirm(`Möchten Sie den Schüler "${student.name}" wirklich entfernen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-    removeStudentConfirmed(selectedTheme.id, student.id);
-  }
-}
-
-/**
- * Entfernt einen Schüler nach Bestätigung
- */
-async function removeStudentConfirmed(themeId, studentId) {
-  showLoader();
-  
-  try {
-    await removeStudentFromTheme(themeId, studentId);
-    
-    showNotification("Schüler erfolgreich entfernt.");
-    
-    // Schülerliste aktualisieren
-    updateStudentsList();
-  } catch (error) {
-    console.error("Fehler beim Entfernen des Schülers:", error);
-    showNotification("Fehler beim Entfernen des Schülers: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Aktualisiert den Bewertungs-Tab mit Template-Auswahl
- */
-function updateAssessmentTab() {
-  if (!elements.assessmentTab) return;
-  
-  // Template-Auswahl hinzufügen, falls noch nicht vorhanden
-  createAssessmentTemplateSelector();
-  
-  // Lade Themen, in denen der Benutzer als Prüfungslehrer eingetragen ist
-  const themes = getThemesForAssessment(currentUser.code);
-  
-  // Studenten-Liste befüllen
-  updateAssessmentStudentList(themes);
-}
-
-/**
- * NEU: Erstellt Template-Auswahl für Bewertung
- */
-function createAssessmentTemplateSelector() {
-  const existingSelector = document.getElementById("assessmentTemplateSelector");
-  if (existingSelector) {
-    return; // Bereits vorhanden
-  }
-  
-  const sidebar = elements.assessmentTab.querySelector(".sidebar");
-  if (!sidebar) return;
-  
-  const selectorDiv = document.createElement("div");
-  selectorDiv.id = "assessmentTemplateSelector";
-  selectorDiv.className = "assessment-template-selector";
-  selectorDiv.innerHTML = `
-    <h4>Bewertungsraster auswählen</h4>
-    <select id="assessmentTemplateSelect" class="filter-select">
-      <option value="standard">Standard-Bewertungsraster</option>
-    </select>
-    <p class="help-text">Wählen Sie das Bewertungsraster für die Schülerbewertung aus.</p>
-  `;
-  
-  // Vor den anderen Filtern einfügen
-  const section = sidebar.querySelector(".section");
-  if (section) {
-    section.insertBefore(selectorDiv, section.firstChild);
-  }
-  
-  // Template-Select befüllen
-  const templateSelect = document.getElementById("assessmentTemplateSelect");
-  if (templateSelect) {
-    elements.assessmentTemplateSelect = templateSelect;
-    
-    // Eigene Templates hinzufügen
-    teacherTemplates.forEach(template => {
-      const option = document.createElement("option");
-      option.value = template.id;
-      option.textContent = template.name;
-      templateSelect.appendChild(option);
-    });
-    
-    // Event-Listener für Template-Wechsel
-    templateSelect.addEventListener("change", (e) => {
-      currentAssessmentTemplate = e.target.value;
-      // Wenn ein Schüler ausgewählt ist, Bewertungsformular neu laden
-      if (currentSelectedStudentId) {
-        const student = getCurrentSelectedStudent();
-        if (student) {
-          showAssessmentForm(student);
-        }
-      }
-    });
-    
-    // Standard-Template setzen
-    currentAssessmentTemplate = "standard";
-  }
-}
-
-/**
- * Aktualisiert die Liste der zu bewertenden Schüler mit Filter und Sortierung
- */
-function updateAssessmentStudentList(themes) {
-  if (!elements.assessmentStudentList) return;
-  
-  // Liste leeren
-  elements.assessmentStudentList.innerHTML = "";
-  
-  // Wenn keine Themen vorhanden sind
-  if (!themes || themes.length === 0) {
-    elements.assessmentStudentList.innerHTML = `
-      <div class="empty-state">
-        <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-      </div>
-    `;
-    
-    // Auch den Inhalt leeren
-    if (elements.assessmentContent) {
-      elements.assessmentContent.innerHTML = `
-        <div class="welcome-card">
-          <h2>Bewertung von Schülern</h2>
-          <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-        </div>
-      `;
-    }
-    
-    return;
-  }
-  
-  // Alle Schüler sammeln, die dem aktuellen Lehrer zugewiesen sind
-  let students = [];
-  
-  themes.forEach(theme => {
-    if (theme.students) {
-      theme.students.forEach(student => {
-        if (student.assigned_teacher === currentUser.code) {
-          students.push({
-            ...student,
-            theme: {
-              id: theme.id,
-              title: theme.title,
-              deadline: theme.deadline,
-              assessment_template_id: theme.assessment_template_id
-            }
-          });
-        }
-      });
-    }
-  });
-  
-  // Wenn keine Schüler vorhanden sind
-  if (students.length === 0) {
-    elements.assessmentStudentList.innerHTML = `
-      <div class="empty-state">
-        <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-      </div>
-    `;
-    
-    // Auch den Inhalt leeren
-    if (elements.assessmentContent) {
-      elements.assessmentContent.innerHTML = `
-        <div class="welcome-card">
-          <h2>Bewertung von Schülern</h2>
-          <p>Sie sind derzeit keinem Schüler als Prüfungslehrer zugewiesen.</p>
-        </div>
-      `;
-    }
-    
-    return;
-  }
-  
-  // Filter und Sortierung anwenden
-  students = filterAndSortStudents(students, currentAssessmentFilter, currentAssessmentSort);
-  
-  // Schüler in der Liste anzeigen
-  students.forEach(student => {
-    const li = document.createElement("li");
-    li.className = `student-item ${student.status}`;
-    li.dataset.themeId = student.theme.id;
-    li.dataset.studentId = student.id;
-    
-    // Note (falls vorhanden)
-    const grade = student.assessment && student.assessment.finalGrade ? 
-      student.assessment.finalGrade : 
-      "-";
-    
-    li.innerHTML = `
-      <div class="student-info">
-        <div class="student-name">${student.name}</div>
-        <div class="student-theme">${student.theme.title}</div>
-        ${student.class ? `<div class="student-class">${student.class}</div>` : ""}
-      </div>
-      <div class="student-status">
-        ${createStudentStatusBadge(student.status)}
-        <div class="student-grade grade-${Math.round(grade) || 0}">${grade}</div>
-      </div>
-    `;
-    
-    // Event-Listener zum Anzeigen des Bewertungsformulars
-    li.addEventListener("click", () => {
-      document.querySelectorAll(".student-item").forEach(item => {
-        item.classList.remove("active");
-      });
-      li.classList.add("active");
-      
-      currentSelectedStudentId = student.id;
-      showAssessmentForm(student);
-    });
-    
-    elements.assessmentStudentList.appendChild(li);
-  });
-  
-  // Wenn noch kein Schüler ausgewählt ist, wähle den ersten aus
-  if (!currentSelectedStudentId && students.length > 0) {
-    elements.assessmentStudentList.querySelector(".student-item").click();
-  } else if (currentSelectedStudentId) {
-    // Wenn ein Schüler ausgewählt war, versuche ihn wieder auszuwählen
-    const selectedItem = elements.assessmentStudentList.querySelector(`.student-item[data-student-id="${currentSelectedStudentId}"]`);
-    if (selectedItem) {
-      selectedItem.click();
-    } else {
-      // Wenn der Schüler nicht mehr existiert, wähle den ersten aus
-      elements.assessmentStudentList.querySelector(".student-item")?.click();
-    }
-  }
-}
-
-/**
- * NEU: Hilfsfunktion um aktuell ausgewählten Schüler zu finden
- */
-function getCurrentSelectedStudent() {
-  if (!currentSelectedStudentId) return null;
-  
-  const themes = getThemesForAssessment(currentUser.code);
-  for (const theme of themes) {
-    if (theme.students) {
-      const student = theme.students.find(s => s.id === currentSelectedStudentId && s.assigned_teacher === currentUser.code);
-      if (student) {
-        return {
-          ...student,
-          theme: {
-            id: theme.id,
-            title: theme.title,
-            deadline: theme.deadline,
-            assessment_template_id: theme.assessment_template_id
-          }
-        };
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * Zeigt das Bewertungsformular für einen Schüler (ÜBERARBEITET)
+ * Zeigt das Bewertungsformular für einen Schüler
  */
 async function showAssessmentForm(student) {
-  if (!elements.assessmentContent) return;
-  
-  // Ladebalken anzeigen
-  elements.assessmentContent.innerHTML = `
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Bewertungsformular wird geladen...</p>
-    </div>
-  `;
-  
-  try {
-    // Template für das Bewertungsraster laden - GEÄNDERT: Nutze ausgewähltes Template
-    const templateId = currentAssessmentTemplate || student.theme.assessment_template_id || "standard";
-    let template = null;
+    if (!elements.assessmentContent) return;
     
-    if (templateId === "standard") {
-      // Standard-Raster verwenden
-      template = await getAssessmentTemplate("standard");
-    } else {
-      // Lehrer-spezifisches Raster suchen
-      template = teacherTemplates.find(t => t.id === templateId);
-      if (!template) {
-        // Fallback auf Standard-Raster
-        template = await getAssessmentTemplate("standard");
-      }
-    }
-    
-    if (!template) {
-      throw new Error("Bewertungsraster nicht gefunden");
-    }
-    
-    // Bewertung abrufen
-    const assessment = student.assessment || {};
-    
-    // Durchschnittsnote berechnen
-    const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-    const finalGrade = assessment.finalGrade || avgGrade || "-";
-    
-    // HTML für das Formular erstellen - GEÄNDERT: Ohne Info-Text
-    let html = `
-      <div class="assessment-container">
-        <div class="student-header">
-          <h2>${student.name} ${student.class ? `<span class="class-badge">${student.class}</span>` : ""}</h2>
-          <p>Thema: ${student.theme.title}</p>
-          ${student.theme.deadline ? `<p>Abgabefrist: ${formatDate(student.theme.deadline)}</p>` : ""}
-          <p>Bewertungsraster: <strong>${template.name}</strong></p>
-        </div>
-        
-        <div class="final-grade-display">Ø ${avgGrade || "0.0"}</div>
-        
-        <div class="final-grade-input">
-          <label for="finalGrade">Endnote:</label>
-          <input type="number" id="finalGrade" min="1" max="6" step="0.5" value="${finalGrade !== "-" ? finalGrade : ""}">
-          <button id="saveFinalGradeBtn" class="btn-large">Speichern</button>
-          <button id="useAverageBtn" class="btn-large">Durchschnitt übernehmen</button>
-        </div>
-    `;
-    
-    // Kategorie-Noten
-    template.categories.forEach(category => {
-      const grade = assessment[category.id] || 0;
-      html += `
-        <div class="assessment-category">
-          <div class="category-header">
-            <h3>${category.name}</h3>
-            ${category.weight !== 1 ? `<span class="weight-badge">Gewichtung: ${category.weight}</span>` : ""}
-          </div>
-          <div class="category-grade">${grade > 0 ? grade.toFixed(1) : "-"}</div>
-          <div class="grade-buttons" data-category="${category.id}">
-      `;
-      
-      for (let i = 1; i <= 6; i++) {
-        for (let decimal of [0, 0.5]) {
-          const currentGrade = i + decimal;
-          if (currentGrade <= 6) {
-            const isSelected = (grade === currentGrade);
-            html += `
-              <button class="grade-button grade-${Math.floor(currentGrade)}${isSelected ? ' selected' : ''}" 
-                      data-grade="${currentGrade}">
-                ${currentGrade.toFixed(1)}
-              </button>
-            `;
-          }
-        }
-      }
-      
-      const isZeroSelected = (grade === 0);
-      html += `
-            <button class="grade-button grade-0${isZeroSelected ? ' selected' : ''}" data-grade="0">-</button>
-          </div>
-        </div>
-      `;
-    });
-    
-    html += `</div>`;
-    elements.assessmentContent.innerHTML = html;
-    
-    // Event-Listener für die Note-Buttons und weitere Aktionen
-    setupAssessmentEventListeners(student);
-    
-  } catch (error) {
-    console.error("Fehler beim Laden des Bewertungsformulars:", error);
+    // Ladebalken anzeigen
     elements.assessmentContent.innerHTML = `
-      <div class="error-state">
-        <p>Fehler beim Laden des Bewertungsformulars: ${error.message}</p>
-        <button id="retryBtn" class="btn-primary btn-large">Erneut versuchen</button>
-      </div>
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>Bewertungsformular wird geladen...</p>
+        </div>
     `;
     
-    // Event-Listener für den Retry-Button
-    const retryBtn = document.getElementById("retryBtn");
-    if (retryBtn) {
-      retryBtn.addEventListener("click", () => {
-        showAssessmentForm(student);
-      });
+    try {
+        // Bewertungsraster laden
+        const templateId = student.theme.assessment_template_id || "standard";
+        const template = await getAssessmentTemplate(templateId);
+        
+        if (!template) {
+            throw new Error("Bewertungsraster nicht gefunden");
+        }
+        
+        // Durchschnittsnote berechnen
+        const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
+        const finalGrade = student.assessment ? student.assessment.finalGrade : null;
+        
+        // Bewertungsformular erstellen
+        let formHTML = `
+            <div class="assessment-container">
+                <div class="student-header">
+                    <h2>${student.name} ${student.class ? `<span class="class-badge">${student.class}</span>` : ""}</h2>
+                    <p>Thema: ${student.theme.title}</p>
+                    ${student.theme.deadline ? `<p>Deadline: ${formatDate(student.theme.deadline)}</p>` : ""}
+                    <p>Bewertungsraster: <strong>${template.name}</strong></p>
+                </div>
+                
+                <div class="final-grade-display">
+                    Durchschnitt: ${avgGrade || "0.0"}
+                </div>
+                
+                <div class="final-grade-input">
+                    <label for="finalGrade">Endnote:</label>
+                    <input type="number" id="finalGrade" min="1" max="6" step="0.1" 
+                           value="${finalGrade || ""}" placeholder="z.B. 2.5">
+                    <button id="saveFinalGradeBtn" class="btn-primary">Speichern</button>
+                    <button id="useAverageBtn" class="btn-secondary">Durchschnitt übernehmen</button>
+                </div>
+        `;
+        
+        // Bewertungskategorien
+        template.categories.forEach(category => {
+            const currentGrade = student.assessment ? student.assessment[category.id] : null;
+            
+            formHTML += `
+                <div class="assessment-category">
+                    <div class="category-header">
+                        <h3>${category.name}</h3>
+                        ${category.weight !== 1 ? `<span class="weight-badge">Gewichtung: ${category.weight}</span>` : ""}
+                    </div>
+                    <div class="category-grade">${currentGrade || "-"}</div>
+                    <div class="grade-buttons" data-category="${category.id}">
+            `;
+            
+            // Note-Buttons (1.0 bis 6.0 in 0.5er Schritten)
+            for (let i = 1; i <= 6; i += 0.5) {
+                const isSelected = currentGrade === i;
+                formHTML += `
+                    <button class="grade-button grade-${Math.floor(i)} ${isSelected ? 'selected' : ''}" 
+                            data-grade="${i}">
+                        ${i.toFixed(1)}
+                    </button>
+                `;
+            }
+            
+            // "Keine Note" Button
+            const isNoGradeSelected = !currentGrade;
+            formHTML += `
+                    <button class="grade-button grade-0 ${isNoGradeSelected ? 'selected' : ''}" 
+                            data-grade="0">
+                        -
+                    </button>
+                </div>
+            </div>
+            `;
+        });
+        
+        formHTML += `</div>`;
+        
+        elements.assessmentContent.innerHTML = formHTML;
+        
+        // Event-Listener für Bewertungsformular
+        setupAssessmentEventListeners(student);
+        
+    } catch (error) {
+        console.error("Fehler beim Laden des Bewertungsformulars:", error);
+        elements.assessmentContent.innerHTML = `
+            <div class="error-state">
+                <h3>Fehler beim Laden</h3>
+                <p>Bewertungsformular konnte nicht geladen werden: ${error.message}</p>
+                <button onclick="window.location.reload()" class="btn-primary">Seite neu laden</button>
+            </div>
+        `;
     }
-  }
 }
 
 /**
- * Richtet die Event-Listener für das Bewertungsformular ein
+ * Richtet Event-Listener für das Bewertungsformular ein
  */
 function setupAssessmentEventListeners(student) {
-  // Note-Buttons
-  document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const categoryId = btn.parentElement.dataset.category;
-      const gradeValue = parseFloat(btn.dataset.grade);
-      
-      // Button-Darstellung aktualisieren
-      const buttons = btn.parentElement.querySelectorAll("button");
-      buttons.forEach(b => b.classList.remove("selected"));
-      btn.classList.add("selected");
-      
-      // Anzeige aktualisieren
-      const gradeDisplay = btn.parentElement.previousElementSibling;
-      gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
-      
-      // Bewertung speichern
-      await saveAssessmentValue(student, categoryId, gradeValue);
+    // Note-Buttons
+    document.querySelectorAll(".grade-buttons .grade-button").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const categoryId = btn.parentElement.dataset.category;
+            const gradeValue = parseFloat(btn.dataset.grade);
+            
+            // Button-Darstellung aktualisieren
+            const buttons = btn.parentElement.querySelectorAll("button");
+            buttons.forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            
+            // Kategorie-Anzeige aktualisieren
+            const gradeDisplay = btn.parentElement.previousElementSibling;
+            gradeDisplay.textContent = gradeValue > 0 ? gradeValue.toFixed(1) : "-";
+            
+            // Bewertung speichern
+            await saveAssessmentValue(student, categoryId, gradeValue);
+        });
     });
-  });
-  
-  // Endnote speichern
-  const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
-  if (saveFinalGradeBtn) {
-    saveFinalGradeBtn.addEventListener("click", async () => {
-      const inputVal = parseFloat(document.getElementById("finalGrade").value);
-      if (isNaN(inputVal) || inputVal < 1 || inputVal > 6) {
-        showNotification("Bitte eine gültige Note (1-6) eingeben.", "warning");
-        return;
-      }
-      
-      await saveAssessmentValue(student, "finalGrade", inputVal);
-    });
-  }
-  
-  // Durchschnitt als Endnote übernehmen
-  const useAverageBtn = document.getElementById("useAverageBtn");
-  if (useAverageBtn) {
-    useAverageBtn.addEventListener("click", async () => {
-      const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-      if (!avgGrade) {
-        showNotification("Es ist kein Durchschnitt vorhanden.", "warning");
-        return;
-      }
-      
-      document.getElementById("finalGrade").value = avgGrade;
-      await saveAssessmentValue(student, "finalGrade", parseFloat(avgGrade));
-    });
-  }
+    
+    // Endnote speichern
+    const saveFinalGradeBtn = document.getElementById("saveFinalGradeBtn");
+    if (saveFinalGradeBtn) {
+        saveFinalGradeBtn.addEventListener("click", async () => {
+            const finalGradeInput = document.getElementById("finalGrade");
+            const value = parseFloat(finalGradeInput.value);
+            
+            if (isNaN(value) || value < 1 || value > 6) {
+                showNotification("Bitte eine gültige Note zwischen 1.0 und 6.0 eingeben.", "warning");
+                return;
+            }
+            
+            await saveAssessmentValue(student, "finalGrade", value);
+        });
+    }
+    
+    // Durchschnitt übernehmen
+    const useAverageBtn = document.getElementById("useAverageBtn");
+    if (useAverageBtn) {
+        useAverageBtn.addEventListener("click", async () => {
+            const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
+            if (!avgGrade) {
+                showNotification("Kein Durchschnitt verfügbar.", "warning");
+                return;
+            }
+            
+            const finalGradeInput = document.getElementById("finalGrade");
+            finalGradeInput.value = avgGrade;
+            
+            await saveAssessmentValue(student, "finalGrade", parseFloat(avgGrade));
+        });
+    }
 }
 
 /**
  * Speichert einen Bewertungswert
  */
 async function saveAssessmentValue(student, key, value) {
-  showLoader();
-  
-  try {
-    // Assessment-Objekt erstellen
-    const assessment = {
-      ...student.assessment
-    };
-    
-    // Wert setzen
-    assessment[key] = value;
-    
-    // Bewertung speichern
-    await updateStudentAssessment(student.theme.id, student.id, assessment);
-    
-    // Wenn es sich um die Endnote handelt, aktualisiere die Anzeige in der Liste
-    if (key === "finalGrade") {
-      const listItem = document.querySelector(`.student-item[data-student-id="${student.id}"]`);
-      if (listItem) {
-        const gradeElement = listItem.querySelector(".student-grade");
-        if (gradeElement) {
-          gradeElement.textContent = value;
-          gradeElement.className = `student-grade grade-${Math.round(value)}`;
+    try {
+        showLoader();
+        
+        const assessment = { ...student.assessment };
+        assessment[key] = value;
+        
+        await updateStudentAssessment(student.theme.id, student.id, assessment);
+        
+        // Lokalen Schüler aktualisieren
+        const studentIndex = userAssignedStudents.findIndex(s => s.id === student.id);
+        if (studentIndex !== -1) {
+            userAssignedStudents[studentIndex].assessment = assessment;
+            
+            // Status aktualisieren
+            if (key === "finalGrade") {
+                userAssignedStudents[studentIndex].status = STUDENT_STATUS.COMPLETED;
+            } else {
+                userAssignedStudents[studentIndex].status = STUDENT_STATUS.IN_PROGRESS;
+            }
         }
         
-        // Status aktualisieren
-        const statusElement = listItem.querySelector(".student-status");
-        if (statusElement) {
-          listItem.className = `student-item ${STUDENT_STATUS.COMPLETED} active`;
-          statusElement.innerHTML = `
-            ${createStudentStatusBadge(STUDENT_STATUS.COMPLETED)}
-            <div class="student-grade grade-${Math.round(value)}">${value}</div>
-          `;
+        // UI aktualisieren
+        if (key === "finalGrade") {
+            updateAssessmentTab();
         }
-      }
+        
+        // Durchschnitt neu berechnen und anzeigen
+        const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
+        const avgDisplay = document.querySelector(".final-grade-display");
+        if (avgDisplay) {
+            avgDisplay.textContent = `Durchschnitt: ${avgGrade || "0.0"}`;
+        }
+        
+        showNotification("Bewertung gespeichert.", "success");
+        
+    } catch (error) {
+        console.error("Fehler beim Speichern der Bewertung:", error);
+        showNotification("Fehler beim Speichern: " + error.message, "error");
+    } finally {
+        hideLoader();
     }
-    
-    // Durchschnitt neu berechnen
-    const avgGrade = await calculateStudentAverage(student.theme.id, student.id);
-    const avgDisplay = document.querySelector(".final-grade-display");
-    if (avgDisplay) {
-      avgDisplay.textContent = `Ø ${avgGrade || "0.0"}`;
-    }
-    
-    showNotification("Bewertung gespeichert.");
-  } catch (error) {
-    console.error("Fehler beim Speichern der Bewertung:", error);
-    showNotification("Fehler beim Speichern der Bewertung: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
 }
 
 /**
- * Aktualisiert den Übersichts-Tab (GEÄNDERT: Ohne automatischen Sprung zur Bewertung)
+ * Aktualisiert den Übersichts-Tab
  */
-function updateOverviewTab() {
-  if (!elements.overviewTab) return;
-  
-  // Schuljahr-Dropdown befüllen
-  populateSchoolYearSelect(elements.overviewSchoolYearSelect);
-  
-  // Übersichtstabelle aktualisieren
-  updateOverviewTable();
-  
-  // Event-Listener für Filter
-  if (elements.overviewSchoolYearSelect) {
-    elements.overviewSchoolYearSelect.addEventListener("change", updateOverviewTable);
-  }
-  
-  if (elements.overviewStatusSelect) {
-    elements.overviewStatusSelect.addEventListener("change", updateOverviewTable);
-  }
+export function updateOverviewTab() {
+    if (!elements.overviewTable) return;
+    
+    const tbody = elements.overviewTable.querySelector("tbody");
+    if (!tbody) return;
+    
+    tbody.innerHTML = "";
+    
+    if (userThemes.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-message">
+                    Keine Themen vorhanden
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Themen in Tabelle anzeigen
+    userThemes.forEach(theme => {
+        const row = document.createElement("tr");
+        row.className = theme.status;
+        
+        const totalStudents = theme.students ? theme.students.length : 0;
+        const completedStudents = theme.students ? 
+            theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
+        const progressPercent = totalStudents > 0 ? Math.round((completedStudents / totalStudents) * 100) : 0;
+        
+        row.innerHTML = `
+            <td>${theme.title}</td>
+            <td>${theme.school_year || "-"}</td>
+            <td>${theme.deadline ? formatDate(theme.deadline) : "-"}</td>
+            <td><span class="status-badge status-${theme.status}">${getStatusText(theme.status)}</span></td>
+            <td>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                    <span class="progress-text">${progressPercent}%</span>
+                </div>
+            </td>
+            <td>
+                <button class="btn-details btn-compact" data-theme-id="${theme.id}">Details</button>
+            </td>
+        `;
+        
+        // Event-Listener für Details-Button
+        row.querySelector(".btn-details").addEventListener("click", () => {
+            showThemeDetails(theme);
+        });
+        
+        tbody.appendChild(row);
+    });
 }
 
 /**
- * Aktualisiert die Übersichtstabelle (GEÄNDERT)
+ * Aktualisiert den Templates-Tab
  */
-function updateOverviewTable() {
-  if (!elements.overviewTable) return;
-  
-  const tbody = elements.overviewTable.querySelector("tbody");
-  if (!tbody) return;
-  
-  // Tabelle leeren
-  tbody.innerHTML = "";
-  
-  // Filter anwenden
-  const schoolYear = elements.overviewSchoolYearSelect ? elements.overviewSchoolYearSelect.value : "";
-  const status = elements.overviewStatusSelect ? elements.overviewStatusSelect.value : "";
-  
-  // Themen filtern
-  let filteredThemes = [];
-  
-  if (currentUser.permissions && currentUser.permissions.canCreateThemes) {
-    // Themen-Ersteller sieht seine Themen
-    filteredThemes = getThemesCreatedByTeacher(currentUser.code);
-  } else {
-    // Normale Lehrer sehen Schüler, die ihnen zugewiesen sind
-    filteredThemes = getThemesForAssessment(currentUser.code);
-  }
-  
-  // Nach Schuljahr filtern
-  if (schoolYear) {
-    filteredThemes = filteredThemes.filter(theme => theme.school_year === schoolYear);
-  }
-  
-  // Nach Status filtern
-  if (status) {
-    filteredThemes = filteredThemes.filter(theme => theme.status === status);
-  }
-  
-  // Wenn keine Themen vorhanden sind
-  if (filteredThemes.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6">Keine Themen gefunden</td></tr>`;
-    return;
-  }
-  
-  // Themen sortieren (nach Status, dann nach Deadline)
-  filteredThemes.sort((a, b) => {
-    if (a.status !== b.status) {
-      if (a.status === THEME_STATUS.OVERDUE) return -1;
-      if (b.status === THEME_STATUS.OVERDUE) return 1;
-      if (a.status === THEME_STATUS.ACTIVE) return -1;
-      if (b.status === THEME_STATUS.ACTIVE) return 1;
-    }
+export function updateTemplatesTab() {
+    if (!elements.templatesCount) return;
     
-    if (a.deadline && b.deadline) {
-      return new Date(a.deadline) - new Date(b.deadline);
-    } else if (a.deadline) {
-      return -1;
-    } else if (b.deadline) {
-      return 1;
-    }
-    
-    return 0;
-  });
-  
-  // Themen in der Tabelle anzeigen
-  filteredThemes.forEach(theme => {
-    const row = document.createElement("tr");
-    row.className = theme.status;
-    
-    // Deadline-Info
-    let deadlineText = "-";
-    let deadlineClass = "";
-    if (theme.deadline) {
-      const daysRemaining = getDaysRemaining(theme.deadline);
-      const { text, className } = formatRemainingDays(daysRemaining);
-      deadlineText = `${formatDate(theme.deadline)}<br><span class="${className}">${text}</span>`;
-      deadlineClass = className;
-    }
-    
-    // Fortschritt berechnen
-    const total = theme.students ? theme.students.length : 0;
-    const completed = theme.students ? theme.students.filter(s => s.status === STUDENT_STATUS.COMPLETED).length : 0;
-    const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    
-    row.innerHTML = `
-      <td>${theme.title}</td>
-      <td>${theme.school_year || systemSettings.currentSchoolYear || "-"}</td>
-      <td class="${deadlineClass}">${deadlineText}</td>
-      <td>${createStatusBadge(theme.status)}</td>
-      <td>
-        <div class="progress-bar-container" title="${completed}/${total} Schüler bewertet">
-          <div class="progress-bar" style="width: ${progressPercent}%"></div>
-          <span class="progress-text">${progressPercent}%</span>
-        </div>
-      </td>
-      <td>
-        <div class="overview-actions">
-          <button class="btn-details btn-large" data-id="${theme.id}">Details</button>
-        </div>
-      </td>
-    `;
-    
-    // Event-Listener für den Details-Button - GEÄNDERT: Kein automatischer Sprung
-    row.querySelector(".btn-details").addEventListener("click", () => {
-      showThemeDetailsInOverview(theme);
-    });
-    
-    tbody.appendChild(row);
-  });
-}
-
-/**
- * NEU: Zeigt Theme-Details in der Übersicht (ohne automatischen Sprung zur Bewertung)
- */
-function showThemeDetailsInOverview(theme) {
-  // Erstelle ein Modal mit den Theme-Details
-  let modal = document.getElementById("themeDetailsModal");
-  if (!modal) {
-    modal = document.createElement("div");
-    modal.id = "themeDetailsModal";
-    modal.className = "modal";
-    modal.innerHTML = `
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h3 id="themeDetailsTitle">Thema-Details</h3>
-          <button class="modal-close" id="closeThemeDetailsModal">&times;</button>
-        </div>
-        <div id="themeDetailsContent"></div>
-        <div class="modal-footer">
-          <button id="closeThemeDetailsBtn" class="btn-large">Schließen</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    
-    // Event-Listener für Modal-Schließung
-    modal.querySelector("#closeThemeDetailsModal").addEventListener("click", () => {
-      modal.style.display = "none";
-    });
-    modal.querySelector("#closeThemeDetailsBtn").addEventListener("click", () => {
-      modal.style.display = "none";
-    });
-  }
-  
-  // Modal-Inhalt befüllen
-  const titleEl = modal.querySelector("#themeDetailsTitle");
-  const contentEl = modal.querySelector("#themeDetailsContent");
-  
-  titleEl.textContent = `Details: ${theme.title}`;
-  
-  let studentsHTML = "";
-  if (theme.students && theme.students.length > 0) {
-    studentsHTML = `
-      <h4>Schüler (${theme.students.length})</h4>
-      <div class="students-details-list">
-    `;
-    
-    theme.students.forEach(student => {
-      const teacher = allTeachers.find(t => t.code === student.assigned_teacher);
-      const teacherName = teacher ? teacher.name : "Unbekannt";
-      const grade = student.assessment && student.assessment.finalGrade ? student.assessment.finalGrade : "-";
-      
-      studentsHTML += `
-        <div class="student-detail-item ${student.status}">
-          <div class="student-detail-header">
-            <strong>${student.name}</strong>
-            ${student.class ? `<span class="class-badge">${student.class}</span>` : ""}
-            ${createStudentStatusBadge(student.status)}
-          </div>
-          <div class="student-detail-info">
-            <span>Prüfungslehrer: ${teacherName}</span>
-            <span>Note: <strong class="grade-${Math.round(grade) || 0}">${grade}</strong></span>
-          </div>
-        </div>
-      `;
-    });
-    
-    studentsHTML += `</div>`;
-  } else {
-    studentsHTML = `<p>Keine Schüler zugewiesen.</p>`;
-  }
-  
-  contentEl.innerHTML = `
-    <div class="theme-details-info">
-      <div class="detail-row">
-        <strong>Beschreibung:</strong> ${theme.description || "Keine Beschreibung"}
-      </div>
-      <div class="detail-row">
-        <strong>Schuljahr:</strong> ${theme.school_year || systemSettings.currentSchoolYear || "-"}
-      </div>
-      <div class="detail-row">
-        <strong>Deadline:</strong> ${theme.deadline ? formatDate(theme.deadline) : "Keine Deadline"}
-      </div>
-      <div class="detail-row">
-        <strong>Status:</strong> ${createStatusBadge(theme.status)}
-      </div>
-      <div class="detail-row">
-        <strong>Erstellt von:</strong> ${theme.created_by}
-      </div>
-    </div>
-    <hr>
-    ${studentsHTML}
-  `;
-  
-  // Modal anzeigen
-  modal.style.display = "flex";
-}
-
-/**
- * Aktualisiert den Bewertungsraster-Tab
- */
-function updateTemplatesTab() {
-  if (!elements.templatesTab) return;
-  
-  // Anzahl der Templates anzeigen
-  if (elements.templatesCount) {
     elements.templatesCount.textContent = 
-      `Sie haben ${teacherTemplates.length} von ${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher} Bewertungsrastern erstellt.`;
-  }
-  
-  // Template-Liste aktualisieren
-  updateTemplatesList();
-  
-  // Create-Button aktivieren/deaktivieren
-  if (elements.createTemplateBtn) {
-    const maxReached = teacherTemplates.length >= ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher;
-    elements.createTemplateBtn.disabled = maxReached;
-    elements.createTemplateBtn.className = maxReached ? "btn-primary btn-large disabled" : "btn-primary btn-large";
+        `Sie haben ${teacherTemplates.length} von 5 Bewertungsrastern erstellt.`;
     
-    if (maxReached) {
-      // Warnung anzeigen
-      if (!document.querySelector(".template-limit-warning")) {
-        const warning = document.createElement("div");
-        warning.className = "template-limit-warning template-limit-reached";
-        warning.textContent = `Sie haben das Maximum von ${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher} Bewertungsrastern erreicht.`;
-        elements.newTemplateForm.insertBefore(warning, elements.newTemplateForm.firstChild);
-      }
+    // Weitere Template-Funktionalität hier implementieren
+}
+
+/**
+ * Globale Funktionen für andere Module
+ */
+window.showNewThemeModal = showNewThemeModal;
+
+/**
+ * Hilfsfunktionen
+ */
+function showNewThemeModal() {
+    showNotification("Neues Thema erstellen - Diese Funktion wird implementiert.", "info");
+}
+
+function showEditThemeModal(theme) {
+    showNotification(`Thema "${theme.title}" bearbeiten - Diese Funktion wird implementiert.`, "info");
+}
+
+function showStudentsManagement(theme) {
+    showNotification(`Schüler für "${theme.title}" verwalten - Diese Funktion wird implementiert.`, "info");
+}
+
+function confirmDeleteTheme(theme) {
+    if (confirm(`Möchten Sie das Thema "${theme.title}" wirklich löschen?`)) {
+        showNotification(`Thema "${theme.title}" löschen - Diese Funktion wird implementiert.`, "info");
     }
-  }
 }
 
-/**
- * Aktualisiert die Liste der Bewertungsraster
- */
-function updateTemplatesList() {
-  if (!elements.templatesList) return;
-  
-  elements.templatesList.innerHTML = "";
-  
-  if (teacherTemplates.length === 0) {
-    elements.templatesList.innerHTML = `
-      <div class="empty-state">
-        <p>Sie haben noch keine eigenen Bewertungsraster erstellt.</p>
-        <p>Erstellen Sie bis zu ${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher} individuelle Raster für Ihre Themen.</p>
-      </div>
-    `;
-    return;
-  }
-  
-  teacherTemplates.forEach(template => {
-    const templateCard = document.createElement("div");
-    templateCard.className = "template-card";
-    
-    // Kategorien anzeigen
-    const categoriesHTML = template.categories.map(cat => `
-      <div class="template-category">
-        <span class="template-category-name">${cat.name}</span>
-        <span class="template-category-weight">Gewichtung: ${cat.weight}</span>
-      </div>
-    `).join("");
-    
-    templateCard.innerHTML = `
-      <div class="template-header">
-        <h3 class="template-title">${template.name}</h3>
-      </div>
-      <div class="template-description">
-        ${template.description || "Keine Beschreibung"}
-      </div>
-      <div class="template-categories">
-        <h4>Kategorien (${template.categories.length})</h4>
-        ${categoriesHTML}
-      </div>
-      <div class="template-actions">
-        <button class="btn-edit btn-large" data-id="${template.id}">Bearbeiten</button>
-        <button class="btn-delete btn-large" data-id="${template.id}">Löschen</button>
-      </div>
-    `;
-    
-    // Event-Listener
-    templateCard.querySelector(".btn-edit").addEventListener("click", () => {
-      editTemplate(template);
+function showThemeDetails(theme) {
+    showNotification(`Details für "${theme.title}" - Diese Funktion wird implementiert.`, "info");
+}
+
+function exportUserData() {
+    showNotification("Daten exportieren - Diese Funktion wird implementiert.", "info");
+}
+
+function sortThemes(themes, sortBy) {
+    return themes.sort((a, b) => {
+        switch (sortBy) {
+            case "title":
+                return a.title.localeCompare(b.title);
+            case "status":
+                return a.status.localeCompare(b.status);
+            case "deadline":
+                if (!a.deadline && !b.deadline) return 0;
+                if (!a.deadline) return 1;
+                if (!b.deadline) return -1;
+                return new Date(a.deadline) - new Date(b.deadline);
+            default:
+                return 0;
+        }
     });
-    
-    templateCard.querySelector(".btn-delete").addEventListener("click", () => {
-      confirmDeleteTemplate(template);
+}
+
+function sortStudents(students, sortBy) {
+    return students.sort((a, b) => {
+        switch (sortBy) {
+            case "name":
+                return a.name.localeCompare(b.name);
+            case "class":
+                return (a.class || "").localeCompare(b.class || "");
+            case "status":
+                return a.status.localeCompare(b.status);
+            case "deadline":
+                if (!a.theme.deadline && !b.theme.deadline) return 0;
+                if (!a.theme.deadline) return 1;
+                if (!b.theme.deadline) return -1;
+                return new Date(a.theme.deadline) - new Date(b.theme.deadline);
+            default:
+                return 0;
+        }
     });
-    
-    elements.templatesList.appendChild(templateCard);
-  });
 }
 
-/**
- * Zeigt den Modal für eine neue Kategorie
- */
-function showNewCategoryModal() {
-  currentCategoryEdit = null;
-  
-  elements.categoryNameInput.value = "";
-  elements.categoryWeightInput.value = "1";
-  
-  elements.categoryModal.style.display = "flex";
-}
-
-/**
- * Speichert eine Kategorie
- */
-function saveCategory(event) {
-  event.preventDefault();
-  
-  const name = elements.categoryNameInput.value.trim();
-  const weight = parseFloat(elements.categoryWeightInput.value);
-  
-  if (!name) {
-    showNotification("Bitte geben Sie einen Namen ein.", "warning");
-    return;
-  }
-  
-  if (isNaN(weight) || weight < 1 || weight > 10) {
-    showNotification("Gewichtung muss zwischen 1 und 10 liegen.", "warning");
-    return;
-  }
-  
-  const category = {
-    id: name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
-    name: name,
-    weight: weight
-  };
-  
-  // Prüfe auf doppelte IDs
-  if (tempCategories.some(cat => cat.id === category.id)) {
-    showNotification("Eine Kategorie mit diesem Namen existiert bereits.", "warning");
-    return;
-  }
-  
-  tempCategories.push(category);
-  updateCategoriesList();
-  
-  elements.categoryModal.style.display = "none";
-}
-
-/**
- * Aktualisiert die Kategorien-Liste
- */
-function updateCategoriesList() {
-  if (!elements.categoriesList) return;
-  
-  elements.categoriesList.innerHTML = "";
-  
-  if (tempCategories.length === 0) {
-    elements.categoriesList.innerHTML = '<p class="help-text">Noch keine Kategorien hinzugefügt.</p>';
-    return;
-  }
-  
-  tempCategories.forEach((category, index) => {
-    const categoryItem = document.createElement("div");
-    categoryItem.className = "category-item";
-    
-    categoryItem.innerHTML = `
-      <div class="category-item-info">
-        <div class="category-item-name">${category.name}</div>
-        <div class="category-item-weight">Gewichtung: ${category.weight}</div>
-      </div>
-      <div class="category-item-actions">
-        <button type="button" class="btn-edit btn-compact" data-index="${index}" title="Bearbeiten">✏️</button>
-        <button type="button" class="btn-delete btn-compact" data-index="${index}" title="Löschen">🗑️</button>
-      </div>
-    `;
-    
-    // Event-Listener
-    categoryItem.querySelector(".btn-edit").addEventListener("click", () => {
-      editCategory(index);
-    });
-    
-    categoryItem.querySelector(".btn-delete").addEventListener("click", () => {
-      tempCategories.splice(index, 1);
-      updateCategoriesList();
-    });
-    
-    elements.categoriesList.appendChild(categoryItem);
-  });
-}
-
-/**
- * Bearbeitet eine Kategorie
- */
-function editCategory(index) {
-  currentCategoryEdit = index;
-  const category = tempCategories[index];
-  
-  elements.categoryNameInput.value = category.name;
-  elements.categoryWeightInput.value = category.weight;
-  
-  elements.categoryModal.style.display = "flex";
-}
-
-/**
- * Erstellt ein neues Bewertungsraster
- */
-async function createNewTemplate(event) {
-  event.preventDefault();
-  
-  const name = elements.templateNameInput.value.trim();
-  const description = elements.templateDescriptionInput.value.trim();
-  
-  if (!name) {
-    showNotification("Bitte geben Sie einen Namen ein.", "warning");
-    return;
-  }
-  
-  if (tempCategories.length === 0) {
-    showNotification("Bitte fügen Sie mindestens eine Kategorie hinzu.", "warning");
-    return;
-  }
-  
-  if (teacherTemplates.length >= ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher) {
-    showNotification(`Sie können maximal ${ASSESSMENT_TEMPLATES.maxTemplatesPerTeacher} Bewertungsraster erstellen.`, "error");
-    return;
-  }
-  
-  showLoader();
-  
-  try {
-    const templateData = {
-      name: name,
-      description: description,
-      categories: [...tempCategories]
-    };
-    
-    const newTemplate = await createAssessmentTemplate(templateData, currentUser.code);
-    
-    if (newTemplate) {
-      teacherTemplates.push(newTemplate);
-      
-      // Formular zurücksetzen
-      elements.newTemplateForm.reset();
-      tempCategories = [];
-      updateCategoriesList();
-      
-      // Liste aktualisieren
-      updateTemplatesTab();
-      
-      showNotification("Bewertungsraster erfolgreich erstellt.");
+function getStatusText(status) {
+    switch (status) {
+        case STUDENT_STATUS.PENDING:
+            return "Offen";
+        case STUDENT_STATUS.IN_PROGRESS:
+            return "In Bearbeitung";
+        case STUDENT_STATUS.COMPLETED:
+            return "Bewertet";
+        case THEME_STATUS.ACTIVE:
+            return "Aktiv";
+        case THEME_STATUS.COMPLETED:
+            return "Abgeschlossen";
+        case THEME_STATUS.OVERDUE:
+            return "Überfällig";
+        default:
+            return status;
     }
-  } catch (error) {
-    console.error("Fehler beim Erstellen des Bewertungsrasters:", error);
-    showNotification("Fehler beim Erstellen des Bewertungsrasters: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
 }
 
 /**
- * Bearbeitet ein Bewertungsraster
+ * Globale Funktion für automatischen Sprung zur Bewertung
+ * Diese wird von der Schülerübersicht aufgerufen
  */
-function editTemplate(template) {
-  // TODO: Template-Bearbeitung implementieren
-  showNotification("Template-Bearbeitung wird noch implementiert.", "info");
-}
-
-/**
- * Bestätigt das Löschen eines Bewertungsrasters
- */
-function confirmDeleteTemplate(template) {
-  if (confirm(`Möchten Sie das Bewertungsraster "${template.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-    deleteTemplateConfirmed(template.id);
-  }
-}
-
-/**
- * Löscht ein Bewertungsraster nach Bestätigung
- */
-async function deleteTemplateConfirmed(templateId) {
-  showLoader();
-  
-  try {
-    await deleteAssessmentTemplate(templateId, currentUser.code);
-    
-    // Aus lokaler Liste entfernen
-    teacherTemplates = teacherTemplates.filter(t => t.id !== templateId);
-    
-    // Liste aktualisieren
-    updateTemplatesTab();
-    
-    showNotification("Bewertungsraster erfolgreich gelöscht.");
-  } catch (error) {
-    console.error("Fehler beim Löschen des Bewertungsrasters:", error);
-    showNotification("Fehler beim Löschen des Bewertungsrasters: " + error.message, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-/**
- * Aktualisiert alle Lehrer-Dropdowns
- */
-function updateTeacherSelects() {
-  // Schüler-Modal Lehrer-Dropdown aktualisieren
-  if (elements.studentTeacherSelect) {
-    populateTeacherSelect(elements.studentTeacherSelect, allTeachers);
-  }
-}
-
-/**
- * Exportiert die Daten
- */
-function exportData() {
-  // Filter anwenden
-  const schoolYear = elements.overviewSchoolYearSelect ? elements.overviewSchoolYearSelect.value : "";
-  const status = elements.overviewStatusSelect ? elements.overviewStatusSelect.value : "";
-  
-  // Themen filtern
-  let filteredThemes = [];
-  
-  if (currentUser.permissions && currentUser.permissions.canCreateThemes) {
-    // Themen-Ersteller sieht seine Themen
-    filteredThemes = getThemesCreatedByTeacher(currentUser.code);
-  } else {
-    // Normale Lehrer sehen Schüler, die ihnen zugewiesen sind
-    filteredThemes = getThemesForAssessment(currentUser.code);
-  }
-  
-  // Nach Schuljahr filtern
-  if (schoolYear) {
-    filteredThemes = filteredThemes.filter(theme => theme.school_year === schoolYear);
-  }
-  
-  // Nach Status filtern
-  if (status) {
-    filteredThemes = filteredThemes.filter(theme => theme.status === status);
-  }
-  
-  // Exportformat JSON
-  const exportData = {
-    exportDate: new Date().toISOString(),
-    teacher: {
-      name: currentUser.name,
-      code: currentUser.code
-    },
-    filters: {
-      schoolYear,
-      status
-    },
-    themes: filteredThemes,
-    assessmentTemplates: teacherTemplates
-  };
-  
-  const jsonString = JSON.stringify(exportData, null, 2);
-  
-  // Download
-  downloadFile(
-    `WBS_Export_${currentUser.code}_${new Date().toISOString().split("T")[0]}.json`,
-    jsonString,
-    "application/json"
-  );
-  
-  showNotification("Daten wurden exportiert.");
-}
-// Add these event listeners to the end of the setupEventListeners function in themeModule.js
-
-// Event-Listener für Tab-Wechsel
-document.addEventListener("tabChanged", function(event) {
-  const tabId = event.detail.tabId;
-  
-  // Aktualisiere den entsprechenden Tab-Inhalt
-  if (tabId === "themes") {
-    updateThemesTab();
-  } else if (tabId === "assessment") {
-    updateAssessmentTab();
-  } else if (tabId === "overview") {
-    updateOverviewTab();
-  } else if (tabId === "templates") {
-    updateTemplatesTab();
-  }
-});
-
-// Event-Listener für Theme-Status-Updates
-document.addEventListener("themeStatusesUpdated", function() {
-  // Aktualisiere UI-Elemente, die vom Theme-Status abhängen
-  if (document.querySelector(".tab.active[data-tab='themes']")) {
-    updateThemesList();
-  }
-  
-  if (document.querySelector(".tab.active[data-tab='overview']")) {
-    updateOverviewTable();
-  }
-  
-  // Prüfe auf Deadline-Warnungen
-  checkDeadlineWarnings();
-});
-
-// Event-Listener für Theme-Neuladen
-document.addEventListener("reloadThemes", async function() {
-  // Lade Themen neu, wenn sie geändert wurden
-  await loadAllThemes();
-  
-  // Aktualisiere die aktive Ansicht
-  if (document.querySelector(".tab.active[data-tab='themes']")) {
-    updateThemesTab();
-  } else if (document.querySelector(".tab.active[data-tab='assessment']")) {
-    updateAssessmentTab();
-  } else if (document.querySelector(".tab.active[data-tab='overview']")) {
-    updateOverviewTab();
-  }
-  
-  // Prüfe auf Deadline-Warnungen
-  checkDeadlineWarnings();
-});
-
-// Event-Listener für Systemeinstellungs-Updates
-document.addEventListener("systemSettingsUpdated", function(event) {
-  // Aktualisiere UI-Elemente, die von Systemeinstellungen abhängen
-  const updatedSettings = event.detail;
-  
-  // Aktualisiere Schuljahr-Dropdowns
-  const schoolYearSelects = document.querySelectorAll(".school-year-select");
-  schoolYearSelects.forEach(select => {
-    if (select && updatedSettings.currentSchoolYear) {
-      populateSchoolYearSelect(select, updatedSettings.currentSchoolYear);
+window.jumpToStudentAssessment = function(studentId, themeId) {
+    // Aktiviere Assessment-Tab
+    if (window.setActiveTab) {
+        window.setActiveTab('assessment');
     }
-  });
-  
-  // Prüfe auf Deadline-Warnungen basierend auf Schuljahresende
-  if (updatedSettings.schoolYearEnd) {
-    checkDeadlineWarnings();
-  }
-});
-
-// Event-Listener für Teacher-Updates
-document.addEventListener("teachersUpdated", function() {
-  // Aktualisiere Lehrer-Dropdowns
-  updateTeacherSelects();
-  
-  // Aktualisiere die Ansicht, falls der aktuelle Benutzer betroffen ist
-  updateUI();
-});
+    
+    // Warte kurz, dann wähle den Schüler aus
+    setTimeout(() => {
+        currentSelectedStudentId = studentId;
+        
+        // Finde den Schüler in der Liste
+        const studentItem = document.querySelector(`.student-item[data-student-id="${studentId}"]`);
+        if (studentItem) {
+            studentItem.click();
+            studentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            // Falls der Schüler nicht in der aktuellen Liste ist, aktualisiere sie
+            updateAssessmentTab();
+            
+            // Versuche es nochmal nach dem Update
+            setTimeout(() => {
+                const studentItem = document.querySelector(`.student-item[data-student-id="${studentId}"]`);
+                if (studentItem) {
+                    studentItem.click();
+                    studentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 500);
+        }
+    }, 300);
+};
