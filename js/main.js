@@ -1,23 +1,27 @@
-// js/main.js - With debugging output
+// js/main.js - Aktualisierte Version mit neuem Auth-System
 import { 
   initDatabase, 
   ensureCollections, 
   ensureDefaultAssessmentTemplate, 
   checkDatabaseHealth
 } from "./firebaseClient.js";
-import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initLoginModule, performLogout } from "./modules/loginModule.js";
-import { initAdminModule } from "./modules/adminModule.js";
-import { initThemeModule } from "./modules/themeModule.js";
+import { initNewLoginModule } from "./modules/newLoginModule.js";
+import { initNewAdminModule } from "./modules/newAdminModule.js";
+import { initIdeasModule } from "./modules/ideasModule.js";
+import { initUpdatedThemeModule } from "./modules/updatedThemeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
+import { currentUser } from "./authService.js";
 
 // DOM-Elemente
 let logoutBtn = null;
 
+// Event-Listener für Tab-Wechsel
+let currentActiveTab = 'ideas';
+
 // Start
 document.addEventListener("DOMContentLoaded", async function() {
-  console.log("WBS Bewertungssystem wird initialisiert...");
+  console.log("WBS Bewertungssystem wird initialisiert (neue Version)...");
   showLoader();
   
   try {
@@ -43,40 +47,29 @@ document.addEventListener("DOMContentLoaded", async function() {
     await ensureDefaultAssessmentTemplate();
     console.log("Default Assessment Template ist bereit");
     
-    // 3. Lehrer aus Firebase laden
-    console.log("Lade Lehrer-Daten...");
-    const teachersLoaded = await loadAllTeachers();
-    console.log("Lehrer geladen:", teachersLoaded);
-    
-    // 4. System-Einstellungen laden
-    console.log("Lade System-Einstellungen...");
-    await loadSystemSettings();
-    console.log("System-Einstellungen geladen");
-    
-    // 5. Bewertungsraster laden
+    // 3. Bewertungsraster laden
     console.log("Lade Bewertungsraster...");
     await loadAssessmentTemplates();
     console.log("Bewertungsraster geladen");
     
-    // 6. Lehrer-Grid für Anmeldung initialisieren
-    console.log("Initialisiere Login-Modul...");
-    initLoginModule();
+    // 4. Neues Login-Modul initialisieren
+    console.log("Initialisiere neues Login-Modul...");
+    initNewLoginModule();
     console.log("Login-Modul initialisiert");
     
-    // 7. Admin-Modul initialisieren
-    console.log("Initialisiere Admin-Modul...");
-    initAdminModule();
+    // 5. Neues Admin-Modul initialisieren
+    console.log("Initialisiere neues Admin-Modul...");
+    initNewAdminModule();
     console.log("Admin-Modul initialisiert");
     
-    // 8. Themen-Modul initialisieren
-    console.log("Initialisiere Themen-Modul...");
-    await initThemeModule();
-    console.log("Themen-Modul initialisiert");
-    
-    // 9. Event-Listener einrichten
+    // 6. Event-Listener einrichten
     console.log("Richte Event-Listener ein...");
     setupGlobalEventListeners();
     console.log("Event-Listener eingerichtet");
+    
+    // 7. Event-Listener für erfolgreichen Login
+    document.addEventListener('userLoggedIn', handleUserLoggedIn);
+    document.addEventListener('userLoggedOut', handleUserLoggedOut);
     
     console.log("Initialisierung abgeschlossen!");
     
@@ -99,32 +92,185 @@ document.addEventListener("DOMContentLoaded", async function() {
   }
 });
 
-// Richtet globale Event-Listener ein
-function setupGlobalEventListeners() {
-  // Logout-Button
-  logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", performLogout);
+/**
+ * Behandelt erfolgreichen Login
+ */
+async function handleUserLoggedIn(event) {
+  const user = event.detail;
+  console.log("Benutzer angemeldet:", user);
+  
+  try {
+    showLoader();
+    
+    // Initialisiere benutzerspezifische Module
+    console.log("Initialisiere Ideen-Modul...");
+    await initIdeasModule();
+    console.log("Ideen-Modul initialisiert");
+    
+    console.log("Initialisiere Themen-Modul...");
+    await initUpdatedThemeModule();
+    console.log("Themen-Modul initialisiert");
+    
+    // Setze ersten Tab als aktiv
+    setActiveTab('ideas');
+    
+  } catch (error) {
+    console.error("Fehler beim Initialisieren der Benutzer-Module:", error);
+    showNotification("Fehler beim Laden der Module: " + error.message, "error");
+  } finally {
+    hideLoader();
   }
+}
+
+/**
+ * Behandelt Abmeldung
+ */
+function handleUserLoggedOut() {
+  console.log("Benutzer abgemeldet");
+  
+  // Reset der Module
+  currentActiveTab = 'ideas';
+  
+  // Clear module content
+  const modules = ['ideas-tab', 'themes-tab', 'assessment-tab', 'overview-tab', 'templates-tab'];
+  modules.forEach(moduleId => {
+    const moduleElement = document.getElementById(moduleId);
+    if (moduleElement) {
+      // Reset to loading state
+      moduleElement.innerHTML = `
+        <div class="loading-container">
+          <span class="loader"></span>
+          <p>Wird geladen...</p>
+        </div>
+      `;
+    }
+  });
+}
+
+/**
+ * Richtet globale Event-Listener ein
+ */
+function setupGlobalEventListeners() {
+  // Logout-Button (wird vom Login-Modul behandelt)
   
   // Tab-Wechsel
   const tabs = document.querySelectorAll(".tab");
-  const tabContents = document.querySelectorAll(".tab-content");
   
   tabs.forEach(function(tab) {
     tab.addEventListener("click", function() {
-      const tabId = tab.dataset.tab;
-      
-      // Tabs deaktivieren
-      tabs.forEach(function(t) { t.classList.remove("active"); });
-      tabContents.forEach(function(c) { c.classList.remove("active"); });
-      
-      // Ausgewählten Tab aktivieren
-      tab.classList.add("active");
-      const tabContent = document.getElementById(`${tabId}-tab`);
-      if (tabContent) {
-        tabContent.classList.add("active");
+      // Nur verarbeiten, wenn Benutzer angemeldet ist
+      if (!currentUser.isLoggedIn) {
+        return;
       }
+      
+      const tabId = tab.dataset.tab;
+      setActiveTab(tabId);
     });
   });
 }
+
+/**
+ * Setzt einen Tab als aktiv
+ */
+function setActiveTab(tabId) {
+  currentActiveTab = tabId;
+  
+  // Alle Tabs deaktivieren
+  const tabs = document.querySelectorAll(".tab");
+  const tabContents = document.querySelectorAll(".tab-content");
+  
+  tabs.forEach(function(t) { 
+    t.classList.remove("active"); 
+  });
+  
+  tabContents.forEach(function(c) { 
+    c.classList.remove("active"); 
+  });
+  
+  // Ausgewählten Tab aktivieren
+  const activeTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+  const activeTabContent = document.getElementById(`${tabId}-tab`);
+  
+  if (activeTab) {
+    activeTab.classList.add("active");
+  }
+  
+  if (activeTabContent) {
+    activeTabContent.classList.add("active");
+  }
+  
+  // Tab-spezifische Initialisierung
+  initializeTabContent(tabId);
+  
+  console.log("Tab gewechselt zu:", tabId);
+}
+
+/**
+ * Initialisiert Tab-spezifischen Inhalt
+ */
+async function initializeTabContent(tabId) {
+  try {
+    switch (tabId) {
+      case 'ideas':
+        // Ideen-Modul ist bereits initialisiert
+        break;
+        
+      case 'themes':
+        // Themen-Tab aktualisieren
+        const themeModule = await import('./modules/updatedThemeModule.js');
+        if (themeModule.updateThemesTab) {
+          themeModule.updateThemesTab();
+        }
+        break;
+        
+      case 'assessment':
+        // Assessment-Tab aktualisieren
+        const assessmentModule = await import('./modules/updatedThemeModule.js');
+        if (assessmentModule.updateAssessmentTab) {
+          assessmentModule.updateAssessmentTab();
+        }
+        break;
+        
+      case 'overview':
+        // Übersicht-Tab aktualisieren
+        const overviewModule = await import('./modules/updatedThemeModule.js');
+        if (overviewModule.updateOverviewTab) {
+          overviewModule.updateOverviewTab();
+        }
+        break;
+        
+      case 'templates':
+        // Templates-Tab aktualisieren
+        const templatesModule = await import('./modules/updatedThemeModule.js');
+        if (templatesModule.updateTemplatesTab) {
+          templatesModule.updateTemplatesTab();
+        }
+        break;
+    }
+  } catch (error) {
+    console.error(`Fehler beim Initialisieren von Tab ${tabId}:`, error);
+  }
+}
+
+/**
+ * Globale Hilfsfunktion für automatischen Sprung zur Bewertung
+ */
+window.jumpToAssessment = function(studentId, themeId) {
+  // Wechsle zum Assessment-Tab
+  setActiveTab('assessment');
+  
+  // Warte kurz, dann wähle den Schüler aus
+  setTimeout(() => {
+    const studentItem = document.querySelector(`.student-item[data-student-id="${studentId}"]`);
+    if (studentItem) {
+      studentItem.click();
+      studentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 300);
+};
+
+/**
+ * Exportiere Funktionen für andere Module
+ */
+window.setActiveTab = setActiveTab;
+window.getCurrentActiveTab = () => currentActiveTab;
