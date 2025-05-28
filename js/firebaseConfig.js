@@ -1,48 +1,218 @@
-// js/firebaseConfig.js - Enhanced with better environment variable handling
-/**
- * Firebase-Konfigurationsdatei
- * 
- * Diese Datei wird automatisch von build.js generiert und sollte nicht manuell bearbeitet werden.
- * Sie stellt die Verbindungsdaten für Firebase bereit und unterstützt verschiedene Umgebungen.
- */
+import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
 
-// Umgebungsvariablen aus verschiedenen Quellen versuchen zu laden
-function getEnvVar(name, defaultValue = '') {
-  // Versuche verschiedene Umgebungsvariablen-Quellen (Node.js, Vite, importierte Variablen)
-  if (typeof process !== 'undefined' && process.env && process.env[name]) {
-    return process.env[name];
-  }
-  
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[name]) {
-    return import.meta.env[name];
-  }
-  
-  // Für Netlify-spezifische Umgebungsvariablen
-  if (typeof window !== 'undefined' && window.ENV && window.ENV[name]) {
-    return window.ENV[name];
-  }
-  
-  return defaultValue;
-}
+export let db = null;
+export let auth = null;
+export let firebaseApp = null;
 
-// Firebase-Konfiguration mit Fallback-Werten
-export const FIREBASE_CONFIG = {
-  apiKey: getEnvVar('VITE_FIREBASE_API_KEY', ''),
-  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN', ''),
-  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID', ''),
-  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET', ''),
-  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID', ''),
-  appId: getEnvVar('VITE_FIREBASE_APP_ID', '')
+const FALLBACK_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
 };
 
-// Log Warnings für fehlende Konfiguration (nur in Entwicklungsumgebung)
-if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-  const missingVars = Object.entries(FIREBASE_CONFIG)
-    .filter(([_, value]) => !value)
-    .map(([key]) => key);
-  
-  if (missingVars.length > 0) {
-    console.warn(`Firebase-Konfiguration unvollständig. Fehlende Werte: ${missingVars.join(', ')}`);
-    console.info('Tipp: Legen Sie eine .env-Datei im Projektverzeichnis an mit den benötigten VITE_FIREBASE_* Variablen');
+let FIREBASE_CONFIG = FALLBACK_CONFIG;
+
+async function loadFirebaseConfig() {
+  try {
+    const configModule = await import("./firebaseConfig.js");
+    FIREBASE_CONFIG = configModule.FIREBASE_CONFIG || FALLBACK_CONFIG;
+    const missingKeys = Object.entries(FIREBASE_CONFIG)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+    if (missingKeys.length > 0) {
+      console.warn(`Unvollständige Firebase-Konfiguration. Fehlende Werte: ${missingKeys.join(', ')}`);
+    } else {
+      console.log("Firebase-Konfiguration erfolgreich geladen");
+    }
+    return FIREBASE_CONFIG;
+  } catch (error) {
+    console.warn("firebaseConfig.js konnte nicht geladen werden:", error);
+    return FALLBACK_CONFIG;
+  }
+}
+
+export async function initDatabase() {
+  try {
+    FIREBASE_CONFIG = await loadFirebaseConfig();
+    if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
+      console.error("Firebase-Konfiguration unvollständig:", FIREBASE_CONFIG);
+      return false;
+    }
+
+    if (firebase.apps.length === 0) {
+      firebaseApp = firebase.initializeApp(FIREBASE_CONFIG);
+      console.log("Firebase erfolgreich initialisiert");
+    } else {
+      firebaseApp = firebase.app();
+      console.log("Vorhandene Firebase-Instanz verwendet");
+    }
+
+    try {
+      db = firebase.firestore();
+      await db.collection("_test_").limit(1).get();
+      console.log("Firestore-Verbindung erfolgreich hergestellt");
+    } catch {
+      db = firebaseApp.firestore();
+      console.log("Firestore über App-Instanz initialisiert");
+    }
+
+    auth = firebase.auth();
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    console.log("Firebase Auth und Persistenz bereit");
+
+    await db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+      if (err.code === 'failed-precondition') {
+        console.warn("Persistenz: mehrere Tabs geöffnet");
+      } else if (err.code === 'unimplemented') {
+        console.warn("Persistenz nicht unterstützt");
+      }
+    });
+
+    await ensureSystemSettings();
+    await ensureDefaultAssessmentTemplate();
+    await ensureCollections();
+    await migrateDataStructure();
+
+    return true;
+  } catch (error) {
+    console.error("Fehler bei der Firebase-Initialisierung:", error);
+    alert("Fehler bei der Firebase-Initialisierung. Details in Konsole.");
+    return false;
+  }
+}
+
+export async function ensureUsersCollection() {
+  if (!db) return false;
+  try {
+    const snap = await db.collection("users").limit(1).get();
+    console.log(snap.empty
+      ? "users-Collection wird initialisiert..."
+      : "users-Collection bereits vorhanden");
+    return true;
+  } catch (e) {
+    console.error("Fehler in users-Collection:", e);
+    return false;
+  }
+}
+
+export async function ensureProjectIdeasCollection() {
+  if (!db) return false;
+  try {
+    const snap = await db.collection("project_ideas").limit(1).get();
+    console.log(snap.empty
+      ? "project_ideas-Collection wird initialisiert..."
+      : "project_ideas-Collection bereits vorhanden");
+    return true;
+  } catch (e) {
+    console.error("Fehler in project_ideas-Collection:", e);
+    return false;
+  }
+}
+
+// neu: prüft beide Collections
+export async function ensureCollections() {
+  await ensureUsersCollection();
+  await ensureProjectIdeasCollection();
+  return true;
+}
+
+export async function ensureSystemSettings() {
+  if (!db) return false;
+  try {
+    const ref = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      const year = new Date().getFullYear();
+      await ref.set({
+        ...DEFAULT_SYSTEM_SETTINGS,
+        currentSchoolYear: `${year}/${year + 1}`,
+        schoolYearEnd: null,
+        lastAssessmentDate: null,
+        version: "2.0",
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      console.log("Systemeinstellungen initialisiert");
+    }
+    return true;
+  } catch (e) {
+    console.error("Fehler in Systemeinstellungen:", e);
+    return false;
+  }
+}
+
+export async function ensureDefaultAssessmentTemplate() {
+  if (!db) return false;
+  try {
+    const ref = db.collection("wbs_assessment_templates").doc("standard");
+    const doc = await ref.get();
+    if (!doc.exists) {
+      await ref.set({
+        name: "Standard-Bewertungsraster",
+        description: "Das Standard-Bewertungsraster für alle Themen",
+        isDefault: true,
+        created_by: "SYSTEM",
+        created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+        version: "2.0",
+        categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
+          id: cat.id, name: cat.name, weight: 1
+        }))
+      });
+      console.log("Default-Template erstellt");
+    }
+    return true;
+  } catch (e) {
+    console.error("Fehler im Default-Template:", e);
+    return false;
+  }
+}
+
+export async function migrateDataStructure() {
+  if (!db) return false;
+  try {
+    const old = await db.collection("wbs_teachers").doc("teachers_list").get();
+    if (old.exists) {
+      console.log("Alte Lehrer-Daten gefunden. Manuelle Migration nötig.");
+    }
+    return true;
+  } catch (e) {
+    console.error("Fehler bei Migration:", e);
+    return false;
+  }
+}
+
+export async function checkDatabaseHealth() {
+  if (!db) return { status: "disconnected", issues: ["Keine DB-Verbindung"] };
+  const health = { status: "healthy", issues: [], collections: {}, auth: {}, lastChecked: new Date().toISOString() };
+  try {
+    health.auth = auth.currentUser ? {
+      uid: auth.currentUser.uid,
+      email: auth.currentUser.email
+    } : null;
+    const usersSnap = await db.collection("users").limit(1).get();
+    health.collections.users = { exists: !usersSnap.empty, accessible: true };
+    const ideasSnap = await db.collection("project_ideas").limit(1).get();
+    health.collections.projectIdeas = { exists: !ideasSnap.empty, accessible: true };
+  } catch (e) {
+    console.error("Health-Check-Fehler:", e);
+    health.status = "error";
+    health.issues.push(e.message);
+  }
+  return health;
+}
+
+export async function getSystemSettings() {
+  if (!db) return null;
+  try {
+    const ref = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
+    const doc = await ref.get();
+    return doc.exists ? doc.data() : null;
+  } catch (e) {
+    console.error("Fehler beim Laden Systemeinstellungen:", e);
+    return null;
   }
 }
