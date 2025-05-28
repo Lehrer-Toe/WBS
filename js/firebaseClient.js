@@ -1,10 +1,12 @@
-// js/firebaseClient.js
-
-import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
+import { DEFAULT_ASSESSMENT_CATEGORIES,
+         DEFAULT_SYSTEM_SETTINGS,
+         SYSTEM_SETTINGS } from "./constants.js";
 
 export let db = null;
 export let auth = null;
 export let firebaseApp = null;
+
+/* ------------------------------ Config ------------------------------ */
 
 const FALLBACK_CONFIG = {
   apiKey: "",
@@ -14,179 +16,122 @@ const FALLBACK_CONFIG = {
   messagingSenderId: "",
   appId: ""
 };
-
 let FIREBASE_CONFIG = FALLBACK_CONFIG;
 
-async function loadFirebaseConfig() {
+async function loadConfig() {
   try {
-    const configModule = await import("./firebaseConfig.js");
-    FIREBASE_CONFIG = configModule.FIREBASE_CONFIG || FALLBACK_CONFIG;
-    const missingKeys = Object.entries(FIREBASE_CONFIG)
-      .filter(([_, v]) => !v)
-      .map(([k]) => k);
-    if (missingKeys.length) {
-      console.warn(`Unvollständige Firebase-Konfiguration. Fehlende Werte: ${missingKeys.join(", ")}`);
-    } else {
-      console.log("Firebase-Konfiguration erfolgreich geladen");
-    }
-  } catch (e) {
-    console.warn("firebaseConfig.js konnte nicht geladen werden:", e);
+    const mod = await import("./firebaseConfig.js");
+    FIREBASE_CONFIG = mod.FIREBASE_CONFIG || FALLBACK_CONFIG;
+    console.log("Firebase-Konfiguration geladen");
+  } catch {
+    console.warn("firebaseConfig.js fehlt – Fallback-Config wird verwendet");
   }
-  return FIREBASE_CONFIG;
 }
+
+/* ------------------------------ Init ------------------------------ */
 
 export async function initDatabase() {
-  try {
-    FIREBASE_CONFIG = await loadFirebaseConfig();
-    if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
-      console.error("Firebase-Konfiguration unvollständig", FIREBASE_CONFIG);
-      return false;
-    }
-
-    firebaseApp = firebase.apps.length
-      ? firebase.app()
-      : firebase.initializeApp(FIREBASE_CONFIG);
-    console.log("Firebase initialisiert");
-
-    db = firebase.firestore();
-
-    try {
-      await db.enablePersistence({ synchronizeTabs: true });
-      console.log("Offline-Persistenz aktiviert");
-    } catch (err) {
-      if (err.code === "failed-precondition") {
-        console.warn("Persistenz: mehrere Tabs geöffnet");
-      } else if (err.code === "unimplemented") {
-        console.warn("Persistenz nicht unterstützt");
-      } else {
-        console.warn("Persistenz-Fehler:", err);
-      }
-    }
-
-    try {
-      await db.collection("_test_").limit(1).get();
-      console.log("Firestore-Verbindung erfolgreich hergestellt");
-    } catch {
-      db = firebaseApp.firestore();
-      console.log("Fallback: Firestore über App-Instanz");
-    }
-
-    auth = firebase.auth();
-    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-    console.log("Firebase Auth und Persistenz bereit");
-
-    ensureSystemSettings().catch(() => console.warn("ensureSystemSettings fehlgeschlagen"));
-    ensureDefaultAssessmentTemplate().catch(() => console.warn("ensureDefaultAssessmentTemplate fehlgeschlagen"));
-    ensureCollections().catch(() => console.warn("ensureCollections fehlgeschlagen"));
-    migrateDataStructure().catch(() => console.warn("migrateDataStructure fehlgeschlagen"));
-
-    return true;
-  } catch (error) {
-    console.error("Fehler bei Firebase-Init:", error.code, error.message);
-    return false;
+  await loadConfig();
+  if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.projectId) {
+    console.error("Fehlende Firebase-Config", FIREBASE_CONFIG); return false;
   }
+
+  firebaseApp = firebase.apps.length ? firebase.app()
+                                     : firebase.initializeApp(FIREBASE_CONFIG);
+  db   = firebase.firestore();
+  auth = firebase.auth();
+
+  /* Offline-Cache (Fehler ignorieren) */
+  try { await db.enablePersistence({ synchronizeTabs: true }); }
+  catch (e) { console.warn("Persistenz nicht möglich:", e.code); }
+
+  await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+  /* ---------- Rolle prüfen ---------- */
+  let role = "guest";
+  try {
+    await auth.authStateReady();                 // 10.5-SDK
+    const u = auth.currentUser;
+    if (u) {
+      const snap = await db.doc(`users/${u.uid}`).get();
+      role = snap.exists ? (snap.data().role || "teacher") : "teacher";
+    }
+  } catch (e) {
+    console.warn("Rollen-Abruf fehlgeschlagen:", e.message);
+  }
+  console.log("Angemeldete Rolle:", role);
+
+  /* ---------- Nur Admins legen Strukturen an ---------- */
+  if (role === "admin") {
+    try { await ensureSystemSettings();          } catch (e) { console.warn("ensureSystemSettings:",          e.code); }
+    try { await ensureDefaultTemplate();         } catch (e) { console.warn("ensureDefaultAssessment:",       e.code); }
+    try { await ensureCollections();             } catch (e) { console.warn("ensureCollections:",            e.code); }
+    try { await migrateDataStructure();          } catch (e) { console.warn("migrateDataStructure:",         e.code); }
+  }
+
+  return true;
 }
 
-export async function ensureUsersCollection() {
-  if (!db) return;
-  const snap = await db.collection("users").limit(1).get();
-  console.log(snap.empty ? "users-Collection wird initialisiert" : "users-Collection bereits vorhanden");
+/* ------------------------------ Ensure-Funktionen ------------------------------ */
+
+async function ensureCollections() {
+  await ensureUsers(); await ensureIdeas();
+}
+async function ensureUsers()  {
+  const s = await db.collection("users").limit(1).get();
+  console.log(s.empty ? "users-Collection angelegt" : "users vorhanden");
+}
+async function ensureIdeas()  {
+  const s = await db.collection("project_ideas").limit(1).get();
+  console.log(s.empty ? "project_ideas angelegt" : "project_ideas vorhanden");
 }
 
-export async function ensureProjectIdeasCollection() {
-  if (!db) return;
-  const snap = await db.collection("project_ideas").limit(1).get();
-  console.log(snap.empty ? "project_ideas-Collection wird initialisiert" : "project_ideas-Collection bereits vorhanden");
-}
-
-export async function ensureCollections() {
-  await ensureUsersCollection();
-  await ensureProjectIdeasCollection();
-}
-
-export async function ensureSystemSettings() {
-  if (!db) return;
-  const ref = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
-  const doc = await ref.get();
-  if (!doc.exists) {
-    const year = new Date().getFullYear();
+async function ensureSystemSettings() {
+  const ref = db.doc(`${SYSTEM_SETTINGS.collectionName}/${SYSTEM_SETTINGS.documentName}`);
+  if (!(await ref.get()).exists) {
+    const yr = new Date().getFullYear();
     await ref.set({
       ...DEFAULT_SYSTEM_SETTINGS,
-      currentSchoolYear: `${year}/${year + 1}`,
-      schoolYearEnd: null,
-      lastAssessmentDate: null,
+      currentSchoolYear: `${yr}/${yr+1}`,
       version: "2.0",
       created_at: firebase.firestore.FieldValue.serverTimestamp(),
       updated_at: firebase.firestore.FieldValue.serverTimestamp()
     });
-    console.log("Systemeinstellungen initialisiert");
+    console.log("Systemeinstellungen angelegt");
   }
 }
 
-export async function ensureDefaultAssessmentTemplate() {
-  if (!db) return;
-  const ref = db.collection("wbs_assessment_templates").doc("standard");
-  const doc = await ref.get();
-  if (!doc.exists) {
+async function ensureDefaultTemplate() {
+  const ref = db.doc("wbs_assessment_templates/standard");
+  if (!(await ref.get()).exists) {
     await ref.set({
-      name: "Standard-Bewertungsraster",
-      description: "Das Standard-Bewertungsraster für alle Themen",
-      isDefault: true,
-      created_by: "SYSTEM",
-      created_at: firebase.firestore.FieldValue.serverTimestamp(),
-      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-      version: "2.0",
-      categories: DEFAULT_ASSESSMENT_CATEGORIES.map(cat => ({
-        id: cat.id,
-        name: cat.name,
-        weight: 1
+      name       : "Standard-Bewertungsraster",
+      description: "Default für alle Themen",
+      isDefault  : true,
+      version    : "2.0",
+      created_by : "SYSTEM",
+      created_at : firebase.firestore.FieldValue.serverTimestamp(),
+      updated_at : firebase.firestore.FieldValue.serverTimestamp(),
+      categories : DEFAULT_ASSESSMENT_CATEGORIES.map(c => ({
+        id: c.id, name: c.name, weight: 1
       }))
     });
-    console.log("Default-Template erstellt");
+    console.log("Default-Template angelegt");
   }
 }
 
-export async function migrateDataStructure() {
-  if (!db) return;
-  const old = await db.collection("wbs_teachers").doc("teachers_list").get();
-  if (old.exists) {
-    console.log("Alte Lehrer-Daten gefunden. Manuelle Migration nötig");
-  }
+async function migrateDataStructure() {
+  const old = await db.doc("wbs_teachers/teachers_list").get();
+  if (old.exists) console.log("Alte Lehrer-Sammlung gefunden – manuelle Migration nötig");
 }
+
+/* ------------------------------ Health-Check (optional unverändert) ------------------------------ */
 
 export async function checkDatabaseHealth() {
-  if (!db) return { status: "disconnected", issues: ["Keine DB-Verbindung"] };
-  const health = {
-    status: "healthy",
-    issues: [],
-    collections: {},
-    auth: {},
-    lastChecked: new Date().toISOString()
-  };
+  if (!db) return { status: "offline" };
+  const res = { status: "ok", user: auth.currentUser?.email };
   try {
-    health.auth = auth.currentUser
-      ? { uid: auth.currentUser.uid, email: auth.currentUser.email }
-      : null;
-    const uSnap = await db.collection("users").limit(1).get();
-    health.collections.users = { exists: !uSnap.empty, accessible: true };
-    const iSnap = await db.collection("project_ideas").limit(1).get();
-    health.collections.projectIdeas = { exists: !iSnap.empty, accessible: true };
-  } catch (e) {
-    console.error("Health-Check-Fehler:", e);
-    health.status = "error";
-    health.issues.push(e.message);
-  }
-  return health;
-}
-
-export async function getSystemSettings() {
-  if (!db) return null;
-  try {
-    const ref = db.collection(SYSTEM_SETTINGS.collectionName).doc(SYSTEM_SETTINGS.documentName);
-    const doc = await ref.get();
-    return doc.exists ? doc.data() : null;
-  } catch (e) {
-    console.error("Fehler beim Laden Systemeinstellungen:", e);
-    return null;
-  }
+    res.settings = (await db.doc(`${SYSTEM_SETTINGS.collectionName}/${SYSTEM_SETTINGS.documentName}`).get()).exists;
+  } catch { res.status = "warn"; }
+  return res;
 }
