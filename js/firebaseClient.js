@@ -85,6 +85,8 @@ export async function initDatabase() {
     return true;
   } catch (error) {
     console.error("Fehler bei der Firebase-Initialisierung:", error);
+    console.error("→ Code:", error.code);
+    console.error("→ Message:", error.message);
     alert("Fehler bei der Firebase-Initialisierung. Details in Konsole.");
     return false;
   }
@@ -118,7 +120,7 @@ export async function ensureProjectIdeasCollection() {
   }
 }
 
-// NEU: kombiniert beide Checks
+// kombiniert beide Checks
 export async function ensureCollections() {
   await ensureUsersCollection();
   await ensureProjectIdeasCollection();
