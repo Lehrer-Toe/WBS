@@ -1,35 +1,39 @@
-// js/main.js - Aktualisierte Version mit neuem Auth-System
+// js/main.js - Korrigierte Version ohne Duplikate
 import { 
   initDatabase, 
   ensureCollections, 
   ensureDefaultAssessmentTemplate, 
   checkDatabaseHealth
 } from "./firebaseClient.js";
+import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initNewLoginModule, performEnhancedLogout } from "./modules/newLoginModule.js";
-import { initNewAdminModule } from "./modules/newAdminModule.js";
-import { initIdeasModule } from "./modules/ideasModule.js";
-import { initUpdatedThemeModule } from "./modules/updatedThemeModule.js";
+import { initLoginModule, performLogout } from "./modules/loginModule.js";
+import { initAdminModule } from "./modules/adminModule.js";
+import { initThemeModule } from "./modules/themeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
-import { currentUser } from "./authService.js";
 
+// NEUE ERWEITERTE IMPORTS (Umbenennung um Konflikte zu vermeiden)
+import { 
+  initNewLoginModule as initEnhancedLogin, 
+  performEnhancedLogout as performEnhancedLogout 
+} from "./modules/newLoginModule.js";
+import { initNewAdminModule as initEnhancedAdmin } from "./modules/newAdminModule.js";
 
 // DOM-Elemente
 let logoutBtn = null;
 
-// Event-Listener für Tab-Wechsel
-let currentActiveTab = 'ideas';
+// Erweiterte Konfiguration
+const appConfig = {
+  useEnhancedFeatures: true, // Setzen Sie auf false, um erweiterte Features zu deaktivieren
+  debugMode: false
+};
 
 // Start
 document.addEventListener("DOMContentLoaded", async function() {
-  console.log("WBS Bewertungssystem wird initialisiert (neue Version)...");
+  console.log("WBS Bewertungssystem wird initialisiert...");
   showLoader();
   
   try {
-    // DEBUGGING: Force loader to be visible
-    document.getElementById("mainLoader").style.display = "flex";
-    console.log("Loader sollte sichtbar sein");
-    
     // 1. Firebase initialisieren
     console.log("Initialisiere Firebase...");
     const dbInitialized = await initDatabase();
@@ -48,334 +52,171 @@ document.addEventListener("DOMContentLoaded", async function() {
     await ensureDefaultAssessmentTemplate();
     console.log("Default Assessment Template ist bereit");
     
-    // 3. Bewertungsraster laden
+    // 3. Lehrer aus Firebase laden
+    console.log("Lade Lehrer-Daten...");
+    const teachersLoaded = await loadAllTeachers();
+    console.log("Lehrer geladen:", teachersLoaded);
+    
+    // 4. System-Einstellungen laden
+    console.log("Lade System-Einstellungen...");
+    await loadSystemSettings();
+    console.log("System-Einstellungen geladen");
+    
+    // 5. Bewertungsraster laden
     console.log("Lade Bewertungsraster...");
     await loadAssessmentTemplates();
     console.log("Bewertungsraster geladen");
     
-    // 4. Neues Login-Modul initialisieren
-    console.log("Initialisiere neues Login-Modul...");
-    initNewLoginModule();
-    console.log("Login-Modul initialisiert");
+    // 6. Module initialisieren (mit Fallback-Logik)
+    console.log("Initialisiere Module...");
+    await initializeModules();
+    console.log("Module initialisiert");
     
-    // 5. Neues Admin-Modul initialisieren
-    console.log("Initialisiere neues Admin-Modul...");
-    initNewAdminModule();
-    console.log("Admin-Modul initialisiert");
-    
-    // 6. Event-Listener einrichten
+    // 7. Event-Listener einrichten
     console.log("Richte Event-Listener ein...");
     setupGlobalEventListeners();
     console.log("Event-Listener eingerichtet");
     
-    // 7. Event-Listener für erfolgreichen Login
-    document.addEventListener('userLoggedIn', handleUserLoggedIn);
-    document.addEventListener('userLoggedOut', handleUserLoggedOut);
-    
     console.log("Initialisierung abgeschlossen!");
-    
-    // DEBUGGING: Try to force hide the loader
-    document.getElementById("mainLoader").style.display = "none";
-    console.log("Loader sollte jetzt ausgeblendet sein");
     
   } catch (error) {
     console.error("Fehler bei der Initialisierung:", error);
     showNotification("Fehler bei der Initialisierung: " + error.message, "error");
     
-    // DEBUGGING: Make sure loader is hidden even on error
-    document.getElementById("mainLoader").style.display = "none";
-    console.log("Loader nach Fehler ausgeblendet");
+    // Fallback auf Standard-Module
+    try {
+      console.log("Versuche Fallback-Initialisierung...");
+      await initializeStandardModules();
+    } catch (fallbackError) {
+      console.error("Auch Fallback-Initialisierung fehlgeschlagen:", fallbackError);
+    }
   } finally {
-    // DEBUGGING: Double-check that the loader is hidden
     hideLoader();
-    document.getElementById("mainLoader").style.display = "none";
-    console.log("Loader final ausgeblendet (finally block)");
   }
 });
 
 /**
- * Behandelt erfolgreichen Login
+ * Initialisiert Module mit erweiterten Features (falls aktiviert)
  */
-async function handleUserLoggedIn(event) {
-  const user = event.detail;
-  console.log("Benutzer angemeldet:", user);
-  
-  try {
-    showLoader();
-    
-    // Initialisiere benutzerspezifische Module
-    console.log("Initialisiere Ideen-Modul...");
-    await initIdeasModule();
-    console.log("Ideen-Modul initialisiert");
-    
-    console.log("Initialisiere Themen-Modul...");
-    await initUpdatedThemeModule();
-    console.log("Themen-Modul initialisiert");
-    
-    // Setze ersten Tab als aktiv
-    setActiveTab('ideas');
-    
-  } catch (error) {
-    console.error("Fehler beim Initialisieren der Benutzer-Module:", error);
-    showNotification("Fehler beim Laden der Module: " + error.message, "error");
-  } finally {
-    hideLoader();
+async function initializeModules() {
+  if (appConfig.useEnhancedFeatures) {
+    try {
+      console.log("Initialisiere erweiterte Module...");
+      
+      // Erweiterte Module initialisieren
+      initEnhancedLogin();
+      initEnhancedAdmin();
+      
+      // Standard-Module für Kompatibilität
+      initAdminModule();
+      await initThemeModule();
+      
+      console.log("Erweiterte Module erfolgreich initialisiert");
+      return true;
+    } catch (error) {
+      console.warn("Erweiterte Module konnten nicht initialisiert werden:", error);
+      console.log("Falle zurück auf Standard-Module...");
+      
+      // Fallback auf Standard-Module
+      appConfig.useEnhancedFeatures = false;
+      return await initializeStandardModules();
+    }
+  } else {
+    return await initializeStandardModules();
   }
 }
 
 /**
- * Behandelt Abmeldung
+ * Initialisiert Standard-Module (Fallback)
  */
-function handleUserLoggedOut() {
-  console.log("Benutzer abgemeldet");
+async function initializeStandardModules() {
+  console.log("Initialisiere Standard-Module...");
   
-  // Reset der Module
-  currentActiveTab = 'ideas';
+  // Standard Login-Modul
+  initLoginModule();
+  console.log("Standard Login-Modul initialisiert");
   
-  // Clear module content
-  const modules = ['ideas-tab', 'themes-tab', 'assessment-tab', 'overview-tab', 'templates-tab'];
-  modules.forEach(moduleId => {
-    const moduleElement = document.getElementById(moduleId);
-    if (moduleElement) {
-      // Reset to loading state
-      moduleElement.innerHTML = `
-        <div class="loading-container">
-          <span class="loader"></span>
-          <p>Wird geladen...</p>
-        </div>
-      `;
-    }
-  });
+  // Admin-Modul
+  initAdminModule();
+  console.log("Admin-Modul initialisiert");
+  
+  // Themen-Modul
+  await initThemeModule();
+  console.log("Themen-Modul initialisiert");
+  
+  return true;
 }
 
 /**
  * Richtet globale Event-Listener ein
  */
 function setupGlobalEventListeners() {
-  // Logout-Button (wird vom Login-Modul behandelt)
+  // Logout-Button mit erweiterten Features (falls verfügbar)
+  logoutBtn = document.getElementById("logoutBtn");
+  if (logoutBtn) {
+    // Entferne möglicherweise vorhandene Event-Listener
+    const newLogoutBtn = logoutBtn.cloneNode(true);
+    logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+    logoutBtn = newLogoutBtn;
+    
+    // Füge entsprechenden Event-Listener hinzu
+    if (appConfig.useEnhancedFeatures && typeof performEnhancedLogout === 'function') {
+      logoutBtn.addEventListener("click", performEnhancedLogout);
+    } else {
+      logoutBtn.addEventListener("click", performLogout);
+    }
+  }
   
   // Tab-Wechsel
   const tabs = document.querySelectorAll(".tab");
+  const tabContents = document.querySelectorAll(".tab-content");
   
   tabs.forEach(function(tab) {
     tab.addEventListener("click", function() {
-      // Nur verarbeiten, wenn Benutzer angemeldet ist
-      if (!currentUser.isLoggedIn) {
-        return;
-      }
-      
       const tabId = tab.dataset.tab;
-      setActiveTab(tabId);
+      
+      // Tabs deaktivieren
+      tabs.forEach(function(t) { t.classList.remove("active"); });
+      tabContents.forEach(function(c) { c.classList.remove("active"); });
+      
+      // Ausgewählten Tab aktivieren
+      tab.classList.add("active");
+      const tabContent = document.getElementById(`${tabId}-tab`);
+      if (tabContent) {
+        tabContent.classList.add("active");
+      }
     });
   });
-}
-
-/**
- * Setzt einen Tab als aktiv
- */
-function setActiveTab(tabId) {
-  currentActiveTab = tabId;
   
-  // Alle Tabs deaktivieren
-  const tabs = document.querySelectorAll(".tab");
-  const tabContents = document.querySelectorAll(".tab-content");
-  
-  tabs.forEach(function(t) { 
-    t.classList.remove("active"); 
-  });
-  
-  tabContents.forEach(function(c) { 
-    c.classList.remove("active"); 
-  });
-  
-  // Ausgewählten Tab aktivieren
-  const activeTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
-  const activeTabContent = document.getElementById(`${tabId}-tab`);
-  
-  if (activeTab) {
-    activeTab.classList.add("active");
-  }
-  
-  if (activeTabContent) {
-    activeTabContent.classList.add("active");
-  }
-  
-  // Tab-spezifische Initialisierung
-  initializeTabContent(tabId);
-  
-  console.log("Tab gewechselt zu:", tabId);
-}
-
-/**
- * Initialisiert Tab-spezifischen Inhalt
- */
-async function initializeTabContent(tabId) {
-  try {
-    switch (tabId) {
-      case 'ideas':
-        // Ideen-Modul ist bereits initialisiert
-        break;
-        
-      case 'themes':
-        // Themen-Tab aktualisieren
-        const themeModule = await import('./modules/updatedThemeModule.js');
-        if (themeModule.updateThemesTab) {
-          themeModule.updateThemesTab();
-        }
-        break;
-        
-      case 'assessment':
-        // Assessment-Tab aktualisieren
-        const assessmentModule = await import('./modules/updatedThemeModule.js');
-        if (assessmentModule.updateAssessmentTab) {
-          assessmentModule.updateAssessmentTab();
-        }
-        break;
-        
-      case 'overview':
-        // Übersicht-Tab aktualisieren
-        const overviewModule = await import('./modules/updatedThemeModule.js');
-        if (overviewModule.updateOverviewTab) {
-          overviewModule.updateOverviewTab();
-        }
-        break;
-        
-      case 'templates':
-        // Templates-Tab aktualisieren
-        const templatesModule = await import('./modules/updatedThemeModule.js');
-        if (templatesModule.updateTemplatesTab) {
-          templatesModule.updateTemplatesTab();
-        }
-        break;
-    }
-  } catch (error) {
-    console.error(`Fehler beim Initialisieren von Tab ${tabId}:`, error);
-  }
-}
-
-/**
- * Globale Hilfsfunktion für automatischen Sprung zur Bewertung
- */
-window.jumpToAssessment = function(studentId, themeId) {
-  // Wechsle zum Assessment-Tab
-  setActiveTab('assessment');
-  
-  // Warte kurz, dann wähle den Schüler aus
-  setTimeout(() => {
-    const studentItem = document.querySelector(`.student-item[data-student-id="${studentId}"]`);
-    if (studentItem) {
-      studentItem.click();
-      studentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, 300);
-};
-
-/**
- * Exportiere Funktionen für andere Module
- */
-window.setActiveTab = setActiveTab;
-window.getCurrentActiveTab = () => currentActiveTab;
-
-// TEMPORÄR: Ersten Admin erstellen - NACH SETUP ENTFERNEN!
-const createFirstAdmin = async () => {
-  try {
-    const adminEmail = "tilama@mail.de";
-    const adminPassword = "sohran17";
-    
-    const userCredential = await auth.createUserWithEmailAndPassword(adminEmail, adminPassword);
-    const user = userCredential.user;
-    
-    await db.collection("users").doc(user.uid).set({
-      email: adminEmail,
-      name: "Administrator",
-      role: "admin",
-      isActive: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      permissions: {}
-    });
-    
-    console.log("Erster Admin erstellt:", adminEmail);
-    alert("Erster Admin erstellt. Bitte entfernen Sie diesen Code aus main.js!");
-  } catch (error) {
-    console.error("Fehler beim Erstellen des Admins:", error);
-  }
-};
-
-// Uncomment this line to create first admin:
-// createFirstAdmin();
-// Temporärer Setup-Code für main.js
-// Fügen Sie diesen Code am Ende Ihrer bestehenden main.js hinzu:
-
-// Import der neuen Module (fügen Sie diese Imports am Anfang der Datei hinzu)
-import { initNewLoginModule, performEnhancedLogout } from "./modules/newLoginModule.js";
-import { initNewAdminModule } from "./modules/newAdminModule.js";
-
-// Erweiterte Initialisierung (ersetzen Sie den bestehenden DOMContentLoaded Event-Listener)
-document.addEventListener("DOMContentLoaded", async function() {
-  console.log("WBS Bewertungssystem wird mit erweiterten Funktionen initialisiert...");
-  showLoader();
-  
-  try {
-    // Bestehende Initialisierung...
-    const dbInitialized = await initDatabase();
-    if (!dbInitialized) {
-      throw new Error("Datenbank konnte nicht initialisiert werden");
-    }
-    
-    await ensureCollections();
-    await ensureDefaultAssessmentTemplate();
-    const teachersLoaded = await loadAllTeachers();
-    await loadSystemSettings();
-    await loadAssessmentTemplates();
-    
-    // NEUE ERWEITERTE INITIALISIERUNG:
-    // 1. Erweiterte Login-Module initialisieren
-    console.log("Initialisiere erweiterte Module...");
-    initNewLoginModule();  // Ersetzt initLoginModule()
-    initNewAdminModule();  // Erweitert initAdminModule()
-    
-    // 2. Original-Module weiterhin initialisieren
-    initAdminModule();  // Bestehende Funktionalität beibehalten
-    await initThemeModule();
-    
-    // 3. Erweiterte Event-Listener
+  // Erweiterte Event-Listener (nur wenn Enhanced Features aktiv sind)
+  if (appConfig.useEnhancedFeatures) {
     setupEnhancedEventListeners();
-    
-    console.log("Erweiterte Initialisierung abgeschlossen!");
-    
-  } catch (error) {
-    console.error("Fehler bei der erweiterten Initialisierung:", error);
-    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
-  } finally {
-    hideLoader();
   }
-});
+}
 
-// Erweiterte Event-Listener Setup
+/**
+ * Richtet erweiterte Event-Listener ein
+ */
 function setupEnhancedEventListeners() {
-  // Bestehende Event-Listener...
-  setupGlobalEventListeners();
-  
-  // Neue erweiterte Event-Listener:
-  
-  // Enhanced Logout für Lehrer
-  const logoutBtn = document.getElementById("logoutBtn");
-  if (logoutBtn) {
-    // Entferne bestehende Event-Listener
-    logoutBtn.replaceWith(logoutBtn.cloneNode(true));
-    const newLogoutBtn = document.getElementById("logoutBtn");
-    newLogoutBtn.addEventListener("click", performEnhancedLogout);
-  }
-  
   // Keyboard-Shortcuts
   document.addEventListener('keydown', (e) => {
-    // F12 für Admin-Dashboard (wenn Admin eingeloggt)
+    // F12 für Admin-Dashboard (Strg+F12)
     if (e.key === 'F12' && e.ctrlKey) {
       e.preventDefault();
       toggleAdminDashboard();
     }
     
-    // Escape für schnelles Modal schließen
+    // Strg+Alt+L für schnelles Logout
+    if (e.ctrlKey && e.altKey && e.key === 'l') {
+      e.preventDefault();
+      if (typeof performEnhancedLogout === 'function') {
+        performEnhancedLogout();
+      } else {
+        performLogout();
+      }
+    }
+    
+    // Escape für Modal schließen
     if (e.key === 'Escape') {
       closeAllModals();
     }
@@ -389,24 +230,42 @@ function setupEnhancedEventListeners() {
     }
   });
   
-  // Unload-Event für Cleanup
+  // Cleanup vor dem Schließen
   window.addEventListener('beforeunload', (e) => {
-    // Cleanup vor dem Schließen der Seite
     performCleanup();
+  });
+  
+  // Erweiterte Fehlerbehandlung
+  window.addEventListener('error', (event) => {
+    console.error('Globaler Fehler:', event.error);
+    if (appConfig.debugMode) {
+      showNotification('Ein Fehler ist aufgetreten. Siehe Konsole für Details.', 'error');
+    }
+  });
+  
+  window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unbehandelte Promise-Rejection:', event.reason);
+    if (appConfig.debugMode) {
+      showNotification('Ein Promise-Fehler ist aufgetreten. Siehe Konsole für Details.', 'error');
+    }
   });
 }
 
-// Hilfsfunktionen für erweiterte Funktionalität
+/**
+ * Hilfsfunktionen für erweiterte Features
+ */
 function toggleAdminDashboard() {
   const dashboard = document.getElementById("systemDashboard");
   if (dashboard) {
-    if (dashboard.style.display === "none") {
+    if (dashboard.style.display === "none" || !dashboard.style.display) {
       dashboard.style.display = "block";
       console.log("Admin-Dashboard geöffnet");
     } else {
       dashboard.style.display = "none";
       console.log("Admin-Dashboard geschlossen");
     }
+  } else {
+    console.log("Admin-Dashboard nicht verfügbar");
   }
 }
 
@@ -420,24 +279,45 @@ function closeAllModals() {
 }
 
 function checkSystemStatus() {
-  // Placeholder für System-Status-Check
-  console.log("System-Status wird überprüft...");
+  if (appConfig.debugMode) {
+    console.log("System-Status wird überprüft...");
+  }
+  
+  // Hier könnte System-Health-Checking implementiert werden
+  if (typeof checkDatabaseHealth === 'function') {
+    checkDatabaseHealth().then(health => {
+      if (appConfig.debugMode) {
+        console.log("System-Gesundheit:", health);
+      }
+    }).catch(error => {
+      console.warn("System-Health-Check fehlgeschlagen:", error);
+    });
+  }
 }
 
 function performCleanup() {
-  // Cleanup-Logik vor dem Schließen
-  console.log("Cleanup wird durchgeführt...");
+  if (appConfig.debugMode) {
+    console.log("Cleanup wird durchgeführt...");
+  }
+  
+  // Cleanup-Logik hier implementieren
+  // z.B. offene Verbindungen schließen, Timer stoppen, etc.
 }
 
-// Erweiterte Fehlerbehandlung
-window.addEventListener('error', (event) => {
-  console.error('Globaler Fehler:', event.error);
-  // Hier könnte erweiterte Fehlerbehandlung implementiert werden
-});
+// Debug-Konsole-Befehle (nur im Debug-Modus)
+if (appConfig.debugMode) {
+  window.WBS_DEBUG = {
+    toggleEnhancedFeatures: () => {
+      appConfig.useEnhancedFeatures = !appConfig.useEnhancedFeatures;
+      console.log("Enhanced Features:", appConfig.useEnhancedFeatures ? "aktiviert" : "deaktiviert");
+      location.reload();
+    },
+    getConfig: () => appConfig,
+    checkHealth: checkSystemStatus,
+    showDashboard: toggleAdminDashboard
+  };
+  
+  console.log("Debug-Modus aktiv. Verwenden Sie WBS_DEBUG für Debug-Befehle.");
+}
 
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unbehandelte Promise-Rejection:', event.reason);
-  // Hier könnte erweiterte Promise-Fehlerbehandlung implementiert werden
-});
-
-console.log("Erweiterte Setup-Funktionen geladen");
+console.log("Main.js geladen - Enhanced Features:", appConfig.useEnhancedFeatures);
