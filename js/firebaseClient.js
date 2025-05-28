@@ -1,3 +1,5 @@
+// js/firebaseClient.js
+
 import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_SYSTEM_SETTINGS, SYSTEM_SETTINGS } from "./constants.js";
 
 export let db = null;
@@ -50,6 +52,7 @@ export async function initDatabase() {
       console.log("Vorhandene Firebase-Instanz verwendet");
     }
 
+    // Firestore initialisieren und Test-Query
     try {
       db = firebase.firestore();
       await db.collection("_test_").limit(1).get();
@@ -59,22 +62,24 @@ export async function initDatabase() {
       console.log("Firestore über App-Instanz initialisiert");
     }
 
+    // Auth initialisieren und Persistenz setzen
     auth = firebase.auth();
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     console.log("Firebase Auth und Persistenz bereit");
 
-    await db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+    // Offline-Persistenz aktivieren
+    await db.enablePersistence({ synchronizeTabs: true }).catch(err => {
       if (err.code === 'failed-precondition') {
-        console.warn('Persistenz: mehrere Tabs geöffnet');
+        console.warn("Persistenz: mehrere Tabs geöffnet");
       } else if (err.code === 'unimplemented') {
-        console.warn('Persistenz nicht unterstützt');
+        console.warn("Persistenz nicht unterstützt");
       }
     });
 
+    // Datenstruktur sicherstellen
     await ensureSystemSettings();
     await ensureDefaultAssessmentTemplate();
-    await ensureUsersCollection();
-    await ensureProjectIdeasCollection();
+    await ensureCollections();
     await migrateDataStructure();
 
     return true;
@@ -113,6 +118,13 @@ export async function ensureProjectIdeasCollection() {
   }
 }
 
+// NEU: kombiniert beide Checks
+export async function ensureCollections() {
+  await ensureUsersCollection();
+  await ensureProjectIdeasCollection();
+  return true;
+}
+
 export async function ensureSystemSettings() {
   if (!db) return false;
   try {
@@ -122,7 +134,7 @@ export async function ensureSystemSettings() {
       const year = new Date().getFullYear();
       await ref.set({
         ...DEFAULT_SYSTEM_SETTINGS,
-        currentSchoolYear: `${year}/${year+1}`,
+        currentSchoolYear: `${year}/${year + 1}`,
         schoolYearEnd: null,
         lastAssessmentDate: null,
         version: "2.0",
@@ -210,6 +222,3 @@ export async function getSystemSettings() {
     return null;
   }
 }
-
-// Neu hinzugefügt:
-export { ensureCollections };
