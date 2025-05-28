@@ -6,12 +6,13 @@ import {
   checkDatabaseHealth
 } from "./firebaseClient.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-import { initNewLoginModule } from "./modules/newLoginModule.js";
+import { initNewLoginModule, performEnhancedLogout } from "./modules/newLoginModule.js";
 import { initNewAdminModule } from "./modules/newAdminModule.js";
 import { initIdeasModule } from "./modules/ideasModule.js";
 import { initUpdatedThemeModule } from "./modules/updatedThemeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
 import { currentUser } from "./authService.js";
+
 
 // DOM-Elemente
 let logoutBtn = null;
