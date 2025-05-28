@@ -1,3 +1,5 @@
+// js/main.js
+
 import { 
   initDatabase, 
   ensureCollections, 
