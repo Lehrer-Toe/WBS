@@ -52,9 +52,25 @@ export async function initDatabase() {
       console.log("Vorhandene Firebase-Instanz verwendet");
     }
 
-    // Firestore initialisieren und Test-Query
+    // Firestore initialisieren
+    db = firebase.firestore();
+
+    // Offline-Persistenz aktivieren (muss vor allen DB-Zugriffen stehen)
     try {
-      db = firebase.firestore();
+      await db.enablePersistence({ synchronizeTabs: true });
+      console.log("Offline-Persistenz aktiviert");
+    } catch (err) {
+      if (err.code === 'failed-precondition') {
+        console.warn("Persistenz: mehrere Tabs geöffnet");
+      } else if (err.code === 'unimplemented') {
+        console.warn("Persistenz nicht unterstützt");
+      } else {
+        console.warn("Persistenz-Fehler:", err);
+      }
+    }
+
+    // Test-Query
+    try {
       await db.collection("_test_").limit(1).get();
       console.log("Firestore-Verbindung erfolgreich hergestellt");
     } catch {
@@ -66,15 +82,6 @@ export async function initDatabase() {
     auth = firebase.auth();
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     console.log("Firebase Auth und Persistenz bereit");
-
-    // Offline-Persistenz aktivieren
-    await db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-      if (err.code === 'failed-precondition') {
-        console.warn("Persistenz: mehrere Tabs geöffnet");
-      } else if (err.code === 'unimplemented') {
-        console.warn("Persistenz nicht unterstützt");
-      }
-    });
 
     // Datenstruktur sicherstellen
     await ensureSystemSettings();
@@ -120,7 +127,6 @@ export async function ensureProjectIdeasCollection() {
   }
 }
 
-// kombiniert beide Checks
 export async function ensureCollections() {
   await ensureUsersCollection();
   await ensureProjectIdeasCollection();
