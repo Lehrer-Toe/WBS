@@ -1,5 +1,3 @@
-// js/main.js
-
 import { 
   initDatabase, 
   ensureCollections, 
@@ -68,9 +66,7 @@ document.addEventListener("DOMContentLoaded", async function() {
     try {
       console.log("Versuche Fallback-Initialisierung...");
       await initializeStandardModules();
-    } catch (fallbackError) {
-      console.error("Fallback-Initialisierung fehlgeschlagen:", fallbackError);
-    }
+    } catch {}
   } finally {
     hideLoader();
   }
@@ -88,7 +84,6 @@ async function initializeModules() {
       return true;
     } catch (error) {
       console.warn("Erweiterte Module konnten nicht initialisiert werden:", error);
-      console.log("Falle zurück auf Standard-Module...");
       appConfig.useEnhancedFeatures = false;
       return await initializeStandardModules();
     }
@@ -114,7 +109,7 @@ function setupGlobalEventListeners() {
     const newLogoutBtn = logoutBtn.cloneNode(true);
     logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
     logoutBtn = newLogoutBtn;
-    if (appConfig.useEnhancedFeatures && typeof performEnhancedLogout === 'function') {
+    if (appConfig.useEnhancedFeatures && typeof performEnhancedLogout === "function") {
       logoutBtn.addEventListener("click", performEnhancedLogout);
     } else {
       logoutBtn.addEventListener("click", performLogout);
@@ -123,14 +118,14 @@ function setupGlobalEventListeners() {
 
   const tabs = document.querySelectorAll(".tab");
   const tabContents = document.querySelectorAll(".tab-content");
-  tabs.forEach(function(tab) {
+  tabs.forEach(tab => {
     tab.addEventListener("click", function() {
       const tabId = tab.dataset.tab;
-      tabs.forEach(function(t) { t.classList.remove("active"); });
-      tabContents.forEach(function(c) { c.classList.remove("active"); });
+      tabs.forEach(t => t.classList.remove("active"));
+      tabContents.forEach(c => c.classList.remove("active"));
       tab.classList.add("active");
-      const tabContent = document.getElementById(`${tabId}-tab`);
-      if (tabContent) tabContent.classList.add("active");
+      const content = document.getElementById(`${tabId}-tab`);
+      if (content) content.classList.add("active");
     });
   });
 
@@ -140,59 +135,55 @@ function setupGlobalEventListeners() {
 }
 
 function setupEnhancedEventListeners() {
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F12' && e.ctrlKey) {
+  document.addEventListener("keydown", e => {
+    if (e.key === "F12" && e.ctrlKey) {
       e.preventDefault();
       toggleAdminDashboard();
     }
-    if (e.ctrlKey && e.altKey && e.key === 'l') {
+    if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "l") {
       e.preventDefault();
-      if (typeof performEnhancedLogout === 'function') performEnhancedLogout();
+      if (typeof performEnhancedLogout === "function") performEnhancedLogout();
       else performLogout();
     }
-    if (e.key === 'Escape') closeAllModals();
+    if (e.key === "Escape") closeAllModals();
   });
 
-  document.addEventListener('visibilitychange', () => {
+  document.addEventListener("visibilitychange", () => {
     if (!document.hidden) checkSystemStatus();
   });
 
-  window.addEventListener('beforeunload', () => performCleanup());
+  window.addEventListener("beforeunload", () => performCleanup());
 
-  window.addEventListener('error', (event) => {
-    console.error('Globaler Fehler:', event.error);
-    if (appConfig.debugMode) showNotification('Ein Fehler ist aufgetreten. Siehe Konsole für Details.', 'error');
+  window.addEventListener("error", event => {
+    console.error("Globaler Fehler:", event.error);
+    if (appConfig.debugMode) showNotification("Ein Fehler ist aufgetreten. Siehe Konsole.", "error");
   });
 
-  window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unbehandelte Promise-Rejection:', event.reason);
-    if (appConfig.debugMode) showNotification('Ein Promise-Fehler ist aufgetreten. Siehe Konsole für Details.', 'error');
+  window.addEventListener("unhandledrejection", event => {
+    console.error("Unbehandelte Promise-Rejection:", event.reason);
+    if (appConfig.debugMode) showNotification("Ein Promise-Fehler ist aufgetreten. Siehe Konsole.", "error");
   });
 }
 
 function toggleAdminDashboard() {
-  const dashboard = document.getElementById("systemDashboard");
-  if (dashboard) {
-    dashboard.style.display = dashboard.style.display === "block" ? "none" : "block";
-  }
+  const dash = document.getElementById("systemDashboard");
+  if (dash) dash.style.display = dash.style.display === "block" ? "none" : "block";
 }
 
 function closeAllModals() {
-  document.querySelectorAll('.modal').forEach(modal => {
-    if (modal.style.display === 'block' || modal.style.display === 'flex') {
-      modal.style.display = 'none';
+  document.querySelectorAll(".modal").forEach(modal => {
+    if (modal.style.display === "block" || modal.style.display === "flex") {
+      modal.style.display = "none";
     }
   });
 }
 
 function checkSystemStatus() {
   if (appConfig.debugMode) console.log("System-Status wird überprüft...");
-  if (typeof checkDatabaseHealth === 'function') {
+  if (typeof checkDatabaseHealth === "function") {
     checkDatabaseHealth().then(health => {
       if (appConfig.debugMode) console.log("System-Gesundheit:", health);
-    }).catch(error => {
-      console.warn("System-Health-Check fehlgeschlagen:", error);
-    });
+    }).catch(console.warn);
   }
 }
 
@@ -200,7 +191,6 @@ function performCleanup() {
   if (appConfig.debugMode) console.log("Cleanup wird durchgeführt...");
 }
 
-// Debug-Kommandos
 if (appConfig.debugMode) {
   window.WBS_DEBUG = {
     toggleEnhancedFeatures: () => {
@@ -212,7 +202,7 @@ if (appConfig.debugMode) {
     checkHealth: checkSystemStatus,
     showDashboard: toggleAdminDashboard
   };
-  console.log("Debug-Modus aktiv. Verwenden Sie WBS_DEBUG für Debug-Kommandos.");
+  console.log("Debug-Modus aktiv. Verwenden Sie WBS_DEBUG.");
 }
 
 console.log("Main.js geladen – Enhanced Features:", appConfig.useEnhancedFeatures);
