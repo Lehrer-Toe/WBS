@@ -1,4 +1,4 @@
-// js/modules/loginModule.js - Korrigierte Version
+// js/modules/loginModule.js - REPARIERTE VERSION
 import { showLoader, hideLoader, showNotification, initTeacherGrid } from "../uiService.js";
 import { currentUser } from "../dataService.js";
 import { validateTeacher, allTeachers } from "../adminService.js";
@@ -23,12 +23,32 @@ let elements = {
 };
 
 /**
+ * Aktueller Login-Status
+ */
+let currentLoginAttempt = null;
+
+/**
  * Initialisiert das Login-Modul
  */
 export function initLoginModule() {
   console.log("Initialisiere Login-Modul...");
   
-  // DOM-Elemente abrufen
+  // DOM-Elemente abrufen und prüfen
+  loadDOMElements();
+  
+  // Event-Listener hinzufügen
+  setupEventListeners();
+  
+  // Lehrer-Grid initialisieren
+  setupTeacherGrid();
+  
+  console.log("Login-Modul erfolgreich initialisiert");
+}
+
+/**
+ * Lädt und prüft alle DOM-Elemente
+ */
+function loadDOMElements() {
   elements.loginSection = document.getElementById("loginSection");
   elements.appSection = document.getElementById("appSection");
   elements.teacherGrid = document.getElementById("teacherGrid");
@@ -42,50 +62,85 @@ export function initLoginModule() {
   elements.teacherName = document.getElementById("teacherName");
   elements.mainLoader = document.getElementById("mainLoader");
 
-  // Prüfe, ob kritische Elemente vorhanden sind
-  if (!elements.loginSection || !elements.appSection) {
-    console.error("Kritische DOM-Elemente nicht gefunden!");
-    return;
-  }
-
-  console.log("DOM-Elemente erfolgreich geladen:", {
+  // Debug-Ausgabe für fehlende Elemente
+  const elementStatus = {
     loginSection: !!elements.loginSection,
     appSection: !!elements.appSection,
     teacherGrid: !!elements.teacherGrid,
+    passwordModal: !!elements.passwordModal,
     mainLoader: !!elements.mainLoader
-  });
+  };
+  
+  console.log("DOM-Elemente Status:", elementStatus);
+  
+  // Kritische Elemente prüfen
+  if (!elements.loginSection) {
+    console.error("KRITISCH: loginSection nicht gefunden!");
+  }
+  if (!elements.appSection) {
+    console.error("KRITISCH: appSection nicht gefunden!");
+  }
+  if (!elements.teacherGrid) {
+    console.error("KRITISCH: teacherGrid nicht gefunden!");
+    
+    // Versuche teacherGrid zu erstellen, falls es fehlt
+    createTeacherGridIfMissing();
+  }
+}
 
-  // Event-Listener hinzufügen
-  setupEventListeners();
-
-  // Lehrer-Grid initialisieren
-  if (elements.teacherGrid) {
-    initTeacherGrid(elements.teacherGrid, showPasswordModal, allTeachers);
+/**
+ * Erstellt das teacherGrid-Element, falls es fehlt
+ */
+function createTeacherGridIfMissing() {
+  if (elements.teacherGrid) return;
+  
+  // Suche nach einem Container, in dem wir das Grid erstellen können
+  const container = document.querySelector("#loginSection .container");
+  if (!container) {
+    console.error("Kein Container für teacherGrid gefunden!");
+    return;
   }
   
-  console.log("Login-Modul erfolgreich initialisiert");
+  // Erstelle das teacherGrid-Element
+  const teacherGrid = document.createElement("div");
+  teacherGrid.id = "teacherGrid";
+  teacherGrid.className = "teacher-grid";
+  
+  // Füge es vor dem Password-Modal ein
+  const passwordModal = document.getElementById("passwordModal");
+  if (passwordModal && passwordModal.parentNode === container) {
+    container.insertBefore(teacherGrid, passwordModal);
+  } else {
+    container.appendChild(teacherGrid);
+  }
+  
+  elements.teacherGrid = teacherGrid;
+  console.log("teacherGrid wurde erstellt");
 }
 
 /**
  * Richtet die Event-Listener ein
  */
 function setupEventListeners() {
+  // Password Modal schließen
   if (elements.closePasswordModalBtn) {
     elements.closePasswordModalBtn.addEventListener("click", () => {
-      elements.passwordModal.style.display = "none";
+      hidePasswordModal();
     });
   }
 
   if (elements.cancelLoginBtn) {
     elements.cancelLoginBtn.addEventListener("click", () => {
-      elements.passwordModal.style.display = "none";
+      hidePasswordModal();
     });
   }
 
+  // Login bestätigen
   if (elements.confirmLoginBtn) {
     elements.confirmLoginBtn.addEventListener("click", performLogin);
   }
 
+  // Enter-Taste im Passwort-Feld
   if (elements.passwordInput) {
     elements.passwordInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
@@ -93,134 +148,148 @@ function setupEventListeners() {
       }
     });
   }
+  
+  // Modal-Hintergrund klicken zum Schließen
+  if (elements.passwordModal) {
+    elements.passwordModal.addEventListener("click", (e) => {
+      if (e.target === elements.passwordModal) {
+        hidePasswordModal();
+      }
+    });
+  }
+}
+
+/**
+ * Initialisiert das Lehrer-Grid
+ */
+function setupTeacherGrid() {
+  if (!elements.teacherGrid) {
+    console.error("teacherGrid nicht verfügbar für Initialisierung");
+    return;
+  }
+  
+  if (!allTeachers || allTeachers.length === 0) {
+    console.warn("Keine Lehrer verfügbar");
+    showNoTeachersMessage();
+    return;
+  }
+  
+  console.log(`Initialisiere Grid mit ${allTeachers.length} Lehrern`);
+  initTeacherGrid(elements.teacherGrid, showPasswordModal, allTeachers);
+}
+
+/**
+ * Zeigt eine Nachricht an, wenn keine Lehrer verfügbar sind
+ */
+function showNoTeachersMessage() {
+  if (!elements.teacherGrid) return;
+  
+  elements.teacherGrid.innerHTML = `
+    <div class="empty-state">
+      <p>Keine Lehrer verfügbar</p>
+      <button onclick="location.reload()" class="btn-secondary">Seite neu laden</button>
+    </div>
+  `;
 }
 
 /**
  * Zeigt den Passwort-Dialog für einen Lehrer
  */
 export function showPasswordModal(teacher) {
-  console.log("Zeige Passwort-Modal für:", teacher.name);
-  
-  if (elements.loginPrompt) {
-    elements.loginPrompt.textContent = `Bitte das Passwort für ${teacher.name} eingeben:`;
+  if (!elements.passwordModal || !elements.loginPrompt || !elements.passwordInput) {
+    console.error("Password Modal Elemente nicht verfügbar");
+    return;
   }
   
-  if (elements.passwordInput) {
-    elements.passwordInput.value = "";
-  }
+  console.log("Zeige Password Modal für:", teacher.name);
   
-  if (elements.passwordModal) {
-    elements.passwordModal.style.display = "flex";
-  }
+  elements.loginPrompt.textContent = `Bitte das Passwort für ${teacher.name} eingeben:`;
+  elements.passwordInput.value = "";
+  elements.passwordModal.style.display = "flex";
+  elements.passwordInput.focus();
   
-  if (elements.passwordInput) {
-    elements.passwordInput.focus();
-  }
-  
-  // Speichere temporär Lehrer-Daten
-  currentUser.name = teacher.name;
-  currentUser.code = teacher.code;
-  currentUser.password = teacher.password;
-  currentUser.permissions = teacher.permissions || {};
-  
-  console.log("Passwort-Modal angezeigt für:", teacher.code);
+  // Speichere den ausgewählten Lehrer
+  currentLoginAttempt = {
+    name: teacher.name,
+    code: teacher.code,
+    password: teacher.password,
+    permissions: teacher.permissions || {}
+  };
 }
 
 /**
- * Führt den Login-Prozess durch - KORRIGIERTE VERSION
+ * Versteckt den Passwort-Dialog
+ */
+function hidePasswordModal() {
+  if (elements.passwordModal) {
+    elements.passwordModal.style.display = "none";
+  }
+  currentLoginAttempt = null;
+}
+
+/**
+ * Führt den Login-Prozess durch
  */
 async function performLogin() {
-  console.log("Login-Prozess startet für:", currentUser.code);
+  if (!currentLoginAttempt) {
+    showNotification("Kein Lehrer ausgewählt", "error");
+    return;
+  }
   
   const enteredPassword = elements.passwordInput ? elements.passwordInput.value : "";
   
+  if (!enteredPassword) {
+    showNotification("Bitte geben Sie ein Passwort ein.", "warning");
+    return;
+  }
+  
+  console.log("Versuche Login für:", currentLoginAttempt.name);
+  
   // Validiere das Passwort
-  if (enteredPassword !== currentUser.password) {
-    console.log("Falsches Passwort eingegeben");
+  if (enteredPassword !== currentLoginAttempt.password) {
     showNotification("Falsches Passwort!", "error");
     return;
   }
   
-  console.log("Passwort korrekt, starte Anmeldung...");
-  
-  // Schließe den Modal SOFORT
-  if (elements.passwordModal) {
-    elements.passwordModal.style.display = "none";
-  }
+  // Schließe den Modal
+  hidePasswordModal();
   
   // Zeige Ladebildschirm
-  console.log("Zeige Loader...");
   showLoader();
   
-  // Kleine Verzögerung, um sicherzustellen, dass der Loader angezeigt wird
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
   try {
-    console.log("Validiere Lehrer...");
     // Überprüfe den Lehrer gegen die Datenbank
-    const validTeacher = validateTeacher(currentUser.code, enteredPassword);
+    const validTeacher = validateTeacher(currentLoginAttempt.code, enteredPassword);
     
     if (!validTeacher) {
       throw new Error("Ungültiger Benutzer");
     }
     
-    console.log("Lehrer validiert, lade Benutzerdaten...");
-    // Lade Benutzerdaten (Themen, Bewertungsraster)
-    const dataLoaded = await initializeUserData();
+    // Setze den aktuellen Benutzer
+    currentUser.name = currentLoginAttempt.name;
+    currentUser.code = currentLoginAttempt.code;
+    currentUser.password = currentLoginAttempt.password;
+    currentUser.permissions = currentLoginAttempt.permissions;
     
-    if (!dataLoaded) {
-      console.warn("Benutzerdaten konnten nicht vollständig geladen werden, fahre trotzdem fort");
-    }
+    console.log("Benutzer gesetzt:", currentUser.name);
     
+    // Lade Benutzerdaten
+    console.log("Lade Benutzerdaten...");
+    await initializeUserData();
+    
+    // Wechsle zur App-Oberfläche
     console.log("Wechsle zur App-Oberfläche...");
+    switchToAppInterface();
     
-    // KRITISCH: Verstecke Loader BEVOR UI gewechselt wird
-    console.log("Verstecke Loader...");
-    hideLoader();
-    
-    // Zusätzliche Sicherheit: Loader manuell ausblenden
-    if (elements.mainLoader) {
-      elements.mainLoader.style.display = "none";
-      console.log("Loader manuell ausgeblendet");
-    }
-    
-    // Kleine Verzögerung für UI-Transition
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Zeige die App-Oberfläche
-    console.log("Verstecke Login-Sektion...");
-    if (elements.loginSection) {
-      elements.loginSection.style.display = "none";
-      console.log("Login-Sektion versteckt");
-    }
-    
-    console.log("Zeige App-Sektion...");
-    if (elements.appSection) {
-      elements.appSection.style.display = "block";
-      console.log("App-Sektion angezeigt");
-    }
-    
-    // Aktualisiere die Benutzeranzeige
-    if (elements.teacherAvatar) {
-      elements.teacherAvatar.textContent = currentUser.code.charAt(0);
-    }
-    if (elements.teacherName) {
-      elements.teacherName.textContent = currentUser.name;
-    }
-    
-    console.log("UI erfolgreich gewechselt");
-    
-    // Trigger ein benutzerdefiniertes Event für den erfolgreichen Login
+    // Trigger Login-Event
     const event = new CustomEvent("userLoggedIn", { 
       detail: { teacher: currentUser } 
     });
     document.dispatchEvent(event);
     
-    console.log("userLoggedIn Event ausgelöst");
-    
     showNotification(`Willkommen, ${currentUser.name}!`);
     
-    console.log("Login erfolgreich abgeschlossen für:", currentUser.name);
+    console.log("Login erfolgreich abgeschlossen");
     
   } catch (error) {
     console.error("Login-Fehler:", error);
@@ -228,24 +297,52 @@ async function performLogin() {
     
     // Setze den aktuellen Benutzer zurück
     resetCurrentUser();
-    
   } finally {
-    console.log("Login-Prozess abgeschlossen, verstecke Loader final...");
-    
-    // WICHTIG: Stelle sicher, dass der Loader in JEDEM Fall ausgeblendet wird
     hideLoader();
-    
-    // Zusätzliche Sicherheit: Loader manuell ausblenden
-    if (elements.mainLoader) {
-      elements.mainLoader.style.display = "none";
-      elements.mainLoader.style.visibility = "hidden";
-      console.log("Loader final und manuell ausgeblendet");
-    }
-    
-    // Entferne alle möglichen Loader-Klassen
-    document.body.classList.remove("loading");
-    
-    console.log("Loader-Cleanup abgeschlossen");
+  }
+}
+
+/**
+ * Wechselt zur App-Oberfläche
+ */
+function switchToAppInterface() {
+  console.log("Wechsle zur App-Oberfläche...");
+  
+  // Login-Bereich ausblenden
+  if (elements.loginSection) {
+    elements.loginSection.style.display = "none";
+    console.log("Login-Bereich ausgeblendet");
+  } else {
+    console.error("loginSection nicht verfügbar für das Ausblenden");
+  }
+  
+  // App-Bereich anzeigen
+  if (elements.appSection) {
+    elements.appSection.style.display = "block";
+    console.log("App-Bereich angezeigt");
+  } else {
+    console.error("appSection nicht verfügbar für das Anzeigen");
+  }
+  
+  // Benutzeranzeige aktualisieren
+  updateUserDisplay();
+  
+  // Sicherstellen, dass der Loader ausgeblendet ist
+  if (elements.mainLoader) {
+    elements.mainLoader.style.display = "none";
+  }
+}
+
+/**
+ * Aktualisiert die Benutzeranzeige in der App
+ */
+function updateUserDisplay() {
+  if (elements.teacherAvatar && currentUser.code) {
+    elements.teacherAvatar.textContent = currentUser.code.charAt(0).toUpperCase();
+  }
+  
+  if (elements.teacherName && currentUser.name) {
+    elements.teacherName.textContent = currentUser.name;
   }
 }
 
@@ -257,40 +354,50 @@ function resetCurrentUser() {
   currentUser.code = null;
   currentUser.password = null;
   currentUser.permissions = {};
-  console.log("Aktueller Benutzer zurückgesetzt");
 }
 
 /**
  * Führt den Logout-Prozess durch
  */
 export function performLogout() {
-  console.log("Logout-Prozess startet...");
+  console.log("Führe Logout durch...");
   
   // Setze den aktuellen Benutzer zurück
   resetCurrentUser();
   
-  // Verstecke Loader (falls er noch sichtbar ist)
-  hideLoader();
-  if (elements.mainLoader) {
-    elements.mainLoader.style.display = "none";
-    elements.mainLoader.style.visibility = "hidden";
-  }
-  
-  // Zeige die Login-Oberfläche
+  // Wechsle zur Login-Oberfläche
   if (elements.loginSection) {
     elements.loginSection.style.display = "block";
-    console.log("Login-Sektion angezeigt");
   }
   
   if (elements.appSection) {
     elements.appSection.style.display = "none";
-    console.log("App-Sektion versteckt");
   }
   
-  // Trigger ein benutzerdefiniertes Event für den Logout
+  // Trigger Logout-Event
   document.dispatchEvent(new Event("userLoggedOut"));
   
   showNotification("Abmeldung erfolgreich.");
   
-  console.log("Logout erfolgreich abgeschlossen");
+  console.log("Logout abgeschlossen");
 }
+
+/**
+ * Event-Listener für Lehrer-Updates
+ */
+document.addEventListener("teachersUpdated", (event) => {
+  console.log("Lehrer wurden aktualisiert, Grid wird neu initialisiert");
+  setupTeacherGrid();
+});
+
+/**
+ * Debug-Funktion für Fehlerbehebung
+ */
+window.debugLoginModule = function() {
+  console.log("=== LOGIN MODULE DEBUG ===");
+  console.log("Elements:", elements);
+  console.log("Current User:", currentUser);
+  console.log("All Teachers:", allTeachers);
+  console.log("Current Login Attempt:", currentLoginAttempt);
+  console.log("========================");
+};
