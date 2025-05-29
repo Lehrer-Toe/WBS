@@ -1,185 +1,188 @@
-// js/main.js
-
-/* ------------------------------------------------------------------ */
-/*  Imports                                                           */
-/* ------------------------------------------------------------------ */
-import { initDatabase, checkDatabaseHealth } from "./firebaseClient.js";
+// js/main.js - Korrigierte nicht-blockierende Version
+import { 
+  initDatabase, 
+  ensureCollections, 
+  ensureDefaultAssessmentTemplate, 
+  checkDatabaseHealth
+} from "./firebaseClient.js";
 import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
-import { loadAssessmentTemplates } from "./assessmentService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
-
 import { initLoginModule, performLogout } from "./modules/loginModule.js";
 import { initAdminModule } from "./modules/adminModule.js";
 import { initThemeModule } from "./modules/themeModule.js";
+import { loadAssessmentTemplates } from "./assessmentService.js";
 
-import {
-  initNewLoginModule as initEnhancedLogin,
-  performEnhancedLogout
-} from "./modules/newLoginModule.js";
-import { initNewAdminModule as initEnhancedAdmin } from "./modules/newAdminModule.js";
+// DOM-Elemente
+let logoutBtn = null;
 
-/* ------------------------------------------------------------------ */
-/*  Globale Konfiguration                                             */
-/* ------------------------------------------------------------------ */
-const appConfig = {
-  useEnhancedFeatures: true,
-  debugMode: false
-};
-
-let logoutBtn = null; // wird später ersetzt
-
-/* ------------------------------------------------------------------ */
-/*  DOM-Start                                                         */
-/* ------------------------------------------------------------------ */
-document.addEventListener("DOMContentLoaded", async () => {
+// Start - KORRIGIERTE VERSION
+document.addEventListener("DOMContentLoaded", async function() {
+  console.log("WBS Bewertungssystem wird initialisiert...");
+  
+  // Zeige Loader sofort
   showLoader();
+  
   try {
-    /* ---------- Firebase ---------- */
-    console.log("Initialisiere Firebase …");
-    const ok = await initDatabase();
-    if (!ok) throw new Error("Datenbank konnte nicht initialisiert werden");
-
-    /* ---------- Basisdaten ---------- */
-    await loadAllTeachers().catch(() =>
-      console.warn("Lehrer konnten nicht geladen werden"));
-    await loadSystemSettings().catch(() =>
-      console.warn("System-Einstellungen konnten nicht geladen werden"));
-    await loadAssessmentTemplates().catch(() =>
-      console.warn("Bewertungsraster konnten nicht geladen werden"));
-
-    /* ---------- Module ---------- */
-    await initializeModules();
-
-    /* ---------- Event-Listener ---------- */
+    console.log("=== INITIALISIERUNG GESTARTET ===");
+    
+    // 1. Firebase initialisieren (sollte jetzt schnell sein)
+    console.log("1. Initialisiere Firebase...");
+    const dbInitialized = await initDatabase();
+    console.log("1. Firebase initialisiert:", dbInitialized);
+    
+    if (!dbInitialized) {
+      console.warn("Firebase konnte nicht initialisiert werden, fahre im Offline-Modus fort");
+    }
+    
+    // 2. Grundlegende Strukturen sicherstellen (nicht-blockierend)
+    console.log("2. Stelle Collections sicher (nicht-blockierend)...");
+    ensureCollections().catch(error => {
+      console.warn("Collections konnten nicht sichergestellt werden:", error);
+    });
+    
+    // 3. Lehrer laden (essentiell für Login)
+    console.log("3. Lade Lehrer-Daten...");
+    const teachersLoaded = await loadAllTeachers();
+    console.log("3. Lehrer geladen:", teachersLoaded);
+    
+    // 4. Login-Modul sofort initialisieren (kritisch für UI)
+    console.log("4. Initialisiere Login-Modul...");
+    initLoginModule();
+    console.log("4. Login-Modul initialisiert");
+    
+    // 5. Admin-Modul initialisieren
+    console.log("5. Initialisiere Admin-Modul...");
+    initAdminModule();
+    console.log("5. Admin-Modul initialisiert");
+    
+    // 6. Event-Listener einrichten (kritisch für UI)
+    console.log("6. Richte Event-Listener ein...");
     setupGlobalEventListeners();
-
-    console.log("Initialisierung abgeschlossen");
-  } catch (err) {
-    console.error("Fehler bei der Initialisierung:", err.message);
-    showNotification("Fehler bei der Initialisierung: " + err.message, "error");
-  } finally {
+    console.log("6. Event-Listener eingerichtet");
+    
+    // VERSTECKE LOADER JETZT - UI ist funktionsfähig
+    console.log("=== UI IST BEREIT - VERSTECKE LOADER ===");
     hideLoader();
+    
+    // Stelle sicher, dass der Loader wirklich weg ist
+    const mainLoader = document.getElementById("mainLoader");
+    if (mainLoader) {
+      mainLoader.style.display = "none";
+      mainLoader.style.visibility = "hidden";
+      console.log("Loader manuell ausgeblendet");
+    }
+    
+    console.log("=== GRUNDINITIALISIERUNG ABGESCHLOSSEN ===");
+    
+    // REST IM HINTERGRUND LADEN (nicht-blockierend)
+    console.log("Lade restliche Komponenten im Hintergrund...");
+    
+    // System-Einstellungen im Hintergrund laden
+    loadSystemSettings().then(() => {
+      console.log("System-Einstellungen im Hintergrund geladen");
+    }).catch(error => {
+      console.warn("System-Einstellungen konnten nicht geladen werden:", error);
+    });
+    
+    // Bewertungsraster im Hintergrund laden
+    loadAssessmentTemplates().then(() => {
+      console.log("Bewertungsraster im Hintergrund geladen");
+    }).catch(error => {
+      console.warn("Bewertungsraster konnten nicht geladen werden:", error);
+    });
+    
+    // Themen-Modul im Hintergrund initialisieren
+    initThemeModule().then(() => {
+      console.log("Themen-Modul im Hintergrund initialisiert");
+    }).catch(error => {
+      console.warn("Themen-Modul konnte nicht initialisiert werden:", error);
+    });
+    
+    console.log("=== HINTERGRUND-INITIALISIERUNG GESTARTET ===");
+    console.log("Benutzer kann sich jetzt anmelden!");
+    
+  } catch (error) {
+    console.error("Kritischer Fehler bei der Initialisierung:", error);
+    
+    // Verstecke Loader auch bei Fehler
+    hideLoader();
+    const mainLoader = document.getElementById("mainLoader");
+    if (mainLoader) {
+      mainLoader.style.display = "none";
+      mainLoader.style.visibility = "hidden";
+    }
+    
+    // Zeige Fehlermeldung
+    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
+    
+    // Versuche trotzdem das Login-Modul zu initialisieren
+    try {
+      console.log("Versuche Notfall-Initialisierung...");
+      initLoginModule();
+      setupGlobalEventListeners();
+      console.log("Notfall-Initialisierung erfolgreich");
+    } catch (fallbackError) {
+      console.error("Auch Notfall-Initialisierung fehlgeschlagen:", fallbackError);
+      
+      // Zeige kritische Fehlermeldung
+      document.body.innerHTML = `
+        <div style="text-align: center; padding: 50px; color: red;">
+          <h1>Kritischer Fehler</h1>
+          <p>Die Anwendung konnte nicht initialisiert werden.</p>
+          <p>Bitte laden Sie die Seite neu oder kontaktieren Sie den Administrator.</p>
+          <button onclick="window.location.reload()" style="padding: 10px 20px; margin-top: 20px;">
+            Seite neu laden
+          </button>
+        </div>
+      `;
+    }
   }
 });
 
-/* ------------------------------------------------------------------ */
-/*  Modul-Initialisierung                                             */
-/* ------------------------------------------------------------------ */
-async function initializeModules() {
-  if (appConfig.useEnhancedFeatures) {
-    try {
-      initEnhancedLogin();
-      initEnhancedAdmin();
-      initAdminModule();
-      await initThemeModule();
-      console.log("Erweiterte Module initialisiert");
-      return;
-    } catch (e) {
-      console.warn("Erweiterte Module fehlgeschlagen:", e.message);
-      appConfig.useEnhancedFeatures = false;
-    }
-  }
-
-  /* Fallback auf Standard-Module */
-  initLoginModule();
-  initAdminModule();
-  await initThemeModule();
-  console.log("Standard-Module initialisiert");
-}
-
-/* ------------------------------------------------------------------ */
-/*  Event-Listener                                                    */
-/* ------------------------------------------------------------------ */
+// Richtet globale Event-Listener ein
 function setupGlobalEventListeners() {
-  /* Logout-Button neu verdrahten */
+  console.log("Richte globale Event-Listener ein...");
+  
+  // Logout-Button
   logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
-    const clone = logoutBtn.cloneNode(true);
-    logoutBtn.parentNode.replaceChild(clone, logoutBtn);
-    logoutBtn = clone;
-
-    const handler = appConfig.useEnhancedFeatures &&
-                    typeof performEnhancedLogout === "function"
-                  ? performEnhancedLogout
-                  : performLogout;
-    logoutBtn.addEventListener("click", handler);
+    logoutBtn.addEventListener("click", performLogout);
+    console.log("Logout-Button Event-Listener hinzugefügt");
+  } else {
+    console.warn("Logout-Button nicht gefunden");
   }
-
-  /* Tab-Navigation */
-  document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+  
+  // Tab-Wechsel
+  const tabs = document.querySelectorAll(".tab");
+  const tabContents = document.querySelectorAll(".tab-content");
+  
+  console.log(`Gefunden: ${tabs.length} Tabs, ${tabContents.length} Tab-Contents`);
+  
+  tabs.forEach(function(tab, index) {
+    tab.addEventListener("click", function() {
+      const tabId = tab.dataset.tab;
+      console.log(`Tab gewechselt zu: ${tabId}`);
+      
+      // Tabs deaktivieren
+      tabs.forEach(function(t) { t.classList.remove("active"); });
+      tabContents.forEach(function(c) { c.classList.remove("active"); });
+      
+      // Ausgewählten Tab aktivieren
       tab.classList.add("active");
-      const pane = document.getElementById(`${tab.dataset.tab}-tab`);
-      if (pane) pane.classList.add("active");
+      const tabContent = document.getElementById(`${tabId}-tab`);
+      if (tabContent) {
+        tabContent.classList.add("active");
+        console.log(`Tab-Content aktiviert: ${tabId}-tab`);
+      } else {
+        console.warn(`Tab-Content nicht gefunden: ${tabId}-tab`);
+      }
+      
+      // Event für Tab-Wechsel auslösen
+      document.dispatchEvent(new CustomEvent("tabChanged", { 
+        detail: { tabId: tabId } 
+      }));
     });
   });
-
-  /* Tastatur-Shortcuts & Sichtbarkeitswechsel nur bei erweiterten Features */
-  if (appConfig.useEnhancedFeatures) addEnhancedListeners();
-}
-
-/* ------------------------------------------------------------------ */
-/*  Erweiterte Listener                                               */
-/* ------------------------------------------------------------------ */
-function addEnhancedListeners() {
-  /* Shortcuts */
-  document.addEventListener("keydown", e => {
-    if (e.ctrlKey && e.key === "F12") {
-      e.preventDefault();
-      toggleAdminDashboard();
-    }
-    if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "l") {
-      e.preventDefault();
-      (typeof performEnhancedLogout === "function" ? performEnhancedLogout : performLogout)();
-    }
-    if (e.key === "Escape") closeAllModals();
-  });
-
-  /* Sichtbarkeit */
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) checkSystemStatus();
-  });
-
-  /* Cleanup & Fehler */
-  window.addEventListener("beforeunload", cleanup);
-  window.addEventListener("error",  ev => console.error("Globaler Fehler:", ev.error));
-  window.addEventListener("unhandledrejection", ev =>
-    console.error("Unbehandelte Promise-Rejection:", ev.reason));
-}
-
-/* ------------------------------------------------------------------ */
-/*  Hilfsfunktionen                                                   */
-/* ------------------------------------------------------------------ */
-function toggleAdminDashboard() {
-  const dash = document.getElementById("systemDashboard");
-  if (dash) dash.style.display = dash.style.display === "block" ? "none" : "block";
-}
-
-function closeAllModals() {
-  document.querySelectorAll(".modal").forEach(m => {
-    if (m.style.display === "flex" || m.style.display === "block") m.style.display = "none";
-  });
-}
-
-async function checkSystemStatus() {
-  if (!appConfig.debugMode) return;
-  const health = await checkDatabaseHealth();
-  console.log("System-Gesundheit:", health);
-}
-
-function cleanup() {
-  if (appConfig.debugMode) console.log("Cleanup vor Seitenwechsel");
-}
-
-/* ------------------------------------------------------------------ */
-/*  Debug-Konsole (optional)                                          */
-/* ------------------------------------------------------------------ */
-if (appConfig.debugMode) {
-  window.WBS_DEBUG = {
-    toggleFeatures: () => { appConfig.useEnhancedFeatures = !appConfig.useEnhancedFeatures; location.reload(); },
-    checkHealth   : checkSystemStatus
-  };
-  console.log("Debug-Modus aktiv (WBS_DEBUG verfügbar)");
+  
+  console.log("Globale Event-Listener erfolgreich eingerichtet");
 }
