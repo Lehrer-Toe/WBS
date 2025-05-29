@@ -29,31 +29,6 @@ export function showLoader() {
 }
 
 /**
- * Zeigt den Ladebildschirm
- */
-export function showLoader() {
-  console.log("showLoader called");
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    console.log("Setting loader to display:flex");
-    mainLoader.style.display = "flex";
-    mainLoader.style.visibility = "visible";
-    mainLoader.style.opacity = "1";
-    mainLoader.style.zIndex = "2000";
-    mainLoader.style.position = "fixed";
-    mainLoader.style.top = "0";
-    mainLoader.style.left = "0";
-    mainLoader.style.width = "100%";
-    mainLoader.style.height = "100%";
-    // Entferne versteckende Klassen
-    mainLoader.classList.remove("hidden");
-    document.body.classList.add("loading");
-  } else {
-    console.error("Loader element not found");
-  }
-}
-
-/**
  * Versteckt den Ladebildschirm - ULTIMATIVE VERSION
  */
 export function hideLoader() {
