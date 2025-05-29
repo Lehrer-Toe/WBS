@@ -63,6 +63,7 @@ document.addEventListener("DOMContentLoaded", async function() {
     // VERSTECKE LOADER JETZT - UI ist funktionsfähig
     console.log("=== UI IST BEREIT - VERSTECKE LOADER ===");
     hideLoader();
+    forceShowAppSections(); // NEU: Erzwingt Sichtbarkeit der App-Bereiche
     
     // Stelle sicher, dass der Loader wirklich weg ist
     const mainLoader = document.getElementById("mainLoader");
