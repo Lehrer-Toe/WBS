@@ -1,4 +1,4 @@
-// js/main.js - KOMPLETTE ARBEITENDE VERSION
+// js/main.js - REPARIERTE VERSION MIT ORDNUNGSGEMÄSSER LOADER-VERWALTUNG
 import { 
   initDatabase, 
   ensureCollections, 
@@ -11,20 +11,21 @@ import { initAdminModule } from "./modules/adminModule.js";
 import { initThemeModule } from "./modules/themeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
 
-// Initialisierung verfolgen
+// Globale Variablen
 let initComplete = false;
+let loaderElement = null;
 
 /**
- * HAUPTINITIALISIERUNG - GARANTIERT FUNKTIONIEREND
+ * HAUPTINITIALISIERUNG - MIT ORDNUNGSGEMÄSSER LOADER-VERWALTUNG
  */
 document.addEventListener("DOMContentLoaded", async function() {
   console.log("🚀 WBS BEWERTUNGSSYSTEM STARTET...");
   
-  // Sofort Loader anzeigen
-  const loader = document.getElementById("mainLoader");
-  if (loader) {
-    loader.style.display = "flex";
-  }
+  // Loader-Element referenzieren
+  loaderElement = document.getElementById("mainLoader");
+  
+  // Loader sofort anzeigen
+  showMainLoader();
   
   try {
     console.log("⏳ Schritt 1: Firebase initialisieren...");
@@ -52,11 +53,9 @@ document.addEventListener("DOMContentLoaded", async function() {
     
     console.log("⏳ Schritt 6: Module initialisieren...");
     
-    // Login-Modul mit Verzögerung
-    setTimeout(() => {
-      initLoginModule();
-      console.log("✅ Login-Modul OK");
-    }, 100);
+    // Login-Modul (E-Mail-basiert)
+    initLoginModule();
+    console.log("✅ E-Mail-Login-Modul OK");
     
     // Admin-Modul
     initAdminModule();
@@ -71,54 +70,94 @@ document.addEventListener("DOMContentLoaded", async function() {
     console.log("✅ Event-Listener OK");
     
     // UI vorbereiten
-    prepareUI();
+    prepareLoginUI();
     
+    // Initialisierung als abgeschlossen markieren
     initComplete = true;
     console.log("🎉 INITIALISIERUNG KOMPLETT ERFOLGREICH!");
     
   } catch (error) {
-    console.error("💥 KRITISCHER FEHLER:", error);
+    console.error("💥 KRITISCHER INITIALISIERUNGSFEHLER:", error);
     showCriticalError(error);
   } finally {
-    // Loader ausblenden
-    if (loader) {
-      loader.style.display = "none";
-    }
-    hideLoader();
-    console.log("🔚 Loader ausgeblendet");
+    // Loader IMMER ausblenden
+    hideMainLoader();
+    console.log("🔚 Hauptloader endgültig ausgeblendet");
   }
 });
 
 /**
- * UI vorbereiten
+ * Zeigt den Hauptloader an
  */
-function prepareUI() {
-  console.log("UI wird vorbereitet...");
+function showMainLoader() {
+  if (loaderElement) {
+    loaderElement.style.display = "flex";
+    loaderElement.style.position = "fixed";
+    loaderElement.style.top = "0";
+    loaderElement.style.left = "0";
+    loaderElement.style.width = "100%";
+    loaderElement.style.height = "100%";
+    loaderElement.style.zIndex = "9999";
+    loaderElement.style.backgroundColor = "rgba(255,255,255,0.9)";
+  }
+  console.log("📍 Hauptloader angezeigt");
+}
+
+/**
+ * Versteckt den Hauptloader GARANTIERT
+ */
+function hideMainLoader() {
+  // Alle möglichen Loader verstecken
+  const allLoaders = [
+    document.getElementById("mainLoader"),
+    ...document.querySelectorAll(".loader-container"),
+    ...document.querySelectorAll(".loader")
+  ];
   
-  // Sicherstellen dass Login-Bereich sichtbar ist
+  allLoaders.forEach(loader => {
+    if (loader) {
+      loader.style.display = "none";
+      loader.style.visibility = "hidden";
+    }
+  });
+  
+  // Zusätzlich über uiService
+  try {
+    hideLoader();
+  } catch (e) {
+    console.warn("hideLoader() Fehler (ignoriert):", e);
+  }
+  
+  console.log("🔒 ALLE Loader ausgeblendet");
+}
+
+/**
+ * Bereitet die Login-UI vor
+ */
+function prepareLoginUI() {
+  console.log("🎨 Bereite Login-UI vor...");
+  
+  // Login-Bereich sichtbar machen
   const loginSection = document.getElementById("loginSection");
-  const appSection = document.getElementById("appSection");
-  
   if (loginSection) {
     loginSection.style.display = "block";
     loginSection.style.visibility = "visible";
   }
   
+  // App-Bereich verstecken
+  const appSection = document.getElementById("appSection");
   if (appSection) {
     appSection.style.display = "none";
   }
   
   // Alle Loader verstecken
-  const allLoaders = document.querySelectorAll(".loader-container, #mainLoader");
-  allLoaders.forEach(loader => {
-    loader.style.display = "none";
-  });
+  hideMainLoader();
   
-  console.log("✅ UI vorbereitet");
+  console.log("✅ Login-UI vorbereitet");
 }
 
 /**
- * Globale Event-Listener
+ * Setup globale Event-Listener
  */
 function setupGlobalEvents() {
   // Logout-Button
@@ -143,21 +182,26 @@ function setupGlobalEvents() {
         content.classList.add("active");
       }
       
-      console.log("Tab gewechselt:", tabId);
+      console.log("📑 Tab gewechselt:", tabId);
     });
+  });
+  
+  // Login-Erfolg Event
+  document.addEventListener("userLoggedIn", () => {
+    console.log("👤 Benutzer erfolgreich angemeldet - verstecke alle Loader");
+    hideMainLoader();
   });
   
   // Globale Fehlerbehandlung
   window.addEventListener('error', (e) => {
-    console.error('Global Error:', e.error);
+    console.error('🚨 Global Error:', e.error);
     if (!initComplete) {
       showCriticalError(e.error);
     }
   });
   
-  // Promise Rejections
   window.addEventListener('unhandledrejection', (e) => {
-    console.error('Unhandled Promise:', e.reason);
+    console.error('🚨 Unhandled Promise:', e.reason);
     if (!initComplete) {
       showCriticalError(e.reason);
     }
@@ -165,12 +209,11 @@ function setupGlobalEvents() {
 }
 
 /**
- * Kritischen Fehler anzeigen
+ * Zeigt kritischen Fehler an
  */
 function showCriticalError(error) {
   // Loader verstecken
-  const loader = document.getElementById("mainLoader");
-  if (loader) loader.style.display = "none";
+  hideMainLoader();
   
   // Fehler-Dialog erstellen
   const errorDiv = document.createElement("div");
@@ -181,68 +224,89 @@ function showCriticalError(error) {
     transform: translate(-50%, -50%);
     background: white;
     border: 3px solid #e74c3c;
-    border-radius: 10px;
-    padding: 20px;
+    border-radius: 15px;
+    padding: 30px;
     max-width: 500px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     z-index: 999999;
     font-family: Arial, sans-serif;
+    text-align: center;
   `;
   
   errorDiv.innerHTML = `
     <h2 style="color: #e74c3c; margin-top: 0;">🚨 Anwendungsfehler</h2>
-    <p><strong>Die Anwendung konnte nicht geladen werden.</strong></p>
-    <p>Fehler: ${error.message || error}</p>
-    <div style="margin-top: 15px;">
+    <p style="margin: 15px 0;"><strong>Die Anwendung konnte nicht vollständig geladen werden.</strong></p>
+    <p style="margin: 15px 0; color: #666;">Fehler: ${error.message || error}</p>
+    <div style="margin-top: 25px;">
       <button onclick="location.reload()" style="
         background: #3498db;
         color: white;
         border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
+        padding: 12px 24px;
+        border-radius: 8px;
         cursor: pointer;
         margin-right: 10px;
-      ">🔄 Neu laden</button>
-      <button onclick="console.log('Error Details:', arguments[0])" style="
+        font-size: 14px;
+        font-weight: 600;
+      ">🔄 Seite neu laden</button>
+      <button onclick="console.log('Fehlerdetails:', arguments[0])" style="
         background: #95a5a6;
         color: white;
         border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
+        padding: 12px 24px;
+        border-radius: 8px;
         cursor: pointer;
-      ">🔧 Debug</button>
+        font-size: 14px;
+        font-weight: 600;
+      ">🔧 Debug-Info</button>
+    </div>
+    <div style="margin-top: 15px; font-size: 12px; color: #999;">
+      Automatischer Neustart in <span id="countdown">10</span> Sekunden...
     </div>
   `;
   
   document.body.appendChild(errorDiv);
   
-  // Nach 10 Sekunden automatisch neu laden
-  setTimeout(() => {
-    location.reload();
-  }, 10000);
+  // Countdown für automatischen Neustart
+  let countdown = 10;
+  const countdownElement = errorDiv.querySelector('#countdown');
+  const countdownInterval = setInterval(() => {
+    countdown--;
+    if (countdownElement) countdownElement.textContent = countdown;
+    if (countdown <= 0) {
+      clearInterval(countdownInterval);
+      location.reload();
+    }
+  }, 1000);
 }
 
-// Debug-Funktionen für Fehlerbehebung
+// Debug-Funktionen
 window.debugApp = function() {
-  console.log("=== APP DEBUG INFO ===");
+  console.log("=== 🔧 APP DEBUG INFO ===");
   console.log("Init Complete:", initComplete);
-  console.log("Login Section:", document.getElementById("loginSection"));
-  console.log("App Section:", document.getElementById("appSection"));
-  console.log("Teacher Grid:", document.getElementById("teacherGrid"));
-  console.log("Password Modal:", document.getElementById("passwordModal"));
-  console.log("Main Loader:", document.getElementById("mainLoader"));
-  console.log("Current User:", window.currentUser);
-  console.log("All Teachers:", window.allTeachers);
-  console.log("====================");
+  console.log("Login Section:", !!document.getElementById("loginSection"));
+  console.log("App Section:", !!document.getElementById("appSection"));
+  console.log("Main Loader:", !!document.getElementById("mainLoader"));
+  console.log("Email Login Form:", !!document.getElementById("emailLoginForm"));
+  console.log("Current User:", window.currentUser || "Nicht verfügbar");
+  console.log("All Teachers:", window.allTeachers ? window.allTeachers.length : "Nicht verfügbar");
+  console.log("========================");
 };
 
-// Für den Fall dass Module nicht laden
+// Notfall-Loader-Versteckung nach dem Laden
 window.addEventListener('load', () => {
+  // Nach 2 Sekunden alle Loader verstecken
+  setTimeout(() => {
+    hideMainLoader();
+    console.log("🔧 Notfall-Loader-Versteckung ausgeführt");
+  }, 2000);
+  
+  // Warnung bei unvollständiger Initialisierung
   if (!initComplete) {
-    console.warn("Initialisierung nicht abgeschlossen nach Load-Event");
     setTimeout(() => {
       if (!initComplete) {
-        showCriticalError(new Error("Initialisierung Timeout"));
+        console.warn("⚠️ Initialisierung noch nicht abgeschlossen nach Load-Event");
+        showCriticalError(new Error("Initialisierung Timeout - Seite wird neu geladen"));
       }
     }, 5000);
   }
