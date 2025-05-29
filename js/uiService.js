@@ -13,27 +13,55 @@ export function showLoader() {
     console.log("Setting loader to display:flex");
     mainLoader.style.display = "flex";
     mainLoader.style.visibility = "visible";
-    // Zusätzliche Sicherheit
     mainLoader.style.opacity = "1";
     mainLoader.style.zIndex = "2000";
+    mainLoader.style.position = "fixed";
+    mainLoader.style.top = "0";
+    mainLoader.style.left = "0";
+    mainLoader.style.width = "100%";
+    mainLoader.style.height = "100%";
+    // Entferne versteckende Klassen
+    mainLoader.classList.remove("hidden");
+    document.body.classList.add("loading");
   } else {
     console.error("Loader element not found");
   }
 }
 
 /**
- * Versteckt den Ladebildschirm
+ * Versteckt den Ladebildschirm - ROBUSTE VERSION
  */
 export function hideLoader() {
   console.log("hideLoader called");
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
     console.log("Setting loader to display:none");
-    mainLoader.style.display = "none";
-    mainLoader.style.visibility = "hidden";
-    // Zusätzliche Sicherheit
-    mainLoader.style.opacity = "0";
-    mainLoader.style.zIndex = "-1";
+    
+    // ALLE möglichen CSS-Eigenschaften setzen, die den Loader verstecken
+    mainLoader.style.display = "none !important";
+    mainLoader.style.visibility = "hidden !important";
+    mainLoader.style.opacity = "0 !important";
+    mainLoader.style.zIndex = "-9999 !important";
+    mainLoader.style.transform = "scale(0)";
+    mainLoader.style.height = "0px";
+    mainLoader.style.width = "0px";
+    mainLoader.style.overflow = "hidden";
+    
+    // CSS-Klassen hinzufügen/entfernen
+    mainLoader.classList.add("hidden");
+    mainLoader.classList.add("d-none");
+    document.body.classList.remove("loading");
+    
+    // Als letzte Maßnahme: Element komplett entfernen nach kurzer Verzögerung
+    setTimeout(() => {
+      if (mainLoader && mainLoader.parentNode) {
+        mainLoader.style.display = "none";
+        mainLoader.remove();
+        console.log("Loader element komplett entfernt");
+      }
+    }, 500);
+    
+    console.log("Loader mit allen Methoden versteckt");
   } else {
     console.error("Loader element not found");
   }
