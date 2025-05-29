@@ -7,18 +7,17 @@ import { assessmentTemplates } from "./assessmentService.js";
  * Zeigt den Ladebildschirm
  */
 export function showLoader() {
-  try {
-    const mainLoader = document.getElementById("mainLoader");
-    if (mainLoader) {
-      mainLoader.style.display = "flex";
-      
-      // Force-Reflow um sicherzustellen, dass der Loader angezeigt wird
-      void mainLoader.offsetHeight;
-    } else {
-      console.error("Loader-Element nicht gefunden");
-    }
-  } catch (error) {
-    console.error("Fehler beim Anzeigen des Loaders:", error);
+  console.log("showLoader called");
+  const mainLoader = document.getElementById("mainLoader");
+  if (mainLoader) {
+    console.log("Setting loader to display:flex");
+    mainLoader.style.display = "flex";
+    mainLoader.style.visibility = "visible";
+    // Zusätzliche Sicherheit
+    mainLoader.style.opacity = "1";
+    mainLoader.style.zIndex = "2000";
+  } else {
+    console.error("Loader element not found");
   }
 }
 
@@ -26,18 +25,17 @@ export function showLoader() {
  * Versteckt den Ladebildschirm
  */
 export function hideLoader() {
-  try {
-    const mainLoader = document.getElementById("mainLoader");
-    if (mainLoader) {
-      mainLoader.style.display = "none";
-      
-      // Force-Reflow um sicherzustellen, dass der Loader ausgeblendet wird
-      void mainLoader.offsetHeight;
-    } else {
-      console.error("Loader-Element nicht gefunden");
-    }
-  } catch (error) {
-    console.error("Fehler beim Ausblenden des Loaders:", error);
+  console.log("hideLoader called");
+  const mainLoader = document.getElementById("mainLoader");
+  if (mainLoader) {
+    console.log("Setting loader to display:none");
+    mainLoader.style.display = "none";
+    mainLoader.style.visibility = "hidden";
+    // Zusätzliche Sicherheit
+    mainLoader.style.opacity = "0";
+    mainLoader.style.zIndex = "-1";
+  } else {
+    console.error("Loader element not found");
   }
 }
 
