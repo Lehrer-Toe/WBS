@@ -1,4 +1,4 @@
-// js/main.js - Robuste Version mit besserer Fehlerbehandlung
+// js/main.js - REPARIERTE VERSION
 import { 
   initDatabase, 
   ensureCollections, 
@@ -14,286 +14,214 @@ import { loadAssessmentTemplates } from "./assessmentService.js";
 
 // DOM-Elemente
 let logoutBtn = null;
-let initializationTimeout = null;
-
-// Maximale Zeit für die Initialisierung (30 Sekunden)
-const INIT_TIMEOUT = 30000;
+let initializationComplete = false;
 
 // Start
 document.addEventListener("DOMContentLoaded", async function() {
   console.log("WBS Bewertungssystem wird initialisiert...");
   
-  // Stelle sicher, dass alle Sections initial versteckt sind (außer Login)
-  ensureCorrectVisibility();
-  
-  // Loader anzeigen
-  showLoader();
-  
-  // Timeout für die Initialisierung setzen
-  initializationTimeout = setTimeout(() => {
-    console.error("Initialisierung dauert zu lange!");
-    handleInitializationError(new Error("Initialisierung Timeout - Bitte laden Sie die Seite neu"));
-  }, INIT_TIMEOUT);
+  // Loader sofort anzeigen
+  forceShowLoader();
   
   try {
-    // Initialisierung mit Fehlerbehandlung für jeden Schritt
-    await performInitialization();
+    // Schritt 1: Firebase initialisieren
+    console.log("Schritt 1: Firebase initialisieren...");
+    const dbInitialized = await initDatabase();
     
-    // Timeout löschen, da Initialisierung erfolgreich
-    clearTimeout(initializationTimeout);
+    if (!dbInitialized) {
+      throw new Error("Datenbank konnte nicht initialisiert werden");
+    }
+    console.log("✓ Firebase erfolgreich initialisiert");
     
+    // Schritt 2: Datenbankstruktur prüfen
+    console.log("Schritt 2: Datenbankstruktur prüfen...");
+    await ensureCollections();
+    await ensureDefaultAssessmentTemplate();
+    console.log("✓ Datenbankstruktur ist bereit");
+    
+    // Schritt 3: Lehrer-Daten laden
+    console.log("Schritt 3: Lehrer-Daten laden...");
+    const teachersLoaded = await loadAllTeachers();
+    
+    if (!teachersLoaded) {
+      console.warn("Lehrer konnten nicht geladen werden, verwende Fallback");
+    }
+    console.log("✓ Lehrer-Daten geladen");
+    
+    // Schritt 4: System-Einstellungen laden
+    console.log("Schritt 4: System-Einstellungen laden...");
+    await loadSystemSettings();
+    console.log("✓ System-Einstellungen geladen");
+    
+    // Schritt 5: Bewertungsraster laden
+    console.log("Schritt 5: Bewertungsraster laden...");
+    await loadAssessmentTemplates();
+    console.log("✓ Bewertungsraster geladen");
+    
+    // Schritt 6: Module initialisieren
+    console.log("Schritt 6: Module initialisieren...");
+    
+    // Login-Modul zuerst
+    initLoginModule();
+    console.log("✓ Login-Modul initialisiert");
+    
+    // Admin-Modul
+    initAdminModule();
+    console.log("✓ Admin-Modul initialisiert");
+    
+    // Themen-Modul
+    await initThemeModule();
+    console.log("✓ Themen-Modul initialisiert");
+    
+    // Schritt 7: Event-Listener einrichten
+    console.log("Schritt 7: Event-Listener einrichten...");
+    setupGlobalEventListeners();
+    console.log("✓ Event-Listener eingerichtet");
+    
+    // Schritt 8: Finalisierung
     console.log("Initialisierung erfolgreich abgeschlossen!");
+    initializationComplete = true;
+    
+    // Sicherstellen dass Login-Bereich sichtbar ist
+    ensureLoginSectionVisible();
     
   } catch (error) {
-    console.error("Fehler bei der Initialisierung:", error);
-    handleInitializationError(error);
+    console.error("FEHLER bei der Initialisierung:", error);
+    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
+    
+    // Zeige Fehler-Nachricht im Login-Bereich
+    showInitializationError(error);
+    
   } finally {
-    // Timeout löschen falls noch aktiv
-    if (initializationTimeout) {
-      clearTimeout(initializationTimeout);
-    }
-    
-    // Loader in jedem Fall ausblenden
-    hideLoader();
-    
-    // Sicherstellen, dass die Login-Seite sichtbar ist
-    const loginSection = document.getElementById("loginSection");
-    if (loginSection) {
-      loginSection.style.display = "block";
-    }
+    // Loader immer ausblenden
+    forceHideLoader();
+    console.log("Loader final ausgeblendet");
   }
 });
 
 /**
- * Führt die eigentliche Initialisierung durch
+ * Erzwingt das Anzeigen des Loaders
  */
-async function performInitialization() {
-  // 1. Firebase initialisieren mit Retry
-  console.log("Schritt 1: Firebase initialisieren...");
-  const dbInitialized = await initDatabaseWithRetry();
-  
-  if (!dbInitialized) {
-    throw new Error("Datenbank konnte nicht initialisiert werden. Bitte prüfen Sie Ihre Internetverbindung.");
+function forceShowLoader() {
+  const mainLoader = document.getElementById("mainLoader");
+  if (mainLoader) {
+    mainLoader.style.display = "flex";
+    mainLoader.style.position = "fixed";
+    mainLoader.style.top = "0";
+    mainLoader.style.left = "0";
+    mainLoader.style.width = "100%";
+    mainLoader.style.height = "100%";
+    mainLoader.style.zIndex = "9999";
+    console.log("Loader erzwungen angezeigt");
   }
-  
-  // 2. Grundlegende Sammlungen und Strukturen sicherstellen
-  console.log("Schritt 2: Datenbankstruktur prüfen...");
-  try {
-    await Promise.race([
-      ensureCollections(),
-      timeout(10000, "Collections-Prüfung")
-    ]);
-    
-    await Promise.race([
-      ensureDefaultAssessmentTemplate(),
-      timeout(10000, "Assessment-Template-Prüfung")
-    ]);
-  } catch (error) {
-    console.warn("Warnung bei Datenbankstruktur:", error);
-    // Nicht kritisch, fortfahren
-  }
-  
-  // 3. Lehrer laden (mit Fallback)
-  console.log("Schritt 3: Lehrer-Daten laden...");
-  try {
-    await Promise.race([
-      loadAllTeachers(),
-      timeout(10000, "Lehrer laden")
-    ]);
-  } catch (error) {
-    console.warn("Warnung beim Laden der Lehrer:", error);
-    // Fallback auf Default-Lehrer wird automatisch verwendet
-  }
-  
-  // 4. System-Einstellungen laden (optional)
-  console.log("Schritt 4: System-Einstellungen laden...");
-  try {
-    await Promise.race([
-      loadSystemSettings(),
-      timeout(5000, "System-Einstellungen")
-    ]);
-  } catch (error) {
-    console.warn("Warnung beim Laden der System-Einstellungen:", error);
-    // Nicht kritisch, fortfahren
-  }
-  
-  // 5. Bewertungsraster laden (optional)
-  console.log("Schritt 5: Bewertungsraster laden...");
-  try {
-    await Promise.race([
-      loadAssessmentTemplates(),
-      timeout(5000, "Bewertungsraster")
-    ]);
-  } catch (error) {
-    console.warn("Warnung beim Laden der Bewertungsraster:", error);
-    // Nicht kritisch, fortfahren
-  }
-  
-  // 6. Module initialisieren (diese sollten immer funktionieren)
-  console.log("Schritt 6: Module initialisieren...");
-  
-  // Login-Modul
-  try {
-    initLoginModule();
-  } catch (error) {
-    console.error("Fehler beim Login-Modul:", error);
-    throw new Error("Login-Modul konnte nicht initialisiert werden");
-  }
-  
-  // Admin-Modul
-  try {
-    initAdminModule();
-  } catch (error) {
-    console.warn("Warnung beim Admin-Modul:", error);
-    // Nicht kritisch, fortfahren
-  }
-  
-  // Themen-Modul
-  try {
-    await initThemeModule();
-  } catch (error) {
-    console.warn("Warnung beim Themen-Modul:", error);
-    // Nicht kritisch, fortfahren
-  }
-  
-  // 7. Event-Listener einrichten
-  console.log("Schritt 7: Event-Listener einrichten...");
-  setupGlobalEventListeners();
 }
 
 /**
- * Initialisiert die Datenbank mit Retry-Mechanismus
+ * Erzwingt das Ausblenden des Loaders
  */
-async function initDatabaseWithRetry(retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`Datenbankverbindung Versuch ${i + 1}/${retries}...`);
-      
-      const result = await Promise.race([
-        initDatabase(),
-        timeout(10000, "Datenbankverbindung")
-      ]);
-      
-      if (result) {
-        return true;
-      }
-    } catch (error) {
-      console.warn(`Versuch ${i + 1} fehlgeschlagen:`, error);
-      
-      if (i < retries - 1) {
-        // Warte kurz vor dem nächsten Versuch
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    }
+function forceHideLoader() {
+  const mainLoader = document.getElementById("mainLoader");
+  if (mainLoader) {
+    mainLoader.style.display = "none";
+    console.log("Loader erzwungen ausgeblendet");
   }
   
-  return false;
+  // Zusätzlich die normale hideLoader-Funktion aufrufen
+  try {
+    hideLoader();
+  } catch (error) {
+    console.warn("hideLoader() Fehler (ignoriert):", error);
+  }
 }
 
 /**
- * Timeout-Promise für Race Conditions
+ * Stellt sicher, dass der Login-Bereich sichtbar ist
  */
-function timeout(ms, operation = "Operation") {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new Error(`${operation} Timeout nach ${ms}ms`)), ms);
-  });
-}
-
-/**
- * Behandelt Initialisierungsfehler
- */
-function handleInitializationError(error) {
-  console.error("Initialisierungsfehler:", error);
-  
-  // Loader ausblenden
-  hideLoader();
-  
-  // Login-Section anzeigen
+function ensureLoginSectionVisible() {
   const loginSection = document.getElementById("loginSection");
+  const appSection = document.getElementById("appSection");
+  
   if (loginSection) {
     loginSection.style.display = "block";
+    console.log("Login-Bereich sichtbar gemacht");
   }
   
-  // Benutzerfreundliche Fehlermeldung
-  let message = "Die Anwendung konnte nicht vollständig geladen werden. ";
-  
-  if (error.message.includes("Timeout") || error.message.includes("timeout")) {
-    message += "Die Verbindung ist zu langsam. Bitte laden Sie die Seite neu.";
-  } else if (error.message.includes("Datenbank") || error.message.includes("Firebase")) {
-    message += "Die Datenbank ist nicht erreichbar. Bitte prüfen Sie Ihre Internetverbindung.";
-  } else if (error.message.includes("Login-Modul")) {
-    message += "Ein kritischer Fehler ist aufgetreten. Bitte kontaktieren Sie den Administrator.";
-  } else {
-    message += "Einige Funktionen sind möglicherweise eingeschränkt.";
+  if (appSection) {
+    appSection.style.display = "none";
+    console.log("App-Bereich ausgeblendet");
   }
-  
-  // Warnung anzeigen, aber App nicht blockieren
-  showNotification(message, "warning");
-  
-  // Zeige einen Reload-Button
-  createReloadButton();
 }
 
 /**
- * Erstellt einen Reload-Button bei Fehlern
+ * Zeigt einen Initialisierungsfehler an
  */
-function createReloadButton() {
-  // Prüfe ob bereits ein Reload-Button existiert
-  if (document.getElementById("reloadButton")) return;
+function showInitializationError(error) {
+  const loginSection = document.getElementById("loginSection");
+  if (!loginSection) return;
   
-  const container = document.querySelector(".container");
-  if (!container) return;
-  
-  const reloadDiv = document.createElement("div");
-  reloadDiv.id = "reloadButton";
-  reloadDiv.style.cssText = `
-    text-align: center;
-    padding: 20px;
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 8px;
-    margin: 20px auto;
-    max-width: 500px;
+  // Erstelle Fehler-Nachricht
+  const errorDiv = document.createElement("div");
+  errorDiv.className = "initialization-error";
+  errorDiv.innerHTML = `
+    <div class="error-container">
+      <h3>🚨 Initialisierungsfehler</h3>
+      <p><strong>Die Anwendung konnte nicht vollständig geladen werden.</strong></p>
+      <p>Fehler: ${error.message}</p>
+      <div class="error-actions">
+        <button onclick="location.reload()" class="btn-primary">
+          🔄 Seite neu laden
+        </button>
+        <button onclick="window.debugLoginModule?.()" class="btn-secondary">
+          🔧 Debug-Info
+        </button>
+      </div>
+      <details class="error-details">
+        <summary>Technische Details</summary>
+        <pre>${error.stack || error.toString()}</pre>
+      </details>
+    </div>
   `;
   
-  reloadDiv.innerHTML = `
-    <p style="color: #856404; margin-bottom: 15px;">
-      Die Anwendung konnte nicht vollständig geladen werden.
-    </p>
-    <button onclick="window.location.reload()" style="
-      background-color: #ffc107;
-      color: #212529;
-      border: none;
-      padding: 10px 20px;
+  // Style hinzufügen
+  const style = document.createElement("style");
+  style.textContent = `
+    .initialization-error {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 2px solid #e74c3c;
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      z-index: 10000;
+    }
+    .error-container h3 {
+      color: #e74c3c;
+      margin-top: 0;
+    }
+    .error-actions {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+    }
+    .error-details {
+      margin-top: 15px;
+    }
+    .error-details pre {
+      background: #f8f9fa;
+      padding: 10px;
       border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-    ">
-      Seite neu laden
-    </button>
+      overflow: auto;
+      max-height: 200px;
+      font-size: 12px;
+    }
   `;
   
-  container.insertBefore(reloadDiv, container.firstChild);
-}
-
-/**
- * Stellt sicher, dass die richtigen Sections sichtbar sind
- */
-function ensureCorrectVisibility() {
-  const sections = {
-    login: document.getElementById("loginSection"),
-    adminLogin: document.getElementById("adminLoginSection"),
-    admin: document.getElementById("adminSection"),
-    app: document.getElementById("appSection")
-  };
-  
-  // Alle außer Login verstecken
-  if (sections.adminLogin) sections.adminLogin.style.display = "none";
-  if (sections.admin) sections.admin.style.display = "none";
-  if (sections.app) sections.app.style.display = "none";
-  
-  // Login-Section sichtbar machen
-  if (sections.login) sections.login.style.display = "block";
+  document.head.appendChild(style);
+  document.body.appendChild(errorDiv);
 }
 
 /**
@@ -304,6 +232,7 @@ function setupGlobalEventListeners() {
   logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", performLogout);
+    console.log("Logout-Button Event-Listener hinzugefügt");
   }
   
   // Tab-Wechsel
@@ -323,16 +252,46 @@ function setupGlobalEventListeners() {
       const tabContent = document.getElementById(`${tabId}-tab`);
       if (tabContent) {
         tabContent.classList.add("active");
+        
+        // Event für Tab-Wechsel auslösen
+        document.dispatchEvent(new CustomEvent("tabChanged", { 
+          detail: { tabId } 
+        }));
       }
+      
+      console.log("Tab gewechselt zu:", tabId);
     });
   });
   
-  // Netzwerk-Status überwachen
-  window.addEventListener('online', () => {
-    showNotification('Internetverbindung wiederhergestellt', 'success');
+  console.log(`${tabs.length} Tab Event-Listener hinzugefügt`);
+  
+  // Global Error Handler
+  window.addEventListener('error', function(e) {
+    console.error('Global Error:', e.error);
+    if (!initializationComplete) {
+      showNotification("Ein unerwarteter Fehler ist aufgetreten.", "error");
+    }
   });
   
-  window.addEventListener('offline', () => {
-    showNotification('Keine Internetverbindung', 'warning');
+  // Promise Rejection Handler
+  window.addEventListener('unhandledrejection', function(e) {
+    console.error('Unhandled Promise Rejection:', e.reason);
+    if (!initializationComplete) {
+      showNotification("Ein Datenfehler ist aufgetreten.", "error");
+    }
   });
 }
+
+/**
+ * Debug-Funktion
+ */
+window.debugMainModule = function() {
+  console.log("=== MAIN MODULE DEBUG ===");
+  console.log("Initialization Complete:", initializationComplete);
+  console.log("Login Section:", document.getElementById("loginSection"));
+  console.log("App Section:", document.getElementById("appSection"));
+  console.log("Teacher Grid:", document.getElementById("teacherGrid"));
+  console.log("Main Loader:", document.getElementById("mainLoader"));
+  console.log("Logout Button:", logoutBtn);
+  console.log("========================");
+};
