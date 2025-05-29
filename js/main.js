@@ -1,4 +1,4 @@
-// js/main.js - Korrigierte nicht-blockierende Version
+// js/main.js - With ultimate loader solution and debugging output
 import { 
   initDatabase, 
   ensureCollections, 
@@ -6,7 +6,7 @@ import {
   checkDatabaseHealth
 } from "./firebaseClient.js";
 import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
-import { showLoader, hideLoader, showNotification } from "./uiService.js";
+import { showLoader, hideLoader, showNotification, forceShowAppSections } from "./uiService.js";
 import { initLoginModule, performLogout } from "./modules/loginModule.js";
 import { initAdminModule } from "./modules/adminModule.js";
 import { initThemeModule } from "./modules/themeModule.js";
@@ -15,154 +15,142 @@ import { loadAssessmentTemplates } from "./assessmentService.js";
 // DOM-Elemente
 let logoutBtn = null;
 
-// Start - KORRIGIERTE VERSION
+// Start
 document.addEventListener("DOMContentLoaded", async function() {
-  console.log("WBS Bewertungssystem wird initialisiert...");
-  
-  // Zeige Loader sofort
+  console.log("🚀 WBS Bewertungssystem wird initialisiert...");
   showLoader();
   
   try {
-    console.log("=== INITIALISIERUNG GESTARTET ===");
+    // DEBUGGING: Force loader to be visible initially
+    document.getElementById("mainLoader").style.display = "flex";
+    console.log("🔄 Loader initial sichtbar gemacht");
     
-    // 1. Firebase initialisieren (sollte jetzt schnell sein)
-    console.log("1. Initialisiere Firebase...");
+    // 1. Firebase initialisieren
+    console.log("🔥 Initialisiere Firebase...");
     const dbInitialized = await initDatabase();
-    console.log("1. Firebase initialisiert:", dbInitialized);
+    console.log("🔥 Firebase initialisiert:", dbInitialized);
     
     if (!dbInitialized) {
-      console.warn("Firebase konnte nicht initialisiert werden, fahre im Offline-Modus fort");
+      throw new Error("Datenbank konnte nicht initialisiert werden");
     }
     
-    // 2. Grundlegende Strukturen sicherstellen (nicht-blockierend)
-    console.log("2. Stelle Collections sicher (nicht-blockierend)...");
-    ensureCollections().catch(error => {
-      console.warn("Collections konnten nicht sichergestellt werden:", error);
-    });
+    // 2. Grundlegende Sammlungen und Strukturen sicherstellen
+    console.log("📚 Stelle Collections sicher...");
+    await ensureCollections();
+    console.log("📚 Collections sind bereit");
     
-    // 3. Lehrer laden (essentiell für Login)
-    console.log("3. Lade Lehrer-Daten...");
+    console.log("📋 Stelle Default Assessment Template sicher...");
+    await ensureDefaultAssessmentTemplate();
+    console.log("📋 Default Assessment Template ist bereit");
+    
+    // 3. Lehrer aus Firebase laden
+    console.log("👥 Lade Lehrer-Daten...");
     const teachersLoaded = await loadAllTeachers();
-    console.log("3. Lehrer geladen:", teachersLoaded);
+    console.log("👥 Lehrer geladen:", teachersLoaded);
     
-    // 4. Login-Modul sofort initialisieren (kritisch für UI)
-    console.log("4. Initialisiere Login-Modul...");
+    // 4. System-Einstellungen laden
+    console.log("⚙️ Lade System-Einstellungen...");
+    await loadSystemSettings();
+    console.log("⚙️ System-Einstellungen geladen");
+    
+    // 5. Bewertungsraster laden
+    console.log("📊 Lade Bewertungsraster...");
+    await loadAssessmentTemplates();
+    console.log("📊 Bewertungsraster geladen");
+    
+    // 6. Lehrer-Grid für Anmeldung initialisieren
+    console.log("🔐 Initialisiere Login-Modul...");
     initLoginModule();
-    console.log("4. Login-Modul initialisiert");
+    console.log("🔐 Login-Modul initialisiert");
     
-    // 5. Admin-Modul initialisieren
-    console.log("5. Initialisiere Admin-Modul...");
+    // 7. Admin-Modul initialisieren
+    console.log("👑 Initialisiere Admin-Modul...");
     initAdminModule();
-    console.log("5. Admin-Modul initialisiert");
+    console.log("👑 Admin-Modul initialisiert");
     
-    // 6. Event-Listener einrichten (kritisch für UI)
-    console.log("6. Richte Event-Listener ein...");
+    // 8. Themen-Modul initialisieren
+    console.log("📝 Initialisiere Themen-Modul...");
+    await initThemeModule();
+    console.log("📝 Themen-Modul initialisiert");
+    
+    // 9. Event-Listener einrichten
+    console.log("🎧 Richte Event-Listener ein...");
     setupGlobalEventListeners();
-    console.log("6. Event-Listener eingerichtet");
+    console.log("🎧 Event-Listener eingerichtet");
     
-    // VERSTECKE LOADER JETZT - UI ist funktionsfähig
-    console.log("=== UI IST BEREIT - VERSTECKE LOADER ===");
+    console.log("✅ Initialisierung erfolgreich abgeschlossen!");
+    
+    // ULTIMATE LOADER HIDE SEQUENCE
+    console.log("🚫 Starte Ultimate Loader Hide Sequence...");
     hideLoader();
-    forceShowAppSections(); // NEU: Erzwingt Sichtbarkeit der App-Bereiche
-    
-    // Stelle sicher, dass der Loader wirklich weg ist
-    const mainLoader = document.getElementById("mainLoader");
-    if (mainLoader) {
-      mainLoader.style.display = "none";
-      mainLoader.style.visibility = "hidden";
-      console.log("Loader manuell ausgeblendet");
-    }
-    
-    console.log("=== GRUNDINITIALISIERUNG ABGESCHLOSSEN ===");
-    
-    // REST IM HINTERGRUND LADEN (nicht-blockierend)
-    console.log("Lade restliche Komponenten im Hintergrund...");
-    
-    // System-Einstellungen im Hintergrund laden
-    loadSystemSettings().then(() => {
-      console.log("System-Einstellungen im Hintergrund geladen");
-    }).catch(error => {
-      console.warn("System-Einstellungen konnten nicht geladen werden:", error);
-    });
-    
-    // Bewertungsraster im Hintergrund laden
-    loadAssessmentTemplates().then(() => {
-      console.log("Bewertungsraster im Hintergrund geladen");
-    }).catch(error => {
-      console.warn("Bewertungsraster konnten nicht geladen werden:", error);
-    });
-    
-    // Themen-Modul im Hintergrund initialisieren
-    initThemeModule().then(() => {
-      console.log("Themen-Modul im Hintergrund initialisiert");
-    }).catch(error => {
-      console.warn("Themen-Modul konnte nicht initialisiert werden:", error);
-    });
-    
-    console.log("=== HINTERGRUND-INITIALISIERUNG GESTARTET ===");
-    console.log("Benutzer kann sich jetzt anmelden!");
+    forceShowAppSections();
+    console.log("🚫 Ultimate Loader Hide Sequence abgeschlossen!");
     
   } catch (error) {
-    console.error("Kritischer Fehler bei der Initialisierung:", error);
-    
-    // Verstecke Loader auch bei Fehler
-    hideLoader();
-    const mainLoader = document.getElementById("mainLoader");
-    if (mainLoader) {
-      mainLoader.style.display = "none";
-      mainLoader.style.visibility = "hidden";
-    }
-    
-    // Zeige Fehlermeldung
+    console.error("❌ Fehler bei der Initialisierung:", error);
     showNotification("Fehler bei der Initialisierung: " + error.message, "error");
     
-    // Versuche trotzdem das Login-Modul zu initialisieren
-    try {
-      console.log("Versuche Notfall-Initialisierung...");
-      initLoginModule();
-      setupGlobalEventListeners();
-      console.log("Notfall-Initialisierung erfolgreich");
-    } catch (fallbackError) {
-      console.error("Auch Notfall-Initialisierung fehlgeschlagen:", fallbackError);
+    // ULTIMATE LOADER HIDE - Auch bei Fehlern
+    console.log("🚫 Verstecke Loader nach Fehler...");
+    hideLoader();
+    forceShowAppSections();
+    console.log("🚫 Loader nach Fehler ausgeblendet");
+    
+  } finally {
+    // ULTIMATE LOADER HIDE - Final Fallback
+    console.log("🚫 Final Loader Hide (Finally Block)...");
+    hideLoader();
+    forceShowAppSections();
+    
+    // DEBUGGING: Triple-check with direct DOM manipulation
+    setTimeout(() => {
+      console.log("🔍 Triple-Check: Direkter DOM-Zugriff...");
+      const mainLoader = document.getElementById("mainLoader");
+      if (mainLoader) {
+        mainLoader.style.display = "none";
+        mainLoader.style.visibility = "hidden";
+        mainLoader.style.opacity = "0";
+        mainLoader.style.zIndex = "-9999";
+        console.log("🔍 Triple-Check: Loader direkt manipuliert");
+      }
       
-      // Zeige kritische Fehlermeldung
-      document.body.innerHTML = `
-        <div style="text-align: center; padding: 50px; color: red;">
-          <h1>Kritischer Fehler</h1>
-          <p>Die Anwendung konnte nicht initialisiert werden.</p>
-          <p>Bitte laden Sie die Seite neu oder kontaktieren Sie den Administrator.</p>
-          <button onclick="window.location.reload()" style="padding: 10px 20px; margin-top: 20px;">
-            Seite neu laden
-          </button>
-        </div>
-      `;
-    }
+      // Sicherstelle, dass Login-Bereich sichtbar ist
+      const loginSection = document.getElementById("loginSection");
+      if (loginSection) {
+        loginSection.style.display = "block";
+        loginSection.style.visibility = "visible";
+        loginSection.style.opacity = "1";
+        console.log("🔍 Triple-Check: Login-Bereich sichtbar gemacht");
+      }
+      
+      console.log("🏁 FINALE: App-Initialisierung vollständig abgeschlossen!");
+    }, 100);
   }
 });
 
-// Richtet globale Event-Listener ein
+/**
+ * Richtet globale Event-Listener ein
+ */
 function setupGlobalEventListeners() {
-  console.log("Richte globale Event-Listener ein...");
+  console.log("🎧 Richte globale Event-Listener ein...");
   
   // Logout-Button
   logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", performLogout);
-    console.log("Logout-Button Event-Listener hinzugefügt");
-  } else {
-    console.warn("Logout-Button nicht gefunden");
+    console.log("🎧 Logout-Button Event-Listener hinzugefügt");
   }
   
   // Tab-Wechsel
   const tabs = document.querySelectorAll(".tab");
   const tabContents = document.querySelectorAll(".tab-content");
   
-  console.log(`Gefunden: ${tabs.length} Tabs, ${tabContents.length} Tab-Contents`);
+  console.log(`🎧 Gefundene Tabs: ${tabs.length}, Tab-Contents: ${tabContents.length}`);
   
   tabs.forEach(function(tab, index) {
     tab.addEventListener("click", function() {
       const tabId = tab.dataset.tab;
-      console.log(`Tab gewechselt zu: ${tabId}`);
+      console.log(`🎧 Tab-Wechsel zu: ${tabId}`);
       
       // Tabs deaktivieren
       tabs.forEach(function(t) { t.classList.remove("active"); });
@@ -173,17 +161,127 @@ function setupGlobalEventListeners() {
       const tabContent = document.getElementById(`${tabId}-tab`);
       if (tabContent) {
         tabContent.classList.add("active");
-        console.log(`Tab-Content aktiviert: ${tabId}-tab`);
+        console.log(`🎧 Tab-Content aktiviert: ${tabId}-tab`);
       } else {
-        console.warn(`Tab-Content nicht gefunden: ${tabId}-tab`);
+        console.warn(`🎧 Tab-Content nicht gefunden: ${tabId}-tab`);
       }
       
-      // Event für Tab-Wechsel auslösen
+      // Custom Event für Tab-Wechsel
       document.dispatchEvent(new CustomEvent("tabChanged", { 
-        detail: { tabId: tabId } 
+        detail: { tabId, tabElement: tab } 
       }));
     });
+    
+    console.log(`🎧 Event-Listener für Tab ${index + 1} hinzugefügt: ${tab.dataset.tab}`);
   });
   
-  console.log("Globale Event-Listener erfolgreich eingerichtet");
+  // Globaler Fehler-Handler für unbehandelte Versprechen
+  window.addEventListener('unhandledrejection', function(event) {
+    console.error('🚨 Unbehandeltes Promise-Rejection:', event.reason);
+    showNotification('Ein unerwarteter Fehler ist aufgetreten.', 'error');
+    
+    // Verhindere, dass der Fehler die App zum Absturz bringt
+    event.preventDefault();
+  });
+  
+  // Globaler Fehler-Handler
+  window.addEventListener('error', function(event) {
+    console.error('🚨 Globaler Fehler:', event.error);
+    showNotification('Ein JavaScript-Fehler ist aufgetreten.', 'error');
+  });
+  
+  // Performance-Überwachung (optional)
+  if ('performance' in window) {
+    window.addEventListener('load', function() {
+      setTimeout(() => {
+        const perfData = performance.timing;
+        const loadTime = perfData.loadEventEnd - perfData.navigationStart;
+        console.log(`⚡ App-Ladezeit: ${loadTime}ms`);
+        
+        if (loadTime > 5000) {
+          console.warn(`⚠️ Langsame Ladezeit erkannt: ${loadTime}ms`);
+        }
+      }, 0);
+    });
+  }
+  
+  // Online/Offline Status-Überwachung
+  window.addEventListener('online', function() {
+    console.log('🌐 App ist wieder online');
+    showNotification('Verbindung wiederhergestellt', 'success');
+  });
+  
+  window.addEventListener('offline', function() {
+    console.log('📵 App ist offline');
+    showNotification('Keine Internetverbindung', 'warning');
+  });
+  
+  // Tastatur-Shortcuts (optional)
+  document.addEventListener('keydown', function(event) {
+    // Escape-Taste schließt Modals
+    if (event.key === 'Escape') {
+      const openModals = document.querySelectorAll('.modal[style*="flex"]');
+      openModals.forEach(modal => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Ctrl+Alt+L für Logout (nur wenn eingeloggt)
+    if (event.ctrlKey && event.altKey && event.key === 'l') {
+      const appSection = document.getElementById('appSection');
+      const adminSection = document.getElementById('adminSection');
+      
+      if ((appSection && appSection.style.display !== 'none') || 
+          (adminSection && adminSection.style.display !== 'none')) {
+        event.preventDefault();
+        if (confirm('Möchten Sie sich abmelden?')) {
+          performLogout();
+        }
+      }
+    }
+  });
+  
+  console.log("🎧 Alle globalen Event-Listener erfolgreich eingerichtet");
+}
+
+/**
+ * Debug-Funktionen für Entwicklung
+ */
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  // Debug-Funktionen nur in Entwicklungsumgebung
+  window.debugApp = {
+    showLoader: () => {
+      console.log("🔧 Debug: Zeige Loader");
+      showLoader();
+    },
+    hideLoader: () => {
+      console.log("🔧 Debug: Verstecke Loader");
+      hideLoader();
+      forceShowAppSections();
+    },
+    checkLoaderStatus: () => {
+      const loader = document.getElementById("mainLoader");
+      if (loader) {
+        const styles = window.getComputedStyle(loader);
+        console.log("🔧 Debug: Loader Status:", {
+          display: styles.display,
+          visibility: styles.visibility,
+          opacity: styles.opacity,
+          zIndex: styles.zIndex
+        });
+      } else {
+        console.log("🔧 Debug: Loader-Element nicht gefunden");
+      }
+    },
+    resetApp: () => {
+      console.log("🔧 Debug: App-Reset");
+      window.location.reload();
+    }
+  };
+  
+  console.log("🔧 Debug-Funktionen verfügbar: window.debugApp");
+  console.log("   - debugApp.showLoader()");
+  console.log("   - debugApp.hideLoader()"); 
+  console.log("   - debugApp.checkLoaderStatus()");
+  console.log("   - debugApp.resetApp()");
 }
