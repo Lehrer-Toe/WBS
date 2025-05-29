@@ -118,50 +118,17 @@ export function formatRemainingDays(days) {
   }
 }
 
-/**
- * Initialisiert das Lehrer-Grid für die Anmeldung
- * @param {HTMLElement} teacherGrid - DOM-Element für das Grid
- * @param {Function} showPasswordModalCallback - Callback für Passwortdialog
- * @param {Array} teachersArray - Array mit Lehrer-Objekten (optional)
- */
+// In js/uiService.js - Zeilen 158-193 ersetzen:
 export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachersArray = null) {
-  if (!teacherGrid) return;
-  
-  teacherGrid.innerHTML = "";
-  
-  // Verwende übergebenes Array, globales allTeachers oder Fallback zu DEFAULT_TEACHERS
-  let teachersToShow = teachersArray;
-  
-  if (!teachersToShow && window.allTeachers && window.allTeachers.length > 0) {
-    teachersToShow = window.allTeachers;
+  if (!teacherGrid) {
+    console.error("teacherGrid Element nicht gefunden");
+    return;
   }
   
-  if (!teachersToShow || teachersToShow.length === 0) {
-    teachersToShow = DEFAULT_TEACHERS;
-  }
-    
-  teachersToShow.forEach((teacher) => {
-    const card = document.createElement("div");
-    card.className = "teacher-card";
-    card.dataset.code = teacher.code;
-    card.dataset.name = teacher.name;
-    
-    // Icon für Themen-Erstellung-Berechtigung hinzufügen
-    const hasCreateThemesPermission = teacher.permissions && teacher.permissions.canCreateThemes;
-    const permissionIcon = hasCreateThemesPermission ? 
-      '<span class="permission-badge" title="Kann Themen erstellen">📝</span>' : '';
-    
-    card.innerHTML = `
-      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0e0e0'/%3E%3Ctext x='50' y='60' font-family='Arial' font-size='30' text-anchor='middle' fill='%23666'%3E${teacher.code.charAt(0)}%3C/text%3E%3C/svg%3E" alt="${teacher.name}">
-      <h3>${teacher.name} ${permissionIcon}</h3>
-    `;
-    card.addEventListener("click", () => {
-      showPasswordModalCallback(teacher);
-    });
-    teacherGrid.appendChild(card);
-  });
+  // Diese Funktion wird vom neuen loginModule übernommen
+  // Hier nur ein einfacher Fallback
+  console.log("uiService.initTeacherGrid aufgerufen - wird von loginModule übernommen");
 }
-
 /**
  * Erstellt ein HTML-Element für den Themenstatus
  * @param {string} status - Status des Themas
