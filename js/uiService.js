@@ -29,42 +29,195 @@ export function showLoader() {
 }
 
 /**
- * Versteckt den Ladebildschirm - ROBUSTE VERSION
+ * Zeigt den Ladebildschirm
  */
-export function hideLoader() {
-  console.log("hideLoader called");
+export function showLoader() {
+  console.log("showLoader called");
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
-    console.log("Setting loader to display:none");
-    
-    // ALLE möglichen CSS-Eigenschaften setzen, die den Loader verstecken
-    mainLoader.style.display = "none !important";
-    mainLoader.style.visibility = "hidden !important";
-    mainLoader.style.opacity = "0 !important";
-    mainLoader.style.zIndex = "-9999 !important";
-    mainLoader.style.transform = "scale(0)";
-    mainLoader.style.height = "0px";
-    mainLoader.style.width = "0px";
-    mainLoader.style.overflow = "hidden";
-    
-    // CSS-Klassen hinzufügen/entfernen
-    mainLoader.classList.add("hidden");
-    mainLoader.classList.add("d-none");
-    document.body.classList.remove("loading");
-    
-    // Als letzte Maßnahme: Element komplett entfernen nach kurzer Verzögerung
-    setTimeout(() => {
-      if (mainLoader && mainLoader.parentNode) {
-        mainLoader.style.display = "none";
-        mainLoader.remove();
-        console.log("Loader element komplett entfernt");
-      }
-    }, 500);
-    
-    console.log("Loader mit allen Methoden versteckt");
+    console.log("Setting loader to display:flex");
+    mainLoader.style.display = "flex";
+    mainLoader.style.visibility = "visible";
+    mainLoader.style.opacity = "1";
+    mainLoader.style.zIndex = "2000";
+    mainLoader.style.position = "fixed";
+    mainLoader.style.top = "0";
+    mainLoader.style.left = "0";
+    mainLoader.style.width = "100%";
+    mainLoader.style.height = "100%";
+    // Entferne versteckende Klassen
+    mainLoader.classList.remove("hidden");
+    document.body.classList.add("loading");
   } else {
     console.error("Loader element not found");
   }
+}
+
+/**
+ * Versteckt den Ladebildschirm - ULTIMATIVE VERSION
+ */
+export function hideLoader() {
+  console.log("🔍 ULTIMATE hideLoader called - Starting comprehensive loader removal");
+  
+  // 1. Finde ALLE möglichen Loader-Elemente
+  const loaderElements = [
+    document.getElementById("mainLoader"),
+    document.querySelector(".loader-container"),
+    document.querySelector(".loader"),
+    ...document.querySelectorAll('[class*="loader"]'),
+    ...document.querySelectorAll('[id*="loader"]'),
+    ...document.querySelectorAll('[class*="Loading"]'),
+    ...document.querySelectorAll('[id*="Loading"]')
+  ].filter(el => el !== null);
+  
+  console.log(`🔍 Found ${loaderElements.length} potential loader elements:`, loaderElements);
+  
+  // 2. Verstecke JEDES gefundene Element mit allen möglichen Methoden
+  loaderElements.forEach((loader, index) => {
+    console.log(`🔧 Processing loader element ${index + 1}:`, loader);
+    console.log(`🔧 Element classes:`, loader.className);
+    console.log(`🔧 Element ID:`, loader.id);
+    console.log(`🔧 Current display:`, window.getComputedStyle(loader).display);
+    console.log(`🔧 Current visibility:`, window.getComputedStyle(loader).visibility);
+    console.log(`🔧 Current opacity:`, window.getComputedStyle(loader).opacity);
+    console.log(`🔧 Current z-index:`, window.getComputedStyle(loader).zIndex);
+    
+    // Setze ALLE möglichen versteckenden CSS-Eigenschaften
+    const hideStyles = {
+      'display': 'none',
+      'visibility': 'hidden',
+      'opacity': '0',
+      'z-index': '-9999',
+      'position': 'absolute',
+      'top': '-9999px',
+      'left': '-9999px',
+      'width': '0px',
+      'height': '0px',
+      'transform': 'scale(0)',
+      'overflow': 'hidden',
+      'pointer-events': 'none'
+    };
+    
+    // Setze jeden Style mit !important
+    Object.entries(hideStyles).forEach(([property, value]) => {
+      loader.style.setProperty(property, value, 'important');
+    });
+    
+    // Füge versteckende CSS-Klassen hinzu
+    loader.classList.add('hidden', 'd-none', 'loader-hidden');
+    
+    // Entferne das Element aus dem Tab-Index
+    loader.setAttribute('tabindex', '-1');
+    loader.setAttribute('aria-hidden', 'true');
+    
+    console.log(`✅ Loader element ${index + 1} styled to hide`);
+  });
+  
+  // 3. Entferne Body-Loading-Klassen
+  document.body.classList.remove('loading');
+  document.documentElement.classList.remove('loading');
+  
+  // 4. Füge globales CSS hinzu, um sicherzustellen, dass alle Loader verschwinden
+  const globalHideStyle = document.createElement('style');
+  globalHideStyle.id = 'ultimate-loader-hide';
+  globalHideStyle.innerHTML = `
+    #mainLoader,
+    .loader-container,
+    .loader,
+    [class*="loader"],
+    [id*="loader"],
+    [class*="Loading"],
+    [id*="Loading"] {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      z-index: -9999 !important;
+      position: absolute !important;
+      top: -9999px !important;
+      left: -9999px !important;
+      width: 0px !important;
+      height: 0px !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+      transform: scale(0) !important;
+    }
+    
+    body.loading {
+      overflow: visible !important;
+    }
+    
+    .hidden,
+    .d-none,
+    .loader-hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+  `;
+  
+  // Entferne vorheriges globales Style falls vorhanden
+  const existingStyle = document.getElementById('ultimate-loader-hide');
+  if (existingStyle) {
+    existingStyle.remove();
+  }
+  
+  document.head.appendChild(globalHideStyle);
+  console.log("🎨 Global hide styles added to head");
+  
+  // 5. Nuclear Option: Entferne alle Loader-Elemente nach kurzer Zeit komplett
+  setTimeout(() => {
+    console.log("💥 NUCLEAR OPTION: Removing all loader elements from DOM");
+    
+    const allLoaders = [
+      ...document.querySelectorAll('#mainLoader'),
+      ...document.querySelectorAll('.loader-container'),
+      ...document.querySelectorAll('.loader'),
+      ...document.querySelectorAll('[class*="loader"]'),
+      ...document.querySelectorAll('[id*="loader"]'),
+      ...document.querySelectorAll('[class*="Loading"]'),
+      ...document.querySelectorAll('[id*="Loading"]')
+    ];
+    
+    allLoaders.forEach((loader, index) => {
+      if (loader && loader.parentNode) {
+        console.log(`💥 Removing loader element ${index + 1} from DOM:`, loader);
+        loader.parentNode.removeChild(loader);
+      }
+    });
+    
+    console.log(`💥 Nuclear option completed - removed ${allLoaders.length} elements`);
+  }, 100);
+  
+  // 6. Double-check: Prüfe nach 1 Sekunde, ob noch Loader sichtbar sind
+  setTimeout(() => {
+    const visibleLoaders = Array.from(document.querySelectorAll('*')).filter(el => {
+      const style = window.getComputedStyle(el);
+      const isVisible = style.display !== 'none' && 
+                       style.visibility !== 'hidden' && 
+                       parseFloat(style.opacity) > 0;
+      const isLoader = el.id?.includes('loader') || 
+                      el.id?.includes('Loading') ||
+                      el.className?.includes('loader') ||
+                      el.className?.includes('Loading');
+      return isVisible && isLoader;
+    });
+    
+    if (visibleLoaders.length > 0) {
+      console.error("🚨 WARNING: Still found visible loader elements:", visibleLoaders);
+      visibleLoaders.forEach(loader => {
+        console.error("🚨 Stubborn loader:", loader);
+        console.error("🚨 Computed style:", window.getComputedStyle(loader));
+        // Force remove these too
+        if (loader.parentNode) {
+          loader.parentNode.removeChild(loader);
+        }
+      });
+    } else {
+      console.log("✅ SUCCESS: All loader elements successfully hidden/removed");
+    }
+  }, 1000);
+  
+  console.log("🏁 Ultimate hideLoader completed");
 }
 
 /**
