@@ -1,288 +1,26 @@
-// js/uiService.js - Ultimate Loader Solution
+// js/uiService.js
 import { DEFAULT_ASSESSMENT_CATEGORIES, DEFAULT_TEACHERS, THEME_STATUS, STUDENT_STATUS } from "./constants.js";
 import { allThemes } from "./themeService.js";
 import { assessmentTemplates } from "./assessmentService.js";
 
 /**
- * ULTIMATE LOADER SOLUTION - Versucht alle möglichen Wege, den Loader zu verstecken
- */
-
-/**
- * Zeigt den Ladebildschirm - Einfache Version
+ * Zeigt den Ladebildschirm
  */
 export function showLoader() {
-  console.log("🔄 showLoader called");
-  
-  // Alle möglichen Loader-Elemente finden
-  const loaders = [
-    document.getElementById("mainLoader"),
-    document.querySelector(".loader-container"),
-    document.querySelector(".loader"),
-    ...document.querySelectorAll('[id*="loader"]'),
-    ...document.querySelectorAll('[class*="loader"]')
-  ].filter(Boolean); // Entferne null/undefined Werte
-  
-  console.log(`🔄 Gefundene Loader-Elemente: ${loaders.length}`);
-  
-  loaders.forEach((loader, index) => {
-    if (loader) {
-      loader.style.display = "flex";
-      loader.style.visibility = "visible";
-      loader.style.opacity = "1";
-      console.log(`🔄 Loader ${index + 1} angezeigt`);
-    }
-  });
+  const mainLoader = document.getElementById("mainLoader");
+  if (mainLoader) {
+    mainLoader.style.display = "flex";
+  }
 }
 
 /**
- * ULTIMATE HIDE LOADER - Nuclear Option mit allen verfügbaren Methoden
+ * Versteckt den Ladebildschirm
  */
 export function hideLoader() {
-  console.log("🚫 ULTIMATE HIDE LOADER STARTING...");
-  
-  // Methode 1: Standard-Loader per ID
   const mainLoader = document.getElementById("mainLoader");
   if (mainLoader) {
-    console.log("🚫 Methode 1: Standard mainLoader gefunden");
     mainLoader.style.display = "none";
-    mainLoader.style.visibility = "hidden";
-    mainLoader.style.opacity = "0";
-    mainLoader.style.zIndex = "-1";
-    mainLoader.classList.add("hidden");
-    console.log("🚫 Methode 1: mainLoader styles gesetzt");
-  } else {
-    console.warn("⚠️ Methode 1: mainLoader nicht gefunden!");
   }
-  
-  // Methode 2: Alle Loader-ähnlichen Elemente finden und verstecken
-  const allLoaders = [
-    ...document.querySelectorAll('.loader-container'),
-    ...document.querySelectorAll('.loader'),
-    ...document.querySelectorAll('[id*="loader"]'),
-    ...document.querySelectorAll('[class*="loader"]'),
-    ...document.querySelectorAll('[id*="Loader"]'),
-    ...document.querySelectorAll('[class*="Loader"]')
-  ];
-  
-  console.log(`🚫 Methode 2: ${allLoaders.length} Loader-Elemente gefunden`);
-  
-  allLoaders.forEach((loader, index) => {
-    if (loader) {
-      loader.style.display = "none !important";
-      loader.style.visibility = "hidden !important";
-      loader.style.opacity = "0 !important";
-      loader.style.zIndex = "-9999 !important";
-      loader.style.position = "absolute !important";
-      loader.style.left = "-9999px !important";
-      loader.classList.add("force-hidden");
-      console.log(`🚫 Methode 2: Loader ${index + 1} versteckt`);
-    }
-  });
-  
-  // Methode 3: CSS-Override direkt in den DOM einfügen
-  console.log("🚫 Methode 3: CSS-Override wird angewendet");
-  injectHideLoaderCSS();
-  
-  // Methode 4: Body-Klassen manipulieren
-  console.log("🚫 Methode 4: Body-Klassen werden manipuliert");
-  document.body.classList.remove("loading");
-  document.body.classList.add("loaded");
-  
-  // Methode 5: Nuclear Option - Loader komplett aus DOM entfernen
-  setTimeout(() => {
-    console.log("🚫 Methode 5: Nuclear Option - DOM-Entfernung");
-    nuclearHideLoader();
-  }, 500);
-  
-  // Methode 6: Double-Check nach 1 Sekunde
-  setTimeout(() => {
-    console.log("🚫 Methode 6: Double-Check wird durchgeführt");
-    doubleCheckLoaderHidden();
-  }, 1000);
-  
-  console.log("🚫 ULTIMATE HIDE LOADER COMPLETED");
-}
-
-/**
- * Injiziert CSS-Regeln direkt in den DOM, um Loader zu verstecken
- */
-function injectHideLoaderCSS() {
-  // Entferne vorhandene Override-Styles
-  const existingStyle = document.getElementById("loader-override-styles");
-  if (existingStyle) {
-    existingStyle.remove();
-  }
-  
-  // Erstelle neue Style-Regeln
-  const style = document.createElement("style");
-  style.id = "loader-override-styles";
-  style.textContent = `
-    /* ULTIMATE LOADER HIDE STYLES */
-    #mainLoader,
-    .loader-container,
-    .loader,
-    [id*="loader"],
-    [class*="loader"],
-    [id*="Loader"],
-    [class*="Loader"] {
-      display: none !important;
-      visibility: hidden !important;
-      opacity: 0 !important;
-      z-index: -9999 !important;
-      position: absolute !important;
-      left: -9999px !important;
-      top: -9999px !important;
-      width: 0 !important;
-      height: 0 !important;
-      overflow: hidden !important;
-    }
-    
-    .force-hidden {
-      display: none !important;
-    }
-    
-    body.loaded #mainLoader {
-      display: none !important;
-    }
-    
-    /* Sichtbarkeit für App-Bereiche sicherstellen */
-    #loginSection,
-    #appSection,
-    #adminSection,
-    #adminLoginSection {
-      display: block;
-    }
-    
-    #loginSection.show,
-    #appSection.show,
-    #adminSection.show,
-    #adminLoginSection.show {
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-    }
-  `;
-  
-  document.head.appendChild(style);
-  console.log("🚫 CSS-Override injiziert");
-}
-
-/**
- * Nuclear Option: Entfernt Loader-Elemente komplett aus dem DOM
- */
-function nuclearHideLoader() {
-  console.log("💥 NUCLEAR OPTION: Beginne DOM-Entfernung");
-  
-  // Alle Loader-Elemente sammeln
-  const elementsToRemove = [
-    document.getElementById("mainLoader"),
-    ...document.querySelectorAll('.loader-container'),
-    ...document.querySelectorAll('.loader'),
-    ...document.querySelectorAll('[id*="loader"]:not(#loginSection):not(#appSection)'),
-    ...document.querySelectorAll('[class*="loader"]:not(.teacher-info):not(.logout-btn)')
-  ].filter(Boolean);
-  
-  console.log(`💥 NUCLEAR: ${elementsToRemove.length} Elemente zur Entfernung markiert`);
-  
-  elementsToRemove.forEach((element, index) => {
-    try {
-      // Sicherheitscheck: Entferne nur Loader-Elemente, nicht wichtige UI-Elemente
-      if (!isImportantUIElement(element)) {
-        element.remove();
-        console.log(`💥 NUCLEAR: Element ${index + 1} entfernt`);
-      } else {
-        console.log(`💥 NUCLEAR: Element ${index + 1} übersprungen (wichtiges UI-Element)`);
-      }
-    } catch (error) {
-      console.warn(`💥 NUCLEAR: Fehler beim Entfernen von Element ${index + 1}:`, error);
-    }
-  });
-  
-  console.log("💥 NUCLEAR OPTION: Abgeschlossen");
-}
-
-/**
- * Prüft, ob ein Element ein wichtiges UI-Element ist (nicht entfernt werden sollte)
- */
-function isImportantUIElement(element) {
-  if (!element) return false;
-  
-  const importantSelectors = [
-    '#loginSection',
-    '#appSection', 
-    '#adminSection',
-    '#adminLoginSection',
-    '.teacher-grid',
-    '.tab',
-    '.modal',
-    'header',
-    'main',
-    'nav'
-  ];
-  
-  return importantSelectors.some(selector => 
-    element.matches && element.matches(selector) ||
-    element.closest && element.closest(selector)
-  );
-}
-
-/**
- * Double-Check: Überprüft, ob der Loader wirklich versteckt ist
- */
-function doubleCheckLoaderHidden() {
-  console.log("🔍 DOUBLE-CHECK: Prüfe Loader-Status");
-  
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    const styles = window.getComputedStyle(mainLoader);
-    const isVisible = styles.display !== "none" && 
-                     styles.visibility !== "hidden" && 
-                     styles.opacity !== "0";
-    
-    console.log("🔍 DOUBLE-CHECK: Loader-Status:", {
-      display: styles.display,
-      visibility: styles.visibility,
-      opacity: styles.opacity,
-      zIndex: styles.zIndex,
-      isVisible: isVisible
-    });
-    
-    if (isVisible) {
-      console.error("🚨 CRITICAL: Loader ist immer noch sichtbar! Wiederhole Nuclear Option...");
-      mainLoader.remove();
-      
-      // Zeige Benachrichtigung an
-      showNotification("Loader-Problem behoben - App sollte jetzt funktionieren", "success");
-    } else {
-      console.log("✅ DOUBLE-CHECK: Loader erfolgreich versteckt");
-    }
-  } else {
-    console.log("✅ DOUBLE-CHECK: Loader-Element existiert nicht mehr");
-  }
-}
-
-/**
- * Erzwingt die Anzeige der App-Bereiche
- */
-export function forceShowAppSections() {
-  console.log("🔧 FORCE SHOW: App-Bereiche werden sichtbar gemacht");
-  
-  const appSections = [
-    document.getElementById("loginSection"),
-    document.getElementById("appSection"),
-    document.getElementById("adminSection"),
-    document.getElementById("adminLoginSection")
-  ].filter(Boolean);
-  
-  appSections.forEach((section, index) => {
-    if (section) {
-      section.style.display = "block";
-      section.style.visibility = "visible";
-      section.style.opacity = "1";
-      section.classList.add("show");
-      console.log(`🔧 FORCE SHOW: Sektion ${index + 1} sichtbar gemacht`);
-    }
-  });
 }
 
 /**
@@ -294,42 +32,11 @@ export function showNotification(message, type = "success") {
   const notification = document.createElement("div");
   notification.className = `notification ${type}`;
   notification.textContent = message;
-  notification.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 15px 20px;
-    border-radius: 8px;
-    color: white;
-    font-weight: 500;
-    z-index: 10000;
-    animation: slideIn 0.3s ease;
-    max-width: 300px;
-    word-wrap: break-word;
-  `;
-  
-  // Farben je nach Typ
-  switch(type) {
-    case "success":
-      notification.style.backgroundColor = "#27ae60";
-      break;
-    case "warning":
-      notification.style.backgroundColor = "#f39c12";
-      break;
-    case "error":
-      notification.style.backgroundColor = "#e74c3c";
-      break;
-    default:
-      notification.style.backgroundColor = "#3498db";
-  }
-  
   document.body.appendChild(notification);
-  
+
   setTimeout(() => {
-    if (notification.parentNode) {
-      notification.remove();
-    }
-  }, 4000);
+    notification.remove();
+  }, 3000);
 }
 
 /**
@@ -420,7 +127,6 @@ export function formatRemainingDays(days) {
 export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachersArray = null) {
   if (!teacherGrid) return;
   
-  console.log("Initialisiere Lehrer-Grid...");
   teacherGrid.innerHTML = "";
   
   // Verwende übergebenes Array, globales allTeachers oder Fallback zu DEFAULT_TEACHERS
@@ -428,15 +134,11 @@ export function initTeacherGrid(teacherGrid, showPasswordModalCallback, teachers
   
   if (!teachersToShow && window.allTeachers && window.allTeachers.length > 0) {
     teachersToShow = window.allTeachers;
-    console.log("Verwende globale allTeachers:", teachersToShow.length);
   }
   
   if (!teachersToShow || teachersToShow.length === 0) {
     teachersToShow = DEFAULT_TEACHERS;
-    console.log("Verwende DEFAULT_TEACHERS als Fallback");
   }
-  
-  console.log("Anzahl Lehrer im Grid:", teachersToShow.length);
     
   teachersToShow.forEach((teacher) => {
     const card = document.createElement("div");
