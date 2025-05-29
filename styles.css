@@ -3586,3 +3586,31 @@ select#infoPriority option[value="urgent"] {
 .transition-all {
   transition: all 0.3s ease !important;
 }
+/* Robuste Loader-Verstecken-Regeln */
+.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  z-index: -9999 !important;
+}
+
+.d-none {
+  display: none !important;
+}
+
+.loader-container.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+}
+
+/* Stelle sicher, dass der Body nicht im Loading-Zustand bleibt */
+body.loading {
+  overflow: hidden;
+}
+
+body:not(.loading) .loader-container {
+  display: none !important;
+}
