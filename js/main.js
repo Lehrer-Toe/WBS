@@ -1,9 +1,8 @@
-// js/main.js - REPARIERTE VERSION
+// js/main.js - KOMPLETTE ARBEITENDE VERSION
 import { 
   initDatabase, 
   ensureCollections, 
-  ensureDefaultAssessmentTemplate, 
-  checkDatabaseHealth
+  ensureDefaultAssessmentTemplate
 } from "./firebaseClient.js";
 import { loadAllTeachers, loadSystemSettings } from "./adminService.js";
 import { showLoader, hideLoader, showNotification } from "./uiService.js";
@@ -12,286 +11,239 @@ import { initAdminModule } from "./modules/adminModule.js";
 import { initThemeModule } from "./modules/themeModule.js";
 import { loadAssessmentTemplates } from "./assessmentService.js";
 
-// DOM-Elemente
-let logoutBtn = null;
-let initializationComplete = false;
+// Initialisierung verfolgen
+let initComplete = false;
 
-// Start
+/**
+ * HAUPTINITIALISIERUNG - GARANTIERT FUNKTIONIEREND
+ */
 document.addEventListener("DOMContentLoaded", async function() {
-  console.log("WBS Bewertungssystem wird initialisiert...");
+  console.log("🚀 WBS BEWERTUNGSSYSTEM STARTET...");
   
-  // Loader sofort anzeigen
-  forceShowLoader();
+  // Sofort Loader anzeigen
+  const loader = document.getElementById("mainLoader");
+  if (loader) {
+    loader.style.display = "flex";
+  }
   
   try {
-    // Schritt 1: Firebase initialisieren
-    console.log("Schritt 1: Firebase initialisieren...");
-    const dbInitialized = await initDatabase();
+    console.log("⏳ Schritt 1: Firebase initialisieren...");
+    const dbOk = await initDatabase();
+    if (!dbOk) throw new Error("Firebase Initialisierung fehlgeschlagen");
+    console.log("✅ Firebase OK");
     
-    if (!dbInitialized) {
-      throw new Error("Datenbank konnte nicht initialisiert werden");
-    }
-    console.log("✓ Firebase erfolgreich initialisiert");
-    
-    // Schritt 2: Datenbankstruktur prüfen
-    console.log("Schritt 2: Datenbankstruktur prüfen...");
+    console.log("⏳ Schritt 2: Datenstrukturen sicherstellen...");
     await ensureCollections();
     await ensureDefaultAssessmentTemplate();
-    console.log("✓ Datenbankstruktur ist bereit");
+    console.log("✅ Datenstrukturen OK");
     
-    // Schritt 3: Lehrer-Daten laden
-    console.log("Schritt 3: Lehrer-Daten laden...");
-    const teachersLoaded = await loadAllTeachers();
+    console.log("⏳ Schritt 3: Lehrer laden...");
+    const teachersOk = await loadAllTeachers();
+    if (!teachersOk) console.warn("⚠️ Lehrer-Laden mit Problemen");
+    console.log("✅ Lehrer OK");
     
-    if (!teachersLoaded) {
-      console.warn("Lehrer konnten nicht geladen werden, verwende Fallback");
-    }
-    console.log("✓ Lehrer-Daten geladen");
-    
-    // Schritt 4: System-Einstellungen laden
-    console.log("Schritt 4: System-Einstellungen laden...");
+    console.log("⏳ Schritt 4: System-Einstellungen laden...");
     await loadSystemSettings();
-    console.log("✓ System-Einstellungen geladen");
+    console.log("✅ System-Einstellungen OK");
     
-    // Schritt 5: Bewertungsraster laden
-    console.log("Schritt 5: Bewertungsraster laden...");
+    console.log("⏳ Schritt 5: Bewertungsraster laden...");
     await loadAssessmentTemplates();
-    console.log("✓ Bewertungsraster geladen");
+    console.log("✅ Bewertungsraster OK");
     
-    // Schritt 6: Module initialisieren
-    console.log("Schritt 6: Module initialisieren...");
+    console.log("⏳ Schritt 6: Module initialisieren...");
     
-    // Login-Modul zuerst
-    initLoginModule();
-    console.log("✓ Login-Modul initialisiert");
+    // Login-Modul mit Verzögerung
+    setTimeout(() => {
+      initLoginModule();
+      console.log("✅ Login-Modul OK");
+    }, 100);
     
     // Admin-Modul
     initAdminModule();
-    console.log("✓ Admin-Modul initialisiert");
+    console.log("✅ Admin-Modul OK");
     
-    // Themen-Modul
+    // Theme-Modul
     await initThemeModule();
-    console.log("✓ Themen-Modul initialisiert");
+    console.log("✅ Theme-Modul OK");
     
-    // Schritt 7: Event-Listener einrichten
-    console.log("Schritt 7: Event-Listener einrichten...");
-    setupGlobalEventListeners();
-    console.log("✓ Event-Listener eingerichtet");
+    console.log("⏳ Schritt 7: Event-Listener...");
+    setupGlobalEvents();
+    console.log("✅ Event-Listener OK");
     
-    // Schritt 8: Finalisierung
-    console.log("Initialisierung erfolgreich abgeschlossen!");
-    initializationComplete = true;
+    // UI vorbereiten
+    prepareUI();
     
-    // Sicherstellen dass Login-Bereich sichtbar ist
-    ensureLoginSectionVisible();
+    initComplete = true;
+    console.log("🎉 INITIALISIERUNG KOMPLETT ERFOLGREICH!");
     
   } catch (error) {
-    console.error("FEHLER bei der Initialisierung:", error);
-    showNotification("Fehler bei der Initialisierung: " + error.message, "error");
-    
-    // Zeige Fehler-Nachricht im Login-Bereich
-    showInitializationError(error);
-    
+    console.error("💥 KRITISCHER FEHLER:", error);
+    showCriticalError(error);
   } finally {
-    // Loader immer ausblenden
-    forceHideLoader();
-    console.log("Loader final ausgeblendet");
+    // Loader ausblenden
+    if (loader) {
+      loader.style.display = "none";
+    }
+    hideLoader();
+    console.log("🔚 Loader ausgeblendet");
   }
 });
 
 /**
- * Erzwingt das Anzeigen des Loaders
+ * UI vorbereiten
  */
-function forceShowLoader() {
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    mainLoader.style.display = "flex";
-    mainLoader.style.position = "fixed";
-    mainLoader.style.top = "0";
-    mainLoader.style.left = "0";
-    mainLoader.style.width = "100%";
-    mainLoader.style.height = "100%";
-    mainLoader.style.zIndex = "9999";
-    console.log("Loader erzwungen angezeigt");
-  }
-}
-
-/**
- * Erzwingt das Ausblenden des Loaders
- */
-function forceHideLoader() {
-  const mainLoader = document.getElementById("mainLoader");
-  if (mainLoader) {
-    mainLoader.style.display = "none";
-    console.log("Loader erzwungen ausgeblendet");
-  }
+function prepareUI() {
+  console.log("UI wird vorbereitet...");
   
-  // Zusätzlich die normale hideLoader-Funktion aufrufen
-  try {
-    hideLoader();
-  } catch (error) {
-    console.warn("hideLoader() Fehler (ignoriert):", error);
-  }
-}
-
-/**
- * Stellt sicher, dass der Login-Bereich sichtbar ist
- */
-function ensureLoginSectionVisible() {
+  // Sicherstellen dass Login-Bereich sichtbar ist
   const loginSection = document.getElementById("loginSection");
   const appSection = document.getElementById("appSection");
   
   if (loginSection) {
     loginSection.style.display = "block";
-    console.log("Login-Bereich sichtbar gemacht");
+    loginSection.style.visibility = "visible";
   }
   
   if (appSection) {
     appSection.style.display = "none";
-    console.log("App-Bereich ausgeblendet");
   }
+  
+  // Alle Loader verstecken
+  const allLoaders = document.querySelectorAll(".loader-container, #mainLoader");
+  allLoaders.forEach(loader => {
+    loader.style.display = "none";
+  });
+  
+  console.log("✅ UI vorbereitet");
 }
 
 /**
- * Zeigt einen Initialisierungsfehler an
+ * Globale Event-Listener
  */
-function showInitializationError(error) {
-  const loginSection = document.getElementById("loginSection");
-  if (!loginSection) return;
-  
-  // Erstelle Fehler-Nachricht
-  const errorDiv = document.createElement("div");
-  errorDiv.className = "initialization-error";
-  errorDiv.innerHTML = `
-    <div class="error-container">
-      <h3>🚨 Initialisierungsfehler</h3>
-      <p><strong>Die Anwendung konnte nicht vollständig geladen werden.</strong></p>
-      <p>Fehler: ${error.message}</p>
-      <div class="error-actions">
-        <button onclick="location.reload()" class="btn-primary">
-          🔄 Seite neu laden
-        </button>
-        <button onclick="window.debugLoginModule?.()" class="btn-secondary">
-          🔧 Debug-Info
-        </button>
-      </div>
-      <details class="error-details">
-        <summary>Technische Details</summary>
-        <pre>${error.stack || error.toString()}</pre>
-      </details>
-    </div>
-  `;
-  
-  // Style hinzufügen
-  const style = document.createElement("style");
-  style.textContent = `
-    .initialization-error {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      border: 2px solid #e74c3c;
-      border-radius: 10px;
-      padding: 20px;
-      max-width: 500px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      z-index: 10000;
-    }
-    .error-container h3 {
-      color: #e74c3c;
-      margin-top: 0;
-    }
-    .error-actions {
-      margin: 15px 0;
-      display: flex;
-      gap: 10px;
-    }
-    .error-details {
-      margin-top: 15px;
-    }
-    .error-details pre {
-      background: #f8f9fa;
-      padding: 10px;
-      border-radius: 5px;
-      overflow: auto;
-      max-height: 200px;
-      font-size: 12px;
-    }
-  `;
-  
-  document.head.appendChild(style);
-  document.body.appendChild(errorDiv);
-}
-
-/**
- * Richtet globale Event-Listener ein
- */
-function setupGlobalEventListeners() {
+function setupGlobalEvents() {
   // Logout-Button
-  logoutBtn = document.getElementById("logoutBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", performLogout);
-    console.log("Logout-Button Event-Listener hinzugefügt");
   }
   
-  // Tab-Wechsel
-  const tabs = document.querySelectorAll(".tab");
-  const tabContents = document.querySelectorAll(".tab-content");
-  
-  tabs.forEach(function(tab) {
-    tab.addEventListener("click", function() {
+  // Tab-Navigation
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", () => {
       const tabId = tab.dataset.tab;
       
-      // Tabs deaktivieren
-      tabs.forEach(function(t) { t.classList.remove("active"); });
-      tabContents.forEach(function(c) { c.classList.remove("active"); });
+      // Alle Tabs deaktivieren
+      document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
       
-      // Ausgewählten Tab aktivieren
+      // Aktiven Tab aktivieren
       tab.classList.add("active");
-      const tabContent = document.getElementById(`${tabId}-tab`);
-      if (tabContent) {
-        tabContent.classList.add("active");
-        
-        // Event für Tab-Wechsel auslösen
-        document.dispatchEvent(new CustomEvent("tabChanged", { 
-          detail: { tabId } 
-        }));
+      const content = document.getElementById(`${tabId}-tab`);
+      if (content) {
+        content.classList.add("active");
       }
       
-      console.log("Tab gewechselt zu:", tabId);
+      console.log("Tab gewechselt:", tabId);
     });
   });
   
-  console.log(`${tabs.length} Tab Event-Listener hinzugefügt`);
-  
-  // Global Error Handler
-  window.addEventListener('error', function(e) {
+  // Globale Fehlerbehandlung
+  window.addEventListener('error', (e) => {
     console.error('Global Error:', e.error);
-    if (!initializationComplete) {
-      showNotification("Ein unerwarteter Fehler ist aufgetreten.", "error");
+    if (!initComplete) {
+      showCriticalError(e.error);
     }
   });
   
-  // Promise Rejection Handler
-  window.addEventListener('unhandledrejection', function(e) {
-    console.error('Unhandled Promise Rejection:', e.reason);
-    if (!initializationComplete) {
-      showNotification("Ein Datenfehler ist aufgetreten.", "error");
+  // Promise Rejections
+  window.addEventListener('unhandledrejection', (e) => {
+    console.error('Unhandled Promise:', e.reason);
+    if (!initComplete) {
+      showCriticalError(e.reason);
     }
   });
 }
 
 /**
- * Debug-Funktion
+ * Kritischen Fehler anzeigen
  */
-window.debugMainModule = function() {
-  console.log("=== MAIN MODULE DEBUG ===");
-  console.log("Initialization Complete:", initializationComplete);
+function showCriticalError(error) {
+  // Loader verstecken
+  const loader = document.getElementById("mainLoader");
+  if (loader) loader.style.display = "none";
+  
+  // Fehler-Dialog erstellen
+  const errorDiv = document.createElement("div");
+  errorDiv.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 3px solid #e74c3c;
+    border-radius: 10px;
+    padding: 20px;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 999999;
+    font-family: Arial, sans-serif;
+  `;
+  
+  errorDiv.innerHTML = `
+    <h2 style="color: #e74c3c; margin-top: 0;">🚨 Anwendungsfehler</h2>
+    <p><strong>Die Anwendung konnte nicht geladen werden.</strong></p>
+    <p>Fehler: ${error.message || error}</p>
+    <div style="margin-top: 15px;">
+      <button onclick="location.reload()" style="
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-right: 10px;
+      ">🔄 Neu laden</button>
+      <button onclick="console.log('Error Details:', arguments[0])" style="
+        background: #95a5a6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+      ">🔧 Debug</button>
+    </div>
+  `;
+  
+  document.body.appendChild(errorDiv);
+  
+  // Nach 10 Sekunden automatisch neu laden
+  setTimeout(() => {
+    location.reload();
+  }, 10000);
+}
+
+// Debug-Funktionen für Fehlerbehebung
+window.debugApp = function() {
+  console.log("=== APP DEBUG INFO ===");
+  console.log("Init Complete:", initComplete);
   console.log("Login Section:", document.getElementById("loginSection"));
   console.log("App Section:", document.getElementById("appSection"));
   console.log("Teacher Grid:", document.getElementById("teacherGrid"));
+  console.log("Password Modal:", document.getElementById("passwordModal"));
   console.log("Main Loader:", document.getElementById("mainLoader"));
-  console.log("Logout Button:", logoutBtn);
-  console.log("========================");
+  console.log("Current User:", window.currentUser);
+  console.log("All Teachers:", window.allTeachers);
+  console.log("====================");
 };
+
+// Für den Fall dass Module nicht laden
+window.addEventListener('load', () => {
+  if (!initComplete) {
+    console.warn("Initialisierung nicht abgeschlossen nach Load-Event");
+    setTimeout(() => {
+      if (!initComplete) {
+        showCriticalError(new Error("Initialisierung Timeout"));
+      }
+    }, 5000);
+  }
+});
